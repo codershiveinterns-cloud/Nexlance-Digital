@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Templates — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .page-hero {
+            padding: 140px 0 60px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%);
+            text-align: center;
+            position: relative; overflow: hidden;
+        }
+        .page-hero::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(79,70,229,0.07); top:-150px; right:-150px; }
+        .page-hero::after  { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,0.07); bottom:-80px; left:-80px; }
+        .page-hero .container { position:relative; z-index:1; }
+        .page-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
+        .page-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+        .page-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:600px; margin:0 auto 2rem; line-height:1.7; }
+
+        /* Search bar */
+        .search-wrap { max-width:520px; margin:0 auto; position:relative; }
+        .search-wrap input {
+            width:100%; padding:1rem 1.25rem 1rem 3rem;
+            border:2px solid var(--color-border); border-radius:var(--radius-full);
+            font-family:var(--font-family); font-size:var(--font-size-base); color:var(--color-text);
+            background:#fff; outline:none; transition:border-color .2s,box-shadow .2s;
+        }
+        .search-wrap input:focus { border-color:var(--color-secondary); box-shadow:0 0 0 3px rgba(79,70,229,.1); }
+        .search-icon { position:absolute; left:1rem; top:50%; transform:translateY(-50%); font-size:1.1rem; pointer-events:none; }
+
+        /* Stats bar */
+        .stats-bar { display:flex; justify-content:center; gap:3rem; margin-top:2rem; }
+        .stats-bar span { font-size:var(--font-size-sm); color:var(--color-text-lighter); }
+        .stats-bar strong { color:var(--color-text); font-weight:700; }
+
+        /* Category tabs */
+        .cat-tabs { display:flex; justify-content:center; flex-wrap:wrap; gap:.5rem; margin-bottom:2.5rem; }
+        .cat-tab {
+            padding:.6rem 1.25rem; font-size:var(--font-size-sm); font-weight:500;
+            color:var(--color-text-light); background:#fff; border:1.5px solid var(--color-border);
+            border-radius:var(--radius-full); cursor:pointer; transition:all .2s;
+        }
+        .cat-tab:hover, .cat-tab.active { color:var(--color-secondary); border-color:var(--color-secondary); background:rgba(79,70,229,.05); }
+
+        /* Sort bar */
+        .sort-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; }
+        .result-count { font-size:var(--font-size-sm); color:var(--color-text-lighter); }
+        .sort-select {
+            padding:.5rem 1rem; border:1.5px solid var(--color-border); border-radius:var(--radius-md);
+            font-family:var(--font-family); font-size:var(--font-size-sm); color:var(--color-text);
+            background:#fff; outline:none; cursor:pointer;
+        }
+
+        /* Templates grid */
+        .tpl-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.75rem; }
+        .tpl-card { background:#fff; border-radius:var(--radius-xl); overflow:hidden; box-shadow:var(--shadow-sm); border:1px solid var(--color-border); transition:all .25s; }
+        .tpl-card:hover { transform:translateY(-5px); box-shadow:var(--shadow-xl); }
+        .tpl-preview { position:relative; height:220px; overflow:hidden; }
+        .tpl-preview img { width:100%; height:100%; object-fit:cover; }
+        .tpl-preview-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:3.5rem; }
+        .tpl-overlay { position:absolute; inset:0; background:rgba(0,0,0,.72); display:flex; flex-direction:column; justify-content:center; align-items:center; gap:.85rem; opacity:0; transition:opacity .2s; }
+        .tpl-card:hover .tpl-overlay { opacity:1; }
+        .tpl-badge { position:absolute; top:12px; left:12px; padding:.25rem .75rem; border-radius:var(--radius-full); font-size:var(--font-size-xs); font-weight:700; }
+        .badge-new   { background:#10b981; color:#fff; }
+        .badge-pop   { background:var(--color-secondary); color:#fff; }
+        .badge-free  { background:#f59e0b; color:#fff; }
+        .tpl-info { padding:1.25rem; display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+        .tpl-info h4 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.2rem; }
+        .tpl-info span { font-size:var(--font-size-sm); color:var(--color-text-lighter); }
+        .tpl-meta { display:flex; align-items:center; gap:.85rem; }
+        .tpl-price { font-size:var(--font-size-sm); font-weight:800; color:#0f766e; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:999px; padding:.35rem .7rem; white-space:nowrap; }
+        .tpl-rating { display:flex; align-items:center; gap:.35rem; font-size:var(--font-size-sm); font-weight:600; }
+        .star { color:#f59e0b; }
+
+        /* No results */
+        .no-results { display:none; text-align:center; padding:4rem 2rem; color:var(--color-text-light); }
+        .no-results-icon { font-size:3rem; margin-bottom:1rem; }
+
+        /* Pagination */
+        .pagination { display:flex; justify-content:center; gap:.5rem; margin-top:3rem; }
+        .page-btn { width:40px; height:40px; border-radius:var(--radius-md); border:1.5px solid var(--color-border); background:#fff; font-size:var(--font-size-sm); font-weight:600; color:var(--color-text-light); cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; }
+        .page-btn:hover, .page-btn.active { border-color:var(--color-secondary); color:var(--color-secondary); background:rgba(79,70,229,.05); }
+
+        @media(max-width:1024px){ .tpl-grid{grid-template-columns:repeat(2,1fr);} }
+        @media(max-width:600px){ .tpl-grid{grid-template-columns:1fr;} .stats-bar{flex-direction:column;gap:.75rem;} }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item has-dropdown">
+                <a href="#">Products <span class="arrow">▾</span></a>
+                <div class="dropdown"><div class="dropdown-grid">
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                </div></div>
+            </li>
+            <li class="nav-item has-dropdown">
+                <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                <div class="dropdown dropdown-templates">
+                    <div class="dropdown-grid templates-grid">
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                    </div>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                </div>
+            </li>
+            <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+            <li class="nav-item"><a href="features.html">Features</a></li>
+            <li class="nav-item"><a href="#">Resources</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text">Log In</a>
+            <a href="login.html" class="btn-primary">Get Started</a>
+        </div>
+        <button class="mobile-toggle" id="mobile-toggle"><span></span><span></span><span></span></button>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="page-hero">
+    <div class="container">
+        <span class="page-hero-label">Templates</span>
+        <h1>Find your perfect <span class="gradient-text">template</span></h1>
+        <p>200+ professionally designed templates for every industry and purpose. Fully customizable — no design skills needed.</p>
+        <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="tplSearch" placeholder="Search templates (e.g. restaurant, portfolio, shop…)">
+        </div>
+        <div class="stats-bar">
+            <span><strong>200+</strong> Templates</span>
+            <span><strong>15</strong> Categories</span>
+            <span><strong>€199</strong> per download</span>
+            <span><strong>Mobile</strong> Responsive</span>
+        </div>
+    </div>
+</section>
+
+<!-- Gallery -->
+<section style="background:#fff;">
+    <div class="container">
+        <!-- Category Tabs -->
+        <div class="cat-tabs" id="catTabs">
+            <button class="cat-tab active" data-cat="all">All</button>
+            <!-- <button class="cat-tab" data-cat="portfolio">Portfolio</button> -->
+            <button class="cat-tab" data-cat="business">Business</button>
+            <button class="cat-tab" data-cat="ecommerce">E-commerce</button>
+            <!-- <button class="cat-tab" data-cat="blog">Blog</button> -->
+            <button class="cat-tab" data-cat="restaurant">Restaurant</button>
+            <button class="cat-tab" data-cat="photography">Photography</button>
+            <button class="cat-tab" data-cat="agency">Agency</button>
+            <!-- <button class="cat-tab" data-cat="landing">Landing Page</button> -->
+        </div>
+
+        <!-- Sort -->
+        <div class="sort-bar">
+            <span class="result-count" id="resultCount">Showing all 18 templates</span>
+            <select class="sort-select" id="sortSelect">
+                <option value="popular">Most Popular</option>
+                <option value="newest">Newest First</option>
+                <option value="az">A – Z</option>
+            </select>
+        </div>
+
+        <!-- Grid -->
+        <div class="tpl-grid" id="tplGrid">
+
+            <!-- <div class="tpl-card" data-cat="portfolio" data-name="Minimal Portfolio">
+                <div class="tpl-preview">
+                    <img src="images/portfolio.jpg" alt="Minimal Portfolio Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#e0e7ff,#c4b5fd);">🎨</div>
+                    <span class="tpl-badge badge-pop">Popular</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Minimal Portfolio</h4><span>Portfolio</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.9</div>
+                </div>
+            </div> -->
+
+            <!-- <div class="tpl-card" data-cat="business" data-name="Agency Pro">
+                <div class="tpl-preview">
+                    <img src="images/agency.jpg" alt="agency pro preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#1e1b4b,#4f46e5);">🏢</div>
+                    <span class="tpl-badge badge-pop">Popular</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="wedding-gallery-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Agency Pro</h4><span>Business</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.8</div>
+                </div>
+            </div> -->
+
+            <div class="tpl-card" data-cat="ecommerce" data-name="Fashion Store">
+                <div class="tpl-preview">
+                    <img src="images/f4.avif" alt="Fashion Store Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#ff6b6b,#feca57);">👗</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="fashion-store-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Fashion Store</h4><span>E-commerce</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.7</div>
+                </div>
+            </div>
+
+            <!-- <div class="tpl-card" data-cat="blog" data-name="Writer's Blog">
+                <div class="tpl-preview">
+                    <img src="images/writing.webp" alt="writing blog preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#a29bfe,#6c5ce7);">✍️</div>
+                    <span class="tpl-badge badge-new">New</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="wedding-gallery-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Writer's Blog</h4><span>Blog</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.6</div>
+                </div>
+            </div> -->
+
+            <div class="tpl-card" data-cat="photography" data-name="Photographer">
+                <div class="tpl-preview">
+                    <img src="images/photogrPHER.avif" alt="photographer preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#00b894,#00cec9);">📷</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="photographer-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Photographer</h4><span>Photography</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.8</div>
+                </div>
+            </div>
+
+            <div class="tpl-card" data-cat="business" data-name="Startup Landing">
+                <div class="tpl-preview">
+                    <img src="images/startup.avif" alt="Startup Landing Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#2d3436,#636e72);">🚀</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="startup-landing-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Startup Landing</h4><span>Business</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.7</div>
+                </div>
+            </div>
+
+            <div class="tpl-card" data-cat="restaurant" data-name="Fine Dining">
+                <div class="tpl-preview">
+                    <img src="images/dinner.jpg" alt="Fine Dining Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#d63031,#c0392b);">🍽️</div>
+                    <span class="tpl-badge badge-new">New</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="fine-dining-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Fine Dining</h4><span>Restaurant</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.9</div>
+                </div>
+            </div>
+
+            <!-- <div class="tpl-card" data-cat="ecommerce" data-name="Electronics Store">
+                <div class="tpl-preview">
+                    <img src="images/electronic.jpg" alt="Electronics Store Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#0984e3,#74b9ff);">💻</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Electronics Store</h4><span>E-commerce</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.5</div>
+                </div>
+            </div> -->
+
+            <!-- <div class="tpl-card" data-cat="agency" data-name="Creative Agency">
+                <div class="tpl-preview">
+                    <img src="images/creative.jpg" alt="Creative Agency Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#6c5ce7,#a29bfe);">🎭</div>
+                    <span class="tpl-badge badge-pop">Popular</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Creative Agency</h4><span>Agency</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.8</div>
+                </div>
+            </div> -->
+
+            <!-- <div class="tpl-card" data-cat="portfolio" data-name="Designer Portfolio">
+                <div class="tpl-preview">
+                        <img src="images/design.jpg" alt="Designer Portfolio Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#fd79a8,#e84393);">💼</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Designer Portfolio</h4><span>Portfolio</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.6</div>
+                </div>
+            </div> -->
+<!-- 
+            <div class="tpl-card" data-cat="landing" data-name="SaaS Product">
+                <div class="tpl-preview">
+                <img src="images/SaaS-Development.avif" alt="saas preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#00cec9,#55efc4);">⚡</div>
+                    <span class="tpl-badge badge-new">New</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>SaaS Product</h4><span>Landing Page</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.9</div>
+                </div>
+            </div> -->
+
+            <div class="tpl-card" data-cat="restaurant" data-name="Café & Bakery">
+                <div class="tpl-preview">
+                    <img src="images/cafe.webp" alt="cafe preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#fdcb6e,#e17055);">☕</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="cafe-bakery-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Café &amp; Bakery</h4><span>Restaurant</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.7</div>
+                </div>
+            </div>
+
+            <!-- <div class="tpl-card" data-cat="blog" data-name="Tech Blog">
+                <div class="tpl-preview">   
+                    <img src="images/tech.jpg" alt="tech preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#2d3436,#0984e3);">💡</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Tech Blog</h4><span>Blog</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.5</div>
+                </div>
+            </div> -->
+
+            <!-- <div class="tpl-card" data-cat="business" data-name="Consulting Firm">
+                <div class="tpl-preview">
+                        <img src="images/consulting.jpg" alt="Consulting Firm Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#b2bec3,#636e72);">📊</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Consulting Firm</h4><span>Business</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.6</div>
+                </div>
+            </div> -->
+
+            <div class="tpl-card" data-cat="photography" data-name="Wedding Gallery">
+                <div class="tpl-preview">
+                    <img src="images/wedding.jpg" alt="Wedding Gallery Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#ffeaa7,#fab1a0);">💍</div>
+                    <span class="tpl-badge badge-pop">Popular</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="wedding-gallery-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Wedding Gallery</h4><span>Photography</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.9</div>
+                </div>
+            </div>
+
+            <div class="tpl-card" data-cat="agency" data-name="Digital Marketing">
+                <div class="tpl-preview">
+                    <img src="images/digital.jpg" alt="digital marketing preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#fd79a8,#6c5ce7);">📱</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="digital-marketing-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Digital Marketing</h4><span>Agency</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.7</div>
+                </div>
+            </div>
+
+            <div class="tpl-card" data-cat="ecommerce" data-name="Jewelry & Luxury">
+                <div class="tpl-preview">
+                    <img src="images/luxury.jpg" alt="Jewelry & Luxury Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#1e1b4b,#6c5ce7);">💎</div>
+                    <span class="tpl-badge badge-new">New</span>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="jewelry-luxury-template.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>Jewelry &amp; Luxury</h4><span>E-commerce</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.8</div>
+                </div>
+            </div>
+
+            <!-- <div class="tpl-card" data-cat="landing" data-name="App Download">
+                <div class="tpl-preview">
+                    <img src="images/app.avif" alt="App Download Preview">
+                    <div class="tpl-preview-placeholder" style="background:linear-gradient(135deg,#00b894,#6c5ce7);">📲</div>
+                    <div class="tpl-overlay">
+                        <button class="btn-preview">Preview</button>
+                        <a href="login.html" class="btn-use">Use Template</a>
+                    </div>
+                </div>
+                <div class="tpl-info">
+                    <div><h4>App Download</h4><span>Landing Page</span></div>
+                    <div class="tpl-rating"><span class="star">★</span>4.6</div>
+                </div>
+            </div> -->
+
+        </div>
+
+        <div class="no-results" id="noResults">
+            <div class="no-results-icon">🔍</div>
+            <p>No templates match your search. Try a different keyword or category.</p>
+        </div>
+
+        <!-- <div class="pagination">
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <button class="page-btn">›</button>
+        </div> -->
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Can't find the right template?</h2>
+            <p>Start from a blank canvas or let our AI build a custom site for you in seconds.</p>
+            <a href="login.html" class="btn-primary btn-large">Start Building Free</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer">
+    <div class="container">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                <p>Build beautiful websites without writing a single line of code.</p>
+                <div class="social-links">
+                    <a href="#" aria-label="Twitter">𝕏</a><a href="#" aria-label="LinkedIn">in</a>
+                </div>
+            </div>
+            <div class="footer-links"><h4>Product</h4><ul>
+                <li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li>
+                <li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li>
+            </ul></div>
+            <div class="footer-links"><h4>Resources</h4><ul>
+                <li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li>
+                <li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li>
+            </ul></div>
+            <div class="footer-links"><h4>Company</h4><ul>
+                <li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li>
+                <li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li>
+            </ul></div>
+            <div class="footer-links"><h4>Legal</h4><ul>
+                <li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li>
+                <li><a href="refund.html">Refund Policy</a></li>            </ul></div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Nexlance. All rights reserved.</p>
+            <div class="footer-bottom-links">
+                <a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a>
+            </div>
+        </div>
+    </div>
+</footer>
+<button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+<script src="template-registry.js"></script>
+<script src="template-flow.js"></script>
+<script src="payment.js"></script>
+<script src="main.js"></script>
+<script>
+    /* ---- Filter & Search ---- */
+    const cards = Array.from(document.querySelectorAll('.tpl-card'));
+    const catTabs = document.querySelectorAll('.cat-tab');
+    const searchInput = document.getElementById('tplSearch');
+    const noResults = document.getElementById('noResults');
+    const resultCount = document.getElementById('resultCount');
+
+    function applyFilter() {
+        const activeCat = document.querySelector('.cat-tab.active').dataset.cat;
+        const query = searchInput.value.toLowerCase().trim();
+        let visible = 0;
+        cards.forEach(card => {
+            const catMatch = activeCat === 'all' || card.dataset.cat === activeCat;
+            const nameMatch = !query || card.dataset.name.toLowerCase().includes(query);
+            const show = catMatch && nameMatch;
+            card.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        noResults.style.display = visible === 0 ? 'block' : 'none';
+        resultCount.textContent = `Showing ${visible} template${visible !== 1 ? 's' : ''}`;
+    }
+
+    catTabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            catTabs.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyFilter();
+        });
+    });
+    searchInput.addEventListener('input', applyFilter);
+    applyFilter();
+
+    document.querySelectorAll('.tpl-card').forEach(card => {
+        const info = card.querySelector('.tpl-info');
+        const rating = info ? info.querySelector('.tpl-rating') : null;
+        if (info && rating && !info.querySelector('.tpl-price')) {
+            const meta = document.createElement('div');
+            meta.className = 'tpl-meta';
+            const price = document.createElement('span');
+            price.className = 'tpl-price';
+            price.textContent = '€199';
+            meta.appendChild(price);
+            meta.appendChild(rating);
+            info.appendChild(meta);
+        }
+    });
+</script>
+</body>
+</html>
+

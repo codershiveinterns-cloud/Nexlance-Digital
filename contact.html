@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ---- Page Hero ---- */
+        .page-hero {
+            padding: 160px 0 80px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .page-hero::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.08);
+            top: -150px; right: -150px;
+        }
+        .page-hero::after {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            border-radius: 50%;
+            background: rgba(124, 58, 237, 0.08);
+            bottom: -100px; left: -100px;
+        }
+        .page-hero .container { position: relative; z-index: 1; }
+        .page-hero-label {
+            display: inline-block;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--color-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+        .page-hero h1 {
+            font-size: var(--font-size-5xl);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+        }
+        .page-hero p {
+            font-size: var(--font-size-lg);
+            color: var(--color-text-light);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ---- Contact channels ---- */
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 5rem;
+        }
+        .channel-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            text-align: center;
+            transition: all var(--transition-base);
+        }
+        .channel-card:hover {
+            border-color: var(--color-secondary);
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-4px);
+        }
+        .channel-icon {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            margin: 0 auto 1.25rem;
+        }
+        .icon-bg-blue   { background: rgba(79, 70, 229, 0.1); }
+        .icon-bg-green  { background: rgba(16, 185, 129, 0.1); }
+        .icon-bg-orange { background: rgba(245, 158, 11, 0.1); }
+        .icon-bg-pink   { background: rgba(236, 72, 153, 0.1); }
+        .channel-card h3 { font-size: var(--font-size-base); font-weight: 700; margin-bottom: 0.4rem; }
+        .channel-card p  { font-size: var(--font-size-sm); color: var(--color-text-light); margin-bottom: 1rem; line-height: 1.5; }
+        .channel-action  { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-secondary); }
+        .channel-action:hover { color: var(--color-accent); }
+
+        /* ---- Main form + info layout ---- */
+        .contact-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 3rem;
+            align-items: start;
+        }
+
+        /* ---- Contact form ---- */
+        .contact-form-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-2xl);
+            padding: 2.5rem;
+        }
+        .contact-form-card h2 { font-size: var(--font-size-3xl); font-weight: 800; margin-bottom: 0.5rem; }
+        .contact-form-card > p { font-size: var(--font-size-base); color: var(--color-text-light); margin-bottom: 2rem; }
+        .form-row-two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-field { margin-bottom: 1.25rem; }
+        .form-field label { display: block; font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text); margin-bottom: 0.4rem; }
+        .form-field input, .form-field select, .form-field textarea {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            border: 1.5px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            color: var(--color-text);
+            background: var(--color-bg-alt);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+            outline: none;
+        }
+        .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+            border-color: var(--color-secondary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+            background: #fff;
+        }
+        .form-field textarea { resize: vertical; min-height: 140px; }
+        .form-submit-btn { width: 100%; padding: 1rem; font-size: var(--font-size-base); font-weight: 700; }
+        .form-note { font-size: var(--font-size-xs); color: var(--color-text-lighter); text-align: center; margin-top: 0.75rem; }
+        .form-success {
+            display: none;
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+        .form-success-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .form-success h3 { font-size: var(--font-size-2xl); font-weight: 700; margin-bottom: 0.75rem; }
+        .form-success p { font-size: var(--font-size-base); color: var(--color-text-light); }
+
+        /* ---- Sidebar info ---- */
+        .contact-sidebar { display: flex; flex-direction: column; gap: 1.5rem; }
+        .info-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem;
+        }
+        .info-card h3 { font-size: var(--font-size-base); font-weight: 700; margin-bottom: 1rem; }
+        .info-item { display: flex; align-items: flex-start; gap: 0.85rem; margin-bottom: 1rem; }
+        .info-item:last-child { margin-bottom: 0; }
+        .info-item-icon {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .info-item-text strong { display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 0.2rem; }
+        .info-item-text span, .info-item-text a {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+            line-height: 1.5;
+        }
+        .info-item-text a { color: var(--color-secondary); }
+        .info-item-text a:hover { color: var(--color-accent); }
+
+        /* Office hours */
+        .hours-row { display: flex; justify-content: space-between; font-size: var(--font-size-sm); padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); }
+        .hours-row:last-child { border-bottom: none; }
+        .hours-day { color: var(--color-text-light); }
+        .hours-time { font-weight: 600; }
+        .hours-closed { color: var(--color-text-lighter); }
+
+        /* Map placeholder */
+        .offices-section { margin-top: 4rem; }
+        .offices-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; justify-items: center; }
+        .offices-grid .office-card { max-width: 380px; width: 100%; }
+        .office-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            transition: all var(--transition-base);
+        }
+        .office-card:hover { box-shadow: var(--shadow-lg); }
+        .office-map {
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+        }
+        .office-body { padding: 1.5rem; }
+        .office-city { font-size: var(--font-size-lg); font-weight: 700; margin-bottom: 0.25rem; }
+        .office-type { font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-secondary); margin-bottom: 0.75rem; }
+        .office-address { font-size: var(--font-size-sm); color: var(--color-text-light); line-height: 1.6; }
+
+        /* ---- FAQ ---- */
+        .faq-list { max-width: 800px; margin: 0 auto; }
+        .faq-item {
+            border-bottom: 1px solid var(--color-border);
+            overflow: hidden;
+        }
+        .faq-question {
+            width: 100%;
+            text-align: left;
+            padding: 1.5rem 0;
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            color: var(--color-text);
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            transition: color var(--transition-fast);
+        }
+        .faq-question:hover { color: var(--color-secondary); }
+        .faq-arrow {
+            font-size: 1.25rem;
+            transition: transform var(--transition-base);
+            flex-shrink: 0;
+        }
+        .faq-item.open .faq-arrow { transform: rotate(180deg); }
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height var(--transition-slow), padding var(--transition-base);
+        }
+        .faq-answer p { padding-bottom: 1.5rem; font-size: var(--font-size-base); color: var(--color-text-light); line-height: 1.8; }
+        .faq-item.open .faq-answer { max-height: 300px; }
+
+        @media (max-width: 1024px) {
+            .contact-layout { grid-template-columns: 1fr; }
+            .channels-grid { grid-template-columns: repeat(2, 1fr); }
+            .offices-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .page-hero h1 { font-size: var(--font-size-4xl); }
+            .form-row-two { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .channels-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                Nexlance
+            </a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#products">Products <span class="arrow">▾</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🌐</span>
+                                <div><h4>Websites</h4><p>Professional site builder</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🛒</span>
+                                <div><h4>E-commerce</h4><p>Online store solutions</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📧</span>
+                                <div><h4>Email Marketing</h4><p>Campaign tools</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📅</span>
+                                <div><h4>Scheduling</h4><p>Appointment booking</p></div>
+                            </a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#templates">Templates <span class="arrow">▾</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Portfolio</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Business</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Blog</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Store</span>
+                            </a>
+                        </div>
+                        <a href="index.html#templates" class="dropdown-view-all">View All Templates →</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="index.html#pricing">Pricing</a></li>
+                <li class="nav-item"><a href="index.html#features">Features</a></li>
+                <li class="nav-item"><a href="index.html#resources">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="login.html" class="btn-text">Log In</a>
+                <a href="login.html" class="btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Hero -->
+    <section class="page-hero">
+        <div class="container">
+            <span class="page-hero-label">Contact</span>
+            <h1>We'd love to <span class="gradient-text">hear from you</span></h1>
+            <p>Have a question, feedback, or just want to say hello? Our team is here to help. Pick the channel that works best for you.</p>
+        </div>
+    </section>
+
+    <!-- Contact Channels -->
+    <section style="background: #fff;">
+        <div class="container">
+            <div class="channels-grid">
+                <!-- <div class="channel-card">
+                    <div class="channel-icon icon-bg-blue">💬</div>
+                    <h3>Live Chat</h3>
+                    <p>Chat with our support team in real time. Available 24/7 for all paying customers.</p>
+                    <a href="#" class="channel-action">Open live chat →</a>
+                </div> -->
+                <div class="channel-card">
+                    <div class="channel-icon icon-bg-green">📧</div>
+                    <h3>Email Support</h3>
+                    <p>Send us a detailed message and we'll reply within 4 hours on business days.</p>
+                    <a href="mailto:vijaypratap@nexlancedigital.com" class="channel-action">vijaypratap@nexlancedigital.com →</a>
+                </div>
+                <div class="channel-card">
+                    <div class="channel-icon icon-bg-orange">📖</div>
+                    <h3>Help Center</h3>
+                    <p>Browse 500+ articles, video tutorials, and step-by-step guides.</p>
+                    <a href="#" class="channel-action">Visit Help Center →</a>
+                </div>
+                <!-- <div class="channel-card">
+                    <div class="channel-icon icon-bg-pink">👥</div>
+                    <h3>Community</h3>
+                    <p>Join 80,000+ Nexlance users sharing tips, templates, and feedback.</p>
+                    <a href="#" class="channel-action">Join Community →</a>
+                </div> -->
+            </div>
+
+            <!-- Main form + sidebar -->
+            <div class="contact-layout">
+                <!-- Form -->
+                <div class="contact-form-card">
+                    <h2>Send us a message</h2>
+                    <p>Fill out the form below and a member of our team will get back to you within one business day.</p>
+                    <form id="contactForm" novalidate>
+                        <div class="form-row-two">
+                            <div class="form-field">
+                                <label for="c-fname">First Name *</label>
+                                <input type="text" id="c-fname" placeholder="Rahul" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="c-lname">Last Name *</label>
+                                <input type="text" id="c-lname" placeholder="Sharma" required>
+                            </div>
+                        </div>
+                        <div class="form-row-two">
+                            <div class="form-field">
+                                <label for="c-email">Email Address *</label>
+                                <input type="email" id="c-email" placeholder="rahul@company.com" required>
+                            </div>
+                            <div class="form-field">
+                                <label for="c-phone">Phone (optional)</label>
+                                <input type="tel" id="c-phone" placeholder="+91 98765 43210">
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label for="c-company">Company / Website (optional)</label>
+                            <input type="text" id="c-company" placeholder="Acme Inc. or mysite.com">
+                        </div>
+                        <div class="form-field">
+                            <label for="c-subject">Subject *</label>
+                            <select id="c-subject" required>
+                                <option value="">Select a topic...</option>
+                                <option>Billing & Payments</option>
+                                <option>Account & Login</option>
+                                <option>Technical Support</option>
+                                <option>Domain & Hosting</option>
+                                <option>Feature Request</option>
+                                <option>Sales & Enterprise Inquiry</option>
+                                <option>Partnership Opportunity</option>
+                                <option>Media / Press Inquiry</option>
+                                <option>Career Inquiry</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="c-message">Message *</label>
+                            <textarea id="c-message" placeholder="Tell us how we can help you. The more detail you share, the faster we can respond." required></textarea>
+                        </div>
+                        <div class="form-field" style="display:flex; align-items:flex-start; gap:0.75rem; margin-bottom:1.5rem;">
+                            <input type="checkbox" id="c-consent" style="width:auto; margin-top:3px; accent-color: var(--color-secondary);">
+                            <label for="c-consent" style="font-size: var(--font-size-sm); font-weight:400; color: var(--color-text-light); cursor:pointer; margin-bottom:0;">
+                                I agree to Nexlance's <a href="privacy.html" style="color:var(--color-secondary);">Privacy Policy</a> and <a href="terms.html" style="color:var(--color-secondary);">Terms of Service</a>.
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-primary form-submit-btn">Send Message</button>
+                        <p class="form-note">We respect your privacy. Your information is never sold or shared.</p>
+                    </form>
+                    <div class="form-success" id="contactSuccess">
+                        <div class="form-success-icon">✅</div>
+                        <h3>Message sent!</h3>
+                        <p>Thank you for reaching out. A member of our team will respond to you within one business day.</p>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="contact-sidebar">
+                    <!-- Contact details -->
+                    <div class="info-card">
+                        <h3>Contact Details</h3>
+                        <div class="info-item">
+                            <div class="info-item-icon">📧</div>
+                            <div class="info-item-text">
+                                <strong>General Support</strong>
+                                <a href="mailto:vijaypratap@nexlancedigital.com">vijaypratap@nexlancedigital.com</a>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-item-icon">💼</div>
+                            <div class="info-item-text">
+                                <strong>Sales & Enterprise</strong>
+                                <a href="mailto:vijaypratap@nexlancedigital.com">vijaypratap@nexlancedigital.com</a>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-item-icon">📰</div>
+                            <div class="info-item-text">
+                                <strong>Press & Media</strong>
+                                <a href="mailto:vijaypratap@nexlancedigital.com">vijaypratap@nexlancedigital.com</a>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-item-icon">🤝</div>
+                            <div class="info-item-text">
+                                <strong>Partnerships</strong>
+                                <a href="mailto:vijaypratap@nexlancedigital.com">vijaypratap@nexlancedigital.com</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Office hours -->
+                    <div class="info-card">
+                        <h3>Support Hours</h3>
+                        <div class="hours-row">
+                            <span class="hours-day">Monday – Friday</span>
+                            <span class="hours-time">9 AM – 10 PM IST</span>
+                        </div>
+                        <div class="hours-row">
+                            <span class="hours-day">Saturday</span>
+                            <span class="hours-time">10 AM – 6 PM IST</span>
+                        </div>
+                        <div class="hours-row">
+                            <span class="hours-day">Sunday</span>
+                            <span class="hours-closed">Closed</span>
+                        </div>
+                        <p style="margin-top:1rem; font-size:var(--font-size-sm); color:var(--color-text-light);">Live chat is available 24/7 for Business & Commerce plans.</p>
+                    </div>
+
+                    <!-- Social -->
+                    <div class="info-card">
+                        <h3>Follow Us</h3>
+                        <div class="info-item">
+                            <div class="info-item-icon">𝕏</div>
+                            <div class="info-item-text">
+                                <strong>Twitter / X</strong>
+                                <a href="#">@nexlance</a>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-item-icon">in</div>
+                            <div class="info-item-text">
+                                <strong>LinkedIn</strong>
+                                <a href="#">/company/nexlance</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Offices -->
+            <div class="offices-section">
+                <div class="section-header" style="margin-top:2rem;">
+                    <span class="section-label">Our Offices</span>
+                    <h2 class="section-title">Find us around the world</h2>
+                </div>
+                <div class="offices-grid" style="grid-template-columns:1fr;justify-items:center;">
+
+
+                    <div class="office-card">
+                        <div class="office-map" style="background: linear-gradient(135deg, #fef3c7, #fcd34d);">
+                            <img src="images/uk.avif" alt="UK Office" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="office-body">
+                            <div class="office-city">United Kingdom</div>
+                            
+                            <div class="office-address">Nexlance Digital 82A<br>James Carter Road<br>Milden Hall<br> United Kingdom</div>
+                        </div>
+                    </div> 
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">FAQ</span>
+                <h2 class="section-title">Frequently asked questions</h2>
+                <p class="section-subtitle">Quick answers to the most common questions. Can't find what you're looking for? Just send us a message above.</p>
+            </div>
+            <div class="faq-list">
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        How do I cancel my Nexlance subscription?
+                        <span class="faq-arrow">▾</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>You can cancel your subscription at any time from your account settings under Billing → Manage Subscription → Cancel Plan. Your site will remain live until the end of your current billing period. We don't charge cancellation fees.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        Can I transfer my website to another platform?
+                        <span class="faq-arrow">▾</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes. You can export all your content — images, text, blog posts, and product data — as a ZIP file or JSON export from your dashboard. We believe your data is yours, and we make it easy to take it with you.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        How long does it take to receive a support response?
+                        <span class="faq-arrow">▾</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Business and Commerce plan users get priority support with a response time under 2 hours. Personal plan users receive responses within 4–8 business hours. For billing or account emergencies, escalate via live chat for immediate assistance.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        Do you offer custom Enterprise plans?
+                        <span class="faq-arrow">▾</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Absolutely. Our Enterprise offering includes unlimited sites, dedicated account management, custom SLAs, SSO, advanced security features, and volume pricing. Email vijaypratap@nexlancedigital.com or use the contact form above and select "Sales & Enterprise Inquiry."</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        Is there a free trial available?
+                        <span class="faq-arrow">▾</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes — every plan comes with a 14-day free trial. No credit card required. You get full access to all features of your chosen plan. If you don't upgrade at the end of the trial, your site is automatically downgraded to our free tier.</p>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <button class="faq-question" aria-expanded="false">
+                        How do I connect a custom domain to my Nexlance site?
+                        <span class="faq-arrow">▾</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Go to your site's Settings → Domains → Connect Domain. Enter your domain name, then update your DNS records at your registrar (GoDaddy, Namecheap, etc.) with the values we provide. DNS propagation typically takes 5–30 minutes. We have step-by-step guides for all major registrars in our Help Center.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to build something amazing?</h2>
+                <p>Start your free 14-day trial. No credit card required.</p>
+                <a href="login.html" class="btn-primary btn-large">Get Started Free</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">𝕏</a>
+                        <a href="#" aria-label="LinkedIn">in</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                                            </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms &amp; Services</a>
+                    <a href="sitemap.html">Sitemap</a>
+                    <a href="status.html">Status</a>
+                    <a href="security.html">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <script src="main.js"></script>
+    <script>
+        // Contact form submit
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fname = document.getElementById('c-fname').value.trim();
+            const lname = document.getElementById('c-lname').value.trim();
+            const email = document.getElementById('c-email').value.trim();
+            const subject = document.getElementById('c-subject').value;
+            const message = document.getElementById('c-message').value.trim();
+            const consent = document.getElementById('c-consent').checked;
+
+            if (!fname || !lname || !email || !subject || !message) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            if (!consent) {
+                alert('Please agree to our Privacy Policy and Terms of Service to proceed.');
+                return;
+            }
+            this.style.display = 'none';
+            document.getElementById('contactSuccess').style.display = 'block';
+        });
+
+        // FAQ accordion
+        document.querySelectorAll('.faq-question').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = btn.parentElement;
+                const isOpen = item.classList.contains('open');
+                document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+                if (!isOpen) item.classList.add('open');
+                btn.setAttribute('aria-expanded', !isOpen);
+            });
+        });
+    </script>
+</body>
+</html>

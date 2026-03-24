@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Detail — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li class="active"><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="breadcrumb">
+      <a href="projects.html">Projects</a>
+      <span>›</span>
+      <span id="bcName">Loading...</span>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1 id="projectName">Loading...</h1>
+        <p id="projectClient" style="color:#888;"></p>
+      </div>
+      <div class="page-header-actions">
+        <span class="badge badge-gray" id="projectStatus">—</span>
+        <button class="btn btn-secondary" onclick="history.back()">← Back</button>
+        <button class="btn btn-primary" onclick="openEditProjectModal()">✏️ Edit Project</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this,'overview')">Overview</div>
+      <div class="tab" onclick="switchTab(this,'kanban')">Task Board</div>
+    </div>
+
+    <!-- OVERVIEW TAB -->
+    <div class="tab-content active" id="tab-overview">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:22px;">
+
+        <div>
+          <!-- Progress -->
+          <div class="white-card" style="margin-bottom:18px;">
+            <h3>Overall Progress</h3>
+            <div class="progress-bar" style="height:14px;margin-bottom:8px;">
+              <div class="progress-fill" id="overallProgress" style="width:0%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span class="progress-text" id="progressText">0% complete</span>
+              <span class="progress-text" id="daysLeft"></span>
+            </div>
+          </div>
+
+          <!-- Scope -->
+          <div class="white-card">
+            <h3>📌 Project Overview</h3>
+            <div style="margin-bottom:16px;">
+              <div class="info-label" style="margin-bottom:5px;">Scope of Work</div>
+              <div id="scopeText" style="color:#444;line-height:1.7;font-size:0.9rem;">—</div>
+            </div>
+            <div>
+              <div class="info-label" style="margin-bottom:5px;">Deliverables</div>
+              <div id="deliverText" style="color:#444;line-height:1.7;font-size:0.9rem;">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <!-- Project Info -->
+          <div class="white-card">
+            <h3>📋 Details</h3>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="dStart">—</div></div>
+              <div class="info-item"><div class="info-label">Deadline</div><div class="info-value" id="dDeadline">—</div></div>
+              <div class="info-item"><div class="info-label">Client</div><div class="info-value" id="dClient">—</div></div>
+              <div class="info-item"><div class="info-label">Assigned Team</div><div class="info-value" id="dTeam">—</div></div>
+              <div class="info-item"><div class="info-label">Status</div><div class="info-value" id="dStatus">—</div></div>
+            </div>
+          </div>
+
+          <!-- Milestones -->
+          <div class="white-card">
+            <h3>🏁 Milestones</h3>
+            <div class="timeline" id="milestonesTimeline">
+              <div class="timeline-item done"><h4>Project Kickoff</h4><p>Project initiated</p></div>
+              <div class="timeline-item" id="m-design"><h4>Design Phase</h4><p>Wireframes & UI</p></div>
+              <div class="timeline-item" id="m-dev"><h4>Development</h4><p>Build & code</p></div>
+              <div class="timeline-item" id="m-testing"><h4>Testing</h4><p>QA & client review</p></div>
+              <div class="timeline-item" id="m-live"><h4>Go Live</h4><p>Launch to production</p></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- KANBAN TAB -->
+    <div class="tab-content" id="tab-kanban">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <p style="color:#888;font-size:0.875rem;">Drag and drop cards to update task status</p>
+        <button class="btn btn-primary btn-sm" onclick="openAddTaskModal()">+ Add Task</button>
+      </div>
+      <div class="kanban-board" id="kanbanBoard">
+        <div style="display:flex;align-items:center;color:#aaa;padding:20px;">Loading tasks...</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="taskModalTitle">Add Task</h2>
+      <button class="modal-close" onclick="closeTaskModal()">✕</button>
+    </div>
+    <div class="form-grid single">
+      <div class="form-group"><label>Task Title *</label><input type="text" id="tTitle" placeholder="Homepage design"></div>
+      <div class="form-group"><label>Description</label><textarea id="tDesc" placeholder="Task details..." style="min-height:70px;"></textarea></div>
+      <div class="form-group"><label>Status</label>
+        <select id="tStatus">
+          <option value="todo">To Do</option><option value="design">Design</option>
+          <option value="development">Development</option><option value="testing">Testing</option>
+          <option value="review">Client Review</option><option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Assignee</label><input type="text" id="tAssignee" placeholder="Team member name"></div>
+      <div class="form-group"><label>Priority</label>
+        <select id="tPriority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select>
+      </div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="tDue"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTaskModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTask()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal-overlay" id="editProjModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>Edit Project</h2>
+      <button class="modal-close" onclick="closeEditProject()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Project Name *</label><input type="text" id="epName"></div>
+      <div class="form-group"><label>Client Name</label><input type="text" id="epClient"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="epStatus"><option>Planning</option><option>Design</option><option>Development</option><option>Testing</option><option>Live</option><option>On Hold</option></select>
+      </div>
+      <div class="form-group"><label>Start Date</label><input type="date" id="epStart"></div>
+      <div class="form-group"><label>Deadline</label><input type="date" id="epDeadline"></div>
+      <div class="form-group"><label>Assigned Team</label><input type="text" id="epTeam"></div>
+      <div class="form-group"><label>Progress (%)</label><input type="number" id="epProgress" min="0" max="100"></div>
+      <div class="form-group full"><label>Scope of Work</label><textarea id="epScope"></textarea></div>
+      <div class="form-group full"><label>Deliverables</label><textarea id="epDeliverables"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEditProject()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditProject()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script src="payment.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const projectId = params.get('id');
+let project = null;
+let tasks = [];
+let editingTaskId = null;
+
+const columns = [
+  { id: 'todo',        label: 'To Do' },
+  { id: 'design',      label: 'Design' },
+  { id: 'development', label: 'Development' },
+  { id: 'testing',     label: 'Testing' },
+  { id: 'review',      label: 'Client Review' },
+  { id: 'completed',   label: 'Completed' }
+];
+const statusBadges = { 'Live':'badge-green','Development':'badge-blue','Design':'badge-purple','Testing':'badge-teal','Planning':'badge-gray','On Hold':'badge-orange' };
+
+async function init() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); window.location.href = 'projects.html'; return; }
+  if (!projectId) { window.location.href = 'projects.html'; return; }
+  const projects = await fetchProjects();
+  project = projects.find(p => p.id === projectId);
+  if (!project) { window.location.href = 'projects.html'; return; }
+  tasks = await fetchTasks(projectId);
+  populateOverview();
+  renderKanban();
+}
+
+function populateOverview() {
+  document.title = project.name + ' — Nexlance';
+  document.getElementById('bcName').textContent = project.name;
+  document.getElementById('projectName').textContent = project.name;
+  document.getElementById('projectClient').textContent = project.client_name || '';
+  const statusEl = document.getElementById('projectStatus');
+  statusEl.textContent = project.status;
+  statusEl.className = 'badge ' + (statusBadges[project.status] || 'badge-gray');
+
+  const prog = project.progress || 0;
+  document.getElementById('overallProgress').style.width = prog + '%';
+  document.getElementById('progressText').textContent = prog + '% complete';
+
+  if (project.deadline) {
+    const days = Math.ceil((new Date(project.deadline) - new Date()) / 86400000);
+    document.getElementById('daysLeft').textContent = days > 0 ? days + ' days remaining' : 'Overdue by ' + Math.abs(days) + ' days';
+  }
+
+  document.getElementById('scopeText').textContent = project.scope_of_work || 'Not specified';
+  document.getElementById('deliverText').textContent = project.deliverables || 'Not specified';
+  document.getElementById('dStart').textContent = formatDate(project.start_date);
+  document.getElementById('dDeadline').textContent = formatDate(project.deadline);
+  document.getElementById('dClient').textContent = project.client_name || '—';
+  document.getElementById('dTeam').textContent = project.assigned_team || '—';
+  document.getElementById('dStatus').innerHTML = `<span class="badge ${statusBadges[project.status] || 'badge-gray'}">${project.status}</span>`;
+
+  // Update milestone statuses
+  const statusOrder = ['Planning','Design','Development','Testing','Live'];
+  const currentIdx = statusOrder.indexOf(project.status);
+  if (currentIdx >= 1) document.getElementById('m-design').classList.add('done');
+  if (currentIdx >= 2) document.getElementById('m-dev').classList.add('done');
+  if (currentIdx >= 3) document.getElementById('m-testing').classList.add('done');
+  if (currentIdx >= 4) document.getElementById('m-live').classList.add('done');
+}
+
+function renderKanban() {
+  const board = document.getElementById('kanbanBoard');
+  board.innerHTML = columns.map(col => {
+    const colTasks = tasks.filter(t => t.status === col.id);
+    const cards = colTasks.map(t => `
+      <div class="kanban-card priority-${t.priority || 'medium'}"
+           draggable="true"
+           data-task-id="${t.id}"
+           ondragstart="onDragStart(event)"
+           ondragend="onDragEnd(event)">
+        <h5>${t.title}</h5>
+        ${t.description ? `<div class="card-desc">${t.description}</div>` : ''}
+        <div class="kanban-card-meta">
+          <span>${t.due_date ? '📅 ' + formatDate(t.due_date) : ''}</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            ${t.assignee ? `<span class="assignee-chip">${t.assignee}</span>` : ''}
+            <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:#bbb;" onclick="openEditTaskModal('${t.id}')" title="Edit">✏️</button>
+            <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:#bbb;" onclick="deleteTaskCard('${t.id}')" title="Delete">🗑</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    return `
+      <div class="kanban-column"
+           data-col="${col.id}"
+           ondragover="onDragOver(event)"
+           ondrop="onDrop(event)"
+           ondragleave="onDragLeave(event)">
+        <div class="kanban-col-header">
+          <h4>${col.label}</h4>
+          <span class="col-count">${colTasks.length}</span>
+        </div>
+        ${cards}
+        <button class="kanban-add-btn" onclick="openAddTaskModal('${col.id}')">+ Add task</button>
+      </div>
+    `;
+  }).join('');
+}
+
+// Drag and Drop
+let draggedTaskId = null;
+function onDragStart(e) {
+  draggedTaskId = e.currentTarget.dataset.taskId;
+  e.currentTarget.classList.add('dragging');
+}
+function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+async function onDrop(e) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.classList.remove('drag-over');
+  const newStatus = col.dataset.col;
+  if (!draggedTaskId || !newStatus) return;
+  try {
+    await updateTask(draggedTaskId, { status: newStatus });
+    const t = tasks.find(x => x.id === draggedTaskId);
+    if (t) t.status = newStatus;
+    draggedTaskId = null;
+    renderKanban();
+    showToast('Task moved!', 'success');
+  } catch(err) { showToast('Error moving task', 'error'); }
+}
+
+// Task Modal
+function openAddTaskModal(defaultStatus = 'todo') {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  editingTaskId = null;
+  document.getElementById('taskModalTitle').textContent = 'Add Task';
+  document.getElementById('tTitle').value = '';
+  document.getElementById('tDesc').value = '';
+  document.getElementById('tStatus').value = defaultStatus;
+  document.getElementById('tAssignee').value = '';
+  document.getElementById('tPriority').value = 'medium';
+  document.getElementById('tDue').value = '';
+  document.getElementById('taskModal').classList.add('active');
+}
+function openEditTaskModal(id) {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  document.getElementById('taskModalTitle').textContent = 'Edit Task';
+  document.getElementById('tTitle').value = t.title;
+  document.getElementById('tDesc').value = t.description || '';
+  document.getElementById('tStatus').value = t.status;
+  document.getElementById('tAssignee').value = t.assignee || '';
+  document.getElementById('tPriority').value = t.priority || 'medium';
+  document.getElementById('tDue').value = t.due_date || '';
+  document.getElementById('taskModal').classList.add('active');
+}
+function closeTaskModal() { document.getElementById('taskModal').classList.remove('active'); }
+
+async function saveTask() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  const title = document.getElementById('tTitle').value.trim();
+  if (!title) { showToast('Task title is required', 'error'); return; }
+  const data = {
+    project_id: projectId,
+    title,
+    description: document.getElementById('tDesc').value.trim(),
+    status: document.getElementById('tStatus').value,
+    assignee: document.getElementById('tAssignee').value.trim(),
+    priority: document.getElementById('tPriority').value,
+    due_date: document.getElementById('tDue').value || null
+  };
+  try {
+    if (editingTaskId) {
+      const upd = await updateTask(editingTaskId, data);
+      const idx = tasks.findIndex(t => t.id === editingTaskId);
+      if (idx > -1) tasks[idx] = upd;
+      showToast('Task updated!', 'success');
+    } else {
+      const created = await addTask(data);
+      tasks.push(created);
+      showToast('Task added!', 'success');
+    }
+    closeTaskModal(); renderKanban();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteTaskCard(id) {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  if (!confirm('Delete this task?')) return;
+  try {
+    await deleteTask(id);
+    tasks = tasks.filter(t => t.id !== id);
+    renderKanban(); showToast('Task deleted.', 'info');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// Edit Project
+function openEditProjectModal() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  if (!project) return;
+  document.getElementById('epName').value = project.name || '';
+  document.getElementById('epClient').value = project.client_name || '';
+  document.getElementById('epStatus').value = project.status || 'Planning';
+  document.getElementById('epStart').value = project.start_date || '';
+  document.getElementById('epDeadline').value = project.deadline || '';
+  document.getElementById('epTeam').value = project.assigned_team || '';
+  document.getElementById('epProgress').value = project.progress || 0;
+  document.getElementById('epScope').value = project.scope_of_work || '';
+  document.getElementById('epDeliverables').value = project.deliverables || '';
+  document.getElementById('editProjModal').classList.add('active');
+}
+function closeEditProject() { document.getElementById('editProjModal').classList.remove('active'); }
+async function saveEditProject() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  const name = document.getElementById('epName').value.trim();
+  if (!name) { showToast('Name required', 'error'); return; }
+  const data = {
+    name, client_name: document.getElementById('epClient').value.trim(),
+    status: document.getElementById('epStatus').value,
+    start_date: document.getElementById('epStart').value || null,
+    deadline: document.getElementById('epDeadline').value || null,
+    assigned_team: document.getElementById('epTeam').value.trim(),
+    progress: Number(document.getElementById('epProgress').value) || 0,
+    scope_of_work: document.getElementById('epScope').value.trim(),
+    deliverables: document.getElementById('epDeliverables').value.trim()
+  };
+  try {
+    project = await updateProject(projectId, data);
+    closeEditProject(); populateOverview();
+    showToast('Project updated!', 'success');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+function switchTab(el, name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+window.switchTab = switchTab;
+window.getProjectDetailProject = function() {
+  return project;
+};
+window.getProjectDetailProjectId = function() {
+  return projectId;
+};
+window.setProjectDetailProject = function(nextProject) {
+  project = nextProject;
+  populateOverview();
+};
+window.refreshProjectDetailProject = async function() {
+  const allProjects = await fetchProjects();
+  const refreshedProject = allProjects.find(p => p.id === projectId);
+  if (refreshedProject) {
+    project = refreshedProject;
+    populateOverview();
+  }
+  return project;
+};
+
+document.getElementById('taskModal').addEventListener('click', function(e){ if(e.target===this) closeTaskModal(); });
+document.getElementById('editProjModal').addEventListener('click', function(e){ if(e.target===this) closeEditProject(); });
+
+init();
+</script>
+<script src="project-template-workspace.js"></script>
+</body>
+</html>

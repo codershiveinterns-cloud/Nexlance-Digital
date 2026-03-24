@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Features — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .page-hero { padding:140px 0 70px; background:linear-gradient(135deg,#f8fafc 0%,#e0e7ff 50%,#f8fafc 100%); text-align:center; position:relative; overflow:hidden; }
+        .page-hero::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(79,70,229,.07); top:-150px; right:-150px; }
+        .page-hero::after  { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,.07); bottom:-80px; left:-80px; }
+        .page-hero .container { position:relative; z-index:1; }
+        .page-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
+        .page-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+        .page-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:600px; margin:0 auto 2rem; line-height:1.7; }
+
+        /* Feature nav pills */
+        .feature-nav { display:flex; justify-content:center; flex-wrap:wrap; gap:.5rem; margin-bottom:3rem; }
+        .fnav-btn { padding:.65rem 1.25rem; font-size:var(--font-size-sm); font-weight:600; color:var(--color-text-light); background:#fff; border:1.5px solid var(--color-border); border-radius:var(--radius-full); cursor:pointer; transition:all .2s; }
+        .fnav-btn:hover, .fnav-btn.active { color:#fff; background:var(--color-secondary); border-color:var(--color-secondary); }
+
+        /* Feature section (alternating) */
+        .feat-section { display:grid; grid-template-columns:1fr 1fr; gap:5rem; align-items:center; margin-bottom:6rem; }
+        .feat-section.reverse { direction:rtl; }
+        .feat-section.reverse > * { direction:ltr; }
+        .feat-visual { border-radius:var(--radius-2xl); overflow:hidden; box-shadow:var(--shadow-2xl); height:360px; display:flex; align-items:center; justify-content:center; font-size:5rem; }
+        .feat-content .feat-label { display:inline-block; font-size:var(--font-size-xs); font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--color-secondary); margin-bottom:.75rem; background:rgba(79,70,229,.08); padding:.35rem .85rem; border-radius:var(--radius-full); }
+        .feat-content h2 { font-size:var(--font-size-3xl); font-weight:800; margin-bottom:1rem; line-height:1.25; }
+        .feat-content p { font-size:var(--font-size-base); color:var(--color-text-light); line-height:1.8; margin-bottom:1.5rem; }
+        .feat-list { list-style:none; display:flex; flex-direction:column; gap:.65rem; margin-bottom:1.75rem; }
+        .feat-list li { display:flex; align-items:flex-start; gap:.75rem; font-size:var(--font-size-sm); color:var(--color-text); }
+        .feat-list li::before { content:'✓'; color:var(--color-success); font-weight:700; flex-shrink:0; margin-top:1px; }
+
+        /* Small features grid */
+        .small-feat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem; }
+        .small-feat-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:1.75rem 1.5rem; transition:all .2s; }
+        .small-feat-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-lg); border-color:var(--color-secondary); }
+        .small-feat-icon { font-size:2rem; margin-bottom:1rem; }
+        .small-feat-card h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.5rem; }
+        .small-feat-card p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.6; }
+
+        /* Comparison table */
+        .cmp-table { width:100%; border-collapse:collapse; }
+        .cmp-table th, .cmp-table td { padding:1rem 1.25rem; text-align:left; border-bottom:1px solid var(--color-border); font-size:var(--font-size-sm); }
+        .cmp-table th { font-weight:700; color:var(--color-text); background:var(--color-bg-alt); }
+        .cmp-table th:not(:first-child), .cmp-table td:not(:first-child) { text-align:center; }
+        .cmp-table tbody tr:hover { background:var(--color-bg-alt); }
+        .cmp-yes { color:var(--color-success); font-size:1.1rem; font-weight:700; }
+        .cmp-no  { color:var(--color-text-lighter); font-size:1.1rem; }
+        .cmp-val { font-weight:600; color:var(--color-secondary); }
+        .tbl-wrap { border:1px solid var(--color-border); border-radius:var(--radius-xl); overflow:hidden; }
+        .tbl-header-row th { background:var(--color-bg-dark); color:#fff; }
+        .tbl-header-row th:first-child { background:var(--color-bg-dark); }
+
+        @media(max-width:1024px){ .feat-section,.feat-section.reverse{ grid-template-columns:1fr; direction:ltr; } .small-feat-grid{ grid-template-columns:repeat(2,1fr); } }
+        @media(max-width:600px){ .small-feat-grid{ grid-template-columns:1fr; } .cmp-table th,.cmp-table td{ padding:.7rem .8rem; } }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item has-dropdown">
+                <a href="#">Products <span class="arrow">▾</span></a>
+                <div class="dropdown"><div class="dropdown-grid">
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                </div></div>
+            </li>
+            <li class="nav-item has-dropdown">
+                <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                <div class="dropdown dropdown-templates">
+                    <div class="dropdown-grid templates-grid">
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                    </div>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                </div>
+            </li>
+            <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+            <li class="nav-item"><a href="features.html">Features</a></li>
+            <li class="nav-item"><a href="#">Resources</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text">Log In</a>
+            <a href="login.html" class="btn-primary">Get Started</a>
+        </div>
+        <button class="mobile-toggle" id="mobile-toggle"><span></span><span></span><span></span></button>
+    </div>
+</nav>
+
+<section class="page-hero">
+    <div class="container">
+        <span class="page-hero-label">Features</span>
+        <h1>Everything you need to<br><span class="gradient-text">build & grow online</span></h1>
+        <p>A complete platform for websites, stores, and digital experiences — with no coding required and no limits on creativity.</p>
+        <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+            <a href="login.html" class="btn-primary btn-large">Start Free Trial</a>
+            <a href="pricing.html" class="btn-secondary btn-large">View Pricing</a>
+        </div>
+    </div>
+</section>
+
+<!-- Feature nav -->
+<section style="background:#fff; padding:3rem 0 0;">
+    <div class="container">
+        <div class="feature-nav">
+            <button class="fnav-btn active" onclick="scrollTo('#editor')">Editor</button>
+            <button class="fnav-btn" onclick="scrollTo('#ecommerce')">E-commerce</button>
+            <button class="fnav-btn" onclick="scrollTo('#seo')">SEO & Marketing</button>
+            <button class="fnav-btn" onclick="scrollTo('#analytics')">Analytics</button>
+            <button class="fnav-btn" onclick="scrollTo('#security')">Security</button>
+            <button class="fnav-btn" onclick="scrollTo('#ai')">AI Tools</button>
+        </div>
+    </div>
+</section>
+
+<!-- Editor -->
+<section id="editor" style="background:#fff;">
+    <div class="container">
+        <div class="feat-section">
+            <div class="feat-visual" style="background:linear-gradient(135deg,#e0e7ff,#c4b5fd);width:660px;height:360px;"> 
+                <img src="images/f3.png" alt="drag and drop" style="width:660px;height:360px;"></div>
+            <div class="feat-content">
+                <span class="feat-label">Drag & Drop Editor</span>
+                <h2>Design freely. No code required.</h2>
+                <p>Nexlance's visual editor gives you total creative freedom. Pick up any element, drop it anywhere, and see your changes instantly — no waiting, no guessing.</p>
+                <ul class="feat-list">
+                    <li>Pixel-perfect drag-and-drop across any screen size</li>
+                    <li>Live preview on desktop, tablet, and mobile simultaneously</li>
+                    <li>500+ pre-built sections and content blocks</li>
+                    <li>Custom fonts, colors, and gradients with one click</li>
+                    <li>Undo/redo history with 100+ steps</li>
+                    <li>Keyboard shortcuts for power users</li>
+                </ul>
+                <a href="login.html" class="btn-primary">Try the Editor Free</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- E-commerce -->
+<section id="ecommerce" style="background:var(--color-bg-alt);">
+    <div class="container">
+        <div class="feat-section reverse">
+            <div class="feat-visual" style="background:linear-gradient(135deg,#ff6b6b,#feca57);">
+                <img src="images/e-commerce.jpg" alt="e-commerce dashboard" style="width:660px;height:360px;">
+            </div>
+            <div class="feat-content">
+                <span class="feat-label">E-commerce</span>
+                <h2>Sell anything. Everywhere.</h2>
+                <p>Powerful e-commerce tools that scale from your first sale to your millionth order. Accept payments globally, manage inventory, and ship with confidence.</p>
+                <ul class="feat-list">
+                    <li>Sell physical, digital, and subscription products</li>
+                    <li>100+ payment gateways including Razorpay, Stripe, PayPal</li>
+                    <li>Automated inventory management and low-stock alerts</li>
+                    <li>Abandoned cart recovery emails (automatic)</li>
+                    <li>Multi-currency and multi-language storefronts</li>
+                    <li>Integrated shipping with 50+ carriers</li>
+                </ul>
+                <a href="login.html" class="btn-primary">Open Your Store Free</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SEO & Marketing -->
+<section id="seo" style="background:#fff;">
+    <div class="container">
+        <div class="feat-section">
+            <div class="feat-visual" style="background:linear-gradient(135deg,#00b894,#00cec9);">
+                <img src="images/seo.webp" alt="SEO dashboard" style="width:660px;height:360px;">
+            </div>
+            <div class="feat-content">
+                <span class="feat-label">SEO & Marketing</span>
+                <h2>Rank higher. Reach further.</h2>
+                <p>Built-in SEO tools, email campaigns, and marketing automation help you grow your audience without hiring a marketing team.</p>
+                <ul class="feat-list">
+                    <li>Automatic SEO meta tags, sitemap, and structured data</li>
+                    <li>Google Analytics and Search Console integration</li>
+                    <li>Email marketing with drag-and-drop campaign builder</li>
+                    <li>Pop-ups, banners, and promotional coupons</li>
+                    <li>Social media auto-publish</li>
+                    <li>A/B testing for landing pages</li>
+                </ul>
+                <a href="login.html" class="btn-primary">Start Growing Today</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Analytics -->
+<section id="analytics" style="background:var(--color-bg-alt);">
+    <div class="container">
+        <div class="feat-section reverse">
+            <div class="feat-visual" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">
+                <img src="images/analytics.png" alt="Analytics dashboard" style="width:660px;height:360px;">
+            </div>
+            <div class="feat-content">
+                <span class="feat-label">Analytics</span>
+                <h2>Know your audience. Grow your business.</h2>
+                <p>Real-time dashboards that turn raw data into clear actions. Understand where visitors come from, what they do, and what makes them convert.</p>
+                <ul class="feat-list">
+                    <li>Real-time visitor tracking and heatmaps</li>
+                    <li>Traffic source breakdown (organic, paid, social, direct)</li>
+                    <li>Conversion funnel analysis</li>
+                    <li>Revenue and sales dashboards</li>
+                    <li>Custom reports exportable to CSV/PDF</li>
+                    <li>Goal and event tracking</li>
+                </ul>
+                <a href="login.html" class="btn-primary">Explore Analytics</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Security -->
+<section id="security" style="background:#fff;">
+    <div class="container">
+        <div class="feat-section">
+            <div class="feat-visual" style="background:linear-gradient(135deg,#1e1b4b,#4f46e5);">
+                <img src="images/performance.jpg" alt="Security features" style="width:660px;height:360px;">
+            </div>
+            <div class="feat-content">
+                <span class="feat-label">Security & Performance</span>
+                <h2>Fast, secure, and always online.</h2>
+                <p>Your site deserves enterprise-grade infrastructure. We handle security, speed, and uptime — so you never have to worry.</p>
+                <ul class="feat-list">
+                    <li>Free SSL certificate for every site (auto-renewed)</li>
+                    <li>99.9% uptime SLA backed by global CDN</li>
+                    <li>DDoS protection and Web Application Firewall</li>
+                    <li>Automatic daily backups with 30-day history</li>
+                    <li>Two-factor authentication for your account</li>
+                    <li>PCI DSS Level 1 compliant for payments</li>
+                </ul>
+                <a href="login.html" class="btn-primary">Build with Confidence</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- AI Tools -->
+<section id="ai" style="background:linear-gradient(135deg,#1e1b4b 0%,#4f46e5 100%);">
+    <div class="container">
+        <div class="feat-section" style="color:#fff;">
+            <div class="feat-visual" style="background:rgba(255,255,255,.1); box-shadow:none;">
+                <img src="images/ai-tools.webp" alt="AI tools dashboard" style="width:660px;height:360px;">
+            </div>
+            <div class="feat-content">
+                <span class="feat-label" style="color:#a5b4fc; background:rgba(165,180,252,.15);">AI Tools (New)</span>
+                <h2 style="color:#fff;">Let AI do the heavy lifting.</h2>
+                <p style="color:rgba(255,255,255,.8);">From writing copy to designing layouts, our AI tools accelerate every part of building your website — so you can focus on what matters.</p>
+                <ul class="feat-list" style="color:rgba(255,255,255,.9);">
+                    <li>AI Site Builder: describe your business, get a complete site in 30 seconds</li>
+                    <li>AI Copywriter: generate headlines, product descriptions, and blog posts</li>
+                    <li>AI Image Generator: create custom visuals without a designer</li>
+                    <li>Smart Layout Suggestions based on your industry</li>
+                    <li>Automatic SEO optimization as you type</li>
+                </ul>
+                <a href="login.html" class="btn-primary" style="background:#fff; color:#1e1b4b;">Try AI Tools Free</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- More features grid -->
+<section style="background:var(--color-bg-alt);">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">And Much More</span>
+            <h2 class="section-title">100+ features to power your growth</h2>
+        </div>
+        <div class="small-feat-grid">
+            <div class="small-feat-card"><div class="small-feat-icon">📱</div><h3>Mobile Responsive</h3><p>Every site looks perfect on any device automatically.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">🌐</div><h3>Custom Domain</h3><p>Connect your own domain with one-click DNS setup.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">📅</div><h3>Appointment Booking</h3><p>Built-in scheduler for services and consultations.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">📝</div><h3>Blog & CMS</h3><p>Full-featured blogging with categories, tags, and RSS.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">🎥</div><h3>Video Backgrounds</h3><p>Embed YouTube, Vimeo, or self-hosted video anywhere.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">🗺️</div><h3>Google Maps</h3><p>Embed interactive maps with custom markers.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">💬</div><h3>Live Chat</h3><p>Add a live chat widget with one line of code.</p></div>
+            <div class="small-feat-card"><div class="small-feat-icon">🔗</div><h3>API Access</h3><p>Connect any third-party tool via REST API or Zapier.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- Feature comparison -->
+<section style="background:#fff;">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">Compare Plans</span>
+            <h2 class="section-title">Features by plan</h2>
+            <p class="section-subtitle">All plans include a 14-day free trial. No credit card required.</p>
+        </div>
+        <div class="tbl-wrap">
+            <table class="cmp-table">
+                <thead>
+                    <tr class="tbl-header-row">
+                        <th>Feature</th>
+                        <th>Personal</th>
+                        <th>Business</th>
+                        <th>Commerce</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Custom Domain</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Free SSL Certificate</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Bandwidth</td><td class="cmp-val">Unlimited</td><td class="cmp-val">Unlimited</td><td class="cmp-val">Unlimited</td></tr>
+                    <tr><td>Storage</td><td class="cmp-val">10 GB</td><td class="cmp-val">50 GB</td><td class="cmp-val">Unlimited</td></tr>
+                    <tr><td>Number of Pages</td><td class="cmp-val">20</td><td class="cmp-val">Unlimited</td><td class="cmp-val">Unlimited</td></tr>
+                    <tr><td>E-commerce</td><td class="cmp-no">✗</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Transaction Fees</td><td class="cmp-no">—</td><td class="cmp-val">3%</td><td class="cmp-val">0%</td></tr>
+                    <tr><td>Analytics Dashboard</td><td class="cmp-val">Basic</td><td class="cmp-val">Advanced</td><td class="cmp-val">Advanced+</td></tr>
+                    <tr><td>Email Campaigns</td><td class="cmp-no">✗</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>AI Design Assistant</td><td class="cmp-val">5/mo</td><td class="cmp-val">50/mo</td><td class="cmp-val">Unlimited</td></tr>
+                    <tr><td>Remove Nexlance Badge</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Priority Support</td><td class="cmp-no">✗</td><td class="cmp-yes">✓</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Point of Sale</td><td class="cmp-no">✗</td><td class="cmp-no">✗</td><td class="cmp-yes">✓</td></tr>
+                    <tr><td>Customer Accounts</td><td class="cmp-no">✗</td><td class="cmp-no">✗</td><td class="cmp-yes">✓</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="text-align:center; margin-top:2rem;">
+            <a href="pricing.html" class="btn-primary btn-large">See Full Pricing</a>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Ready to explore every feature?</h2>
+            <p>Start your free 14-day trial — no credit card required.</p>
+            <a href="login.html" class="btn-primary btn-large">Get Started Free</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer"><div class="container">
+    <div class="footer-grid">
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">𝕏</a><a href="#">in</a></div></div>
+        <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
+        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div>
+        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
+</div></footer>
+<button class="back-to-top" id="back-to-top">↑</button>
+<script src="main.js"></script>
+<script>
+    document.querySelectorAll('.fnav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.fnav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+    function scrollTo(id) {
+        const el = document.querySelector(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+</script>
+</body>
+</html>

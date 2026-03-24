@@ -1,0 +1,20 @@
+[
+  {
+    "transactionId": "license:STARTU-N5F9-J3X8",
+    "provider": "license",
+    "referenceId": "STARTU-N5F9-J3X8",
+    "status": "succeeded",
+    "amount": 0,
+    "currency": "EUR",
+    "templateId": "startup-landing-template",
+    "templateName": "Startup Landing",
+    "email": "test@example.com",
+    "customerName": "Test User",
+    "metadata": {
+      "licenseKey": "STARTU-N5F9-J3X8",
+      "templateName": "Startup Landing"
+    },
+    "updatedAt": "2026-03-22T08:25:49.642Z",
+    "createdAt": "2026-03-22T08:25:49.642Z"
+  }
+]

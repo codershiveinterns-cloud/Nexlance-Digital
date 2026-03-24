@@ -1,0 +1,11 @@
+# Nexlance template license registry
+# Format:
+# template_id | license_key | status | issued_to_email | used_by_email | created_at | used_at
+cafe-bakery-template | CAFEBA-A7K3-Q9L2 | active |  |  | 2026-03-16T00:00:00.000Z |
+digital-marketing-template | DIGITA-M4P8-X2R6 | active |  |  | 2026-03-16T00:00:00.000Z |
+fashion-store-template | FASHIO-V6N1-B8T4 | active |  |  | 2026-03-16T00:00:00.000Z |
+fine-dining-template | FINEDI-H3W7-K5M9 | active |  |  | 2026-03-16T00:00:00.000Z |
+jewelry-luxury-template | JEWELR-P2D6-Y7Q4 | active |  |  | 2026-03-16T00:00:00.000Z |
+photographer-template | PHOTOG-R8C2-L4Z7 | active |  |  | 2026-03-16T00:00:00.000Z |
+startup-landing-template | STARTU-N5F9-J3X8 | active |  |  | 2026-03-16T00:00:00.000Z |
+wedding-gallery-template | WEDDIN-T7H4-S6P1 | active |  |  | 2026-03-16T00:00:00.000Z |

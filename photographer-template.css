@@ -1,0 +1,50 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #171717; background: radial-gradient(circle at top left, rgba(20, 184, 166, 0.16), transparent 25%), linear-gradient(180deg, #f9fbfb 0%, #eef7f6 100%); }
+.ph-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 5vw; background: rgba(249,251,251,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(15, 118, 110, 0.12); }
+.ph-brand { font-size: 1.45rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0f766e; }
+.ph-nav { display: flex; gap: 24px; }
+.ph-nav a, .ph-cta, .ph-btn { text-decoration: none; font-family: "Segoe UI", sans-serif; }
+.ph-nav a { color: #4b5a58; }
+.ph-cta, .ph-btn { border-radius: 999px; font-weight: 700; }
+.ph-cta { padding: 12px 18px; background: #171717; color: #f6fdfc; }
+.ph-hero, .ph-section { padding-left: 5vw; padding-right: 5vw; }
+.ph-hero { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 46px; align-items: center; padding-top: 64px; padding-bottom: 56px; }
+.ph-kicker { margin: 0 0 14px; color: #0f766e; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.ph-copy h1, .ph-heading h2, .service-panel h2, .contact-panel h2 { margin: 0 0 18px; line-height: 1.04; letter-spacing: -0.04em; }
+.ph-copy h1 { font-size: clamp(3rem, 5vw, 5.4rem); }
+.ph-text, .portfolio-card p, .service-panel p, .quote-meta span, .story-card p, .contact-panel p { color: #4b5a58; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.ph-actions { display: flex; gap: 14px; flex-wrap: wrap; margin: 28px 0 34px; }
+.ph-btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 20px; }
+.ph-primary { background: linear-gradient(135deg, #14b8a6, #0f766e); color: #fff; }
+.ph-secondary { background: rgba(20, 184, 166, 0.12); color: #0f766e; }
+.ph-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.ph-metrics div, .portfolio-card, .service-panel, .quote-panel, .story-card, .contact-panel, .ph-floating { background: rgba(255,255,255,0.88); border: 1px solid rgba(15, 118, 110, 0.14); box-shadow: 0 18px 45px rgba(24, 54, 51, 0.08); }
+.ph-metrics div { padding: 20px; border-radius: 24px; }
+.ph-metrics strong { display: block; font-size: 2rem; margin-bottom: 6px; color: #171717; font-family: "Segoe UI", sans-serif; }
+.ph-metrics span { color: #627370; font-size: 0.92rem; font-family: "Segoe UI", sans-serif; }
+.ph-visual { position: relative; }
+.ph-visual img { width: 100%; min-height: 540px; object-fit: cover; display: block; border-radius: 32px; box-shadow: 0 24px 60px rgba(24, 54, 51, 0.14); }
+.ph-floating { position: absolute; right: -18px; bottom: 24px; max-width: 280px; padding: 22px; border-radius: 26px; }
+.ph-floating span { display: block; margin-bottom: 8px; color: #0f766e; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.ph-floating strong { display: block; margin-bottom: 10px; font-size: 1.3rem; }
+.ph-floating p { margin: 0; color: #4b5a58; line-height: 1.7; font-family: "Segoe UI", sans-serif; }
+.ph-section { padding-top: 54px; padding-bottom: 34px; }
+.ph-heading { max-width: 740px; margin-bottom: 28px; }
+.ph-heading h2, .service-panel h2, .contact-panel h2 { font-size: clamp(2.1rem, 4vw, 3.5rem); }
+.portfolio-grid, .story-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.portfolio-card, .service-panel, .quote-panel, .story-card { border-radius: 28px; padding: 24px; }
+.portfolio-card h3, .story-card h3 { margin: 0 0 10px; font-size: 1.3rem; }
+.split-layout { display: grid; grid-template-columns: 1fr 0.92fr; gap: 24px; align-items: stretch; }
+.service-panel ul { margin: 18px 0 0; padding-left: 18px; color: #4b5a58; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.quote { margin: 0 0 18px; font-size: clamp(1.4rem, 2.5vw, 2.05rem); line-height: 1.5; }
+.quote-meta strong { display: block; margin-bottom: 4px; }
+.story-card span { display: inline-flex; margin-bottom: 12px; color: #0f766e; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.contact-panel { display: grid; grid-template-columns: 1fr 0.95fr; gap: 28px; padding: 30px; border-radius: 32px; }
+.ph-form { display: grid; gap: 12px; }
+.ph-form input, .ph-form textarea { width: 100%; padding: 14px 16px; border-radius: 18px; border: 1px solid rgba(15, 118, 110, 0.18); background: #fff; font: inherit; font-family: "Segoe UI", sans-serif; }
+.ph-form button { padding: 15px 20px; border: none; border-radius: 18px; background: linear-gradient(135deg, #171717, #0f766e); color: #f6fdfc; font: inherit; font-weight: 700; cursor: pointer; font-family: "Segoe UI", sans-serif; }
+#phFormMessage { margin: 4px 0 0; color: #0f766e; font-weight: 600; font-family: "Segoe UI", sans-serif; }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+@media (max-width: 1100px) { .ph-hero, .split-layout, .contact-panel { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .ph-header { flex-wrap: wrap; justify-content: center; } .ph-nav { width: 100%; justify-content: center; flex-wrap: wrap; } .ph-metrics, .portfolio-grid, .story-grid { grid-template-columns: 1fr; } .ph-floating { position: static; max-width: none; margin-top: 18px; } }

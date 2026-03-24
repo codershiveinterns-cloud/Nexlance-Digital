@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ---- Page Hero (inner pages) ---- */
+        .page-hero {
+            padding: 160px 0 80px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .page-hero::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.08);
+            top: -150px; right: -150px;
+        }
+        .page-hero::after {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            border-radius: 50%;
+            background: rgba(124, 58, 237, 0.08);
+            bottom: -100px; left: -100px;
+        }
+        .page-hero .container { position: relative; z-index: 1; }
+        .page-hero-label {
+            display: inline-block;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--color-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+        .page-hero h1 {
+            font-size: var(--font-size-5xl);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+        }
+        .page-hero p {
+            font-size: var(--font-size-lg);
+            color: var(--color-text-light);
+            max-width: 640px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ---- Stats ---- */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--color-secondary), var(--color-accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+        .stat-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+            font-weight: 500;
+        }
+
+        /* ---- Story ---- */
+        .story-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5rem;
+            align-items: center;
+        }
+        .story-image {
+            border-radius: var(--radius-2xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-2xl);
+            background: linear-gradient(135deg, #e0e7ff, #c4b5fd);
+            height: 460px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 6rem;
+        }
+        .story-content .section-label { text-align: left; display: block; }
+        .story-content h2 {
+            font-size: var(--font-size-4xl);
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+        .story-content p {
+            font-size: var(--font-size-base);
+            color: var(--color-text-light);
+            line-height: 1.8;
+            margin-bottom: 1.25rem;
+        }
+
+        /* ---- Values ---- */
+        .values-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+        .value-card {
+            background: #fff;
+            border-radius: var(--radius-xl);
+            padding: 2.5rem 2rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-border);
+            transition: all var(--transition-base);
+        }
+        .value-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--color-secondary);
+        }
+        .value-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.25rem;
+        }
+        .value-card h3 {
+            font-size: var(--font-size-xl);
+            margin-bottom: 0.75rem;
+        }
+        .value-card p {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+            line-height: 1.7;
+        }
+
+        /* ---- Team ---- */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+        }
+        .team-card {
+            text-align: center;
+        }
+        .team-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .avatar-indigo { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+        .avatar-pink   { background: linear-gradient(135deg, #ec4899, #a855f7); }
+        .avatar-blue   { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .avatar-green  { background: linear-gradient(135deg, #10b981, #059669); }
+        .avatar-orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .avatar-red    { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+        .avatar-teal   { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .avatar-purple { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+        .team-card h4 {
+            font-size: var(--font-size-base);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .team-role {
+            font-size: var(--font-size-sm);
+            color: var(--color-secondary);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        .team-bio {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+            line-height: 1.6;
+        }
+
+        /* ---- Investors ---- */
+        .investors-grid {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        .investor-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem 2.5rem;
+            text-align: center;
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            color: var(--color-text-light);
+            transition: all var(--transition-fast);
+        }
+        .investor-card:hover {
+            border-color: var(--color-secondary);
+            color: var(--color-secondary);
+            box-shadow: var(--shadow-md);
+        }
+
+        @media (max-width: 1024px) {
+            .story-grid { grid-template-columns: 1fr; gap: 3rem; }
+            .team-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .page-hero h1 { font-size: var(--font-size-4xl); }
+            .values-grid { grid-template-columns: 1fr; }
+            .team-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .team-grid { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container"> 
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                Nexlance
+            </a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#products">Products <span class="arrow">▾</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🌐</span>
+                                <div><h4>Websites</h4><p>Professional site builder</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🛒</span>
+                                <div><h4>E-commerce</h4><p>Online store solutions</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📧</span>
+                                <div><h4>Email Marketing</h4><p>Campaign tools</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📅</span>
+                                <div><h4>Scheduling</h4><p>Appointment booking</p></div>
+                            </a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#templates">Templates <span class="arrow">▾</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Portfolio</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Business</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Blog</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Store</span>
+                            </a>
+                        </div>
+                        <a href="index.html#templates" class="dropdown-view-all">View All Templates →</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="index.html#pricing">Pricing</a></li>
+                <li class="nav-item"><a href="index.html#features">Features</a></li>
+                <li class="nav-item"><a href="index.html#resources">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="login.html" class="btn-text">Log In</a>
+                <a href="login.html" class="btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Hero -->
+    <section class="page-hero">
+        <div class="container">
+            <span class="page-hero-label">About Us</span>
+            <h1>Building the future of<br><span class="gradient-text">web creation</span></h1>
+            <p>We're a passionate team on a mission to make professional web design accessible to everyone — from freelancers and startups to global enterprises.</p>
+
+            <!-- Stats -->
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-number">4M+</div>
+                    <div class="stat-label">Active Users</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">180+</div>
+                    <div class="stat-label">Countries</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">12M+</div>
+                    <div class="stat-label">Websites Built</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">99.9%</div>
+                    <div class="stat-label">Uptime SLA</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Our Story -->
+    <section style="background: #fff;">
+        <div class="container">
+            <div class="story-grid">
+                <div class="story-image"><img src="images/main.png" alt="Our Story Image"></div>
+                <div class="story-content">
+                    <span class="section-label">Our Story</span>
+                    <h2>From a small team to a global platform</h2>
+                    <p>Nexlance was founded in 2019 by three developers frustrated by how hard it was for non-technical founders to build a professional online presence. We believed anyone with a great idea deserved a great website — without hiring a developer or learning to code.</p>
+                    <p>Starting from a tiny office in Bangalore, we bootstrapped our way to our first 10,000 users. Two years later, we raised our Series A and expanded globally. Today, Nexlance powers over 12 million websites across 180 countries and is trusted by freelancers, agencies, and Fortune 500 companies alike.</p>
+                    <p>We're still on that same mission: make powerful web tools radically simple. And we're just getting started.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Our Values -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Our Values</span>
+                <h2 class="section-title">What drives everything we do</h2>
+                <p class="section-subtitle">Our values aren't just words on a wall. They shape how we build products, support customers, and grow as a company.</p>
+            </div>
+            <div class="values-grid">
+                <div class="value-card">
+                    <div class="value-icon">🌍</div>
+                    <h3>Accessibility First</h3>
+                    <p>We believe the web should be open to everyone. Our tools are designed to be intuitive for beginners and powerful enough for professionals.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">⚡</div>
+                    <h3>Speed & Simplicity</h3>
+                    <p>Complexity is the enemy of progress. We obsess over removing friction so our users can focus on what matters — building great things.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🤝</div>
+                    <h3>Customer Obsession</h3>
+                    <p>Every feature we build starts with the customer. We listen, iterate, and ship solutions that make a real difference for real people.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🔒</div>
+                    <h3>Trust & Transparency</h3>
+                    <p>We are honest about our pricing, our roadmap, and our mistakes. Trust is earned through consistent action, not just promises.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🌱</div>
+                    <h3>Sustainable Growth</h3>
+                    <p>We grow responsibly — for our business, our team, and the planet. We're committed to being carbon neutral by 2027.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">💡</div>
+                    <h3>Relentless Innovation</h3>
+                    <p>We're never satisfied with "good enough." Our team ships new features, improvements, and experiments every single week.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Leadership Team -->
+    <section style="background: #fff;">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Leadership</span>
+                <h2 class="section-title">Meet the team behind Nexlance</h2>
+                <p class="section-subtitle">A diverse group of builders, designers, and operators united by a shared belief in the power of the open web.</p>
+            </div>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar avatar-indigo">AK</div>
+                    <h4>Arjun Kapoor</h4>
+                    <div class="team-role">CEO & Co-Founder</div>
+                    <p class="team-bio">Former product lead at Razorpay. IIT Delhi alumnus passionate about scaling developer tools.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-pink">PS</div>
+                    <h4>Priya Sharma</h4>
+                    <div class="team-role">CTO & Co-Founder</div>
+                    <p class="team-bio">Previously engineering manager at Flipkart. Loves distributed systems and clean code.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-blue">RN</div>
+                    <h4>Rohan Nair</h4>
+                    <div class="team-role">CPO & Co-Founder</div>
+                    <p class="team-bio">Product philosopher who spent 6 years at Adobe. Believes design is a conversation.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-green">SG</div>
+                    <h4>Sunita Gupta</h4>
+                    <div class="team-role">VP of Marketing</div>
+                    <p class="team-bio">Built go-to-market strategies for 3 unicorn startups across SaaS and fintech.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-orange">VM</div>
+                    <h4>Vikram Mehta</h4>
+                    <div class="team-role">VP of Engineering</div>
+                    <p class="team-bio">Infrastructure expert. Scaled systems to handle billions of requests daily at Ola.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-red">AM</div>
+                    <h4>Ananya Mishra</h4>
+                    <div class="team-role">Head of Design</div>
+                    <p class="team-bio">Award-winning UX designer. Previously led design at CRED and Swiggy.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-teal">KR</div>
+                    <h4>Karthik Rao</h4>
+                    <div class="team-role">Head of Sales</div>
+                    <p class="team-bio">Enterprise SaaS specialist. Grew revenue 10x at a Series B startup in 18 months.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar avatar-purple">NP</div>
+                    <h4>Neha Patel</h4>
+                    <div class="team-role">Head of Customer Success</div>
+                    <p class="team-bio">NPS champion. Passionate about turning customers into lifelong advocates.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Investors -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Backed By</span>
+                <h2 class="section-title">Trusted by world-class investors</h2>
+                <p class="section-subtitle">We've raised $42M from leading venture firms who share our vision for a more accessible internet.</p>
+            </div>
+            <div class="investors-grid">
+                <div class="investor-card">◉ Sequoia India</div>
+                <div class="investor-card">◇ Accel Partners</div>
+                <div class="investor-card">○ Tiger Global</div>
+                <div class="investor-card">◆ Matrix Partners</div>
+                <div class="investor-card">● Kalaari Capital</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Join millions building on Nexlance</h2>
+                <p>Start your free trial today. No credit card required.</p>
+                <a href="login.html" class="btn-primary btn-large">Get Started Free</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">𝕏</a>
+                        <a href="#" aria-label="LinkedIn">in</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                                            </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms &amp; Services</a>
+                    <a href="sitemap.html">Sitemap</a>
+                    <a href="status.html">Status</a>
+                    <a href="security.html">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <script src="main.js"></script>
+</body>
+</html>
+  <!-- check git -->

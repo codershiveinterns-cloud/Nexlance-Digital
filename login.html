@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sign in — Nexlance</title>
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="logo">◆ Nexlance</div>
+        <p class="auth-sub" id="authSubText">Build beautiful websites &amp; dashboards — sign in to continue.</p>
+      </div>
+
+      <!-- Tabs (hidden during forgot-password view) -->
+      <div class="auth-tabs" id="authTabs">
+        <button class="auth-tab active" id="loginTab" type="button">Sign In</button>
+        <button class="auth-tab" id="registerTab" type="button">Create Account</button>
+      </div>
+
+      <!-- ====== LOGIN FORM ====== -->
+      <form id="loginForm" class="form">
+        <label>
+          Email
+          <input id="loginEmail" type="email" placeholder="you@company.com" autocomplete="email">
+          <span class="field-error" id="loginEmailError"></span>
+        </label>
+
+        <label>
+          Password
+          <div class="password-row">
+            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" id="toggleLoginPassword" class="small-btn">Show</button>
+          </div>
+          <span class="field-error" id="loginPasswordError"></span>
+        </label>
+
+        <div class="form-row form-meta">
+          <label class="small">
+            <input id="remember" type="checkbox"> Remember me
+          </label>
+          <a href="#" class="link-muted link-forgot" id="forgotLink">Forgot Password?</a>
+        </div>
+
+        <div class="form-row">
+          <button class="btn-primary btn-block" id="loginBtn" type="submit">Sign In</button>
+        </div>
+
+        <div id="loginMessage" class="form-message" aria-live="polite"></div>
+      </form>
+
+      <!-- ====== REGISTER FORM ====== -->
+      <form id="registerForm" class="form" style="display:none;">
+        <label>
+          Account Type
+          <select id="regAccountType" autocomplete="organization-title">
+            <option value="freelancer">Freelancer / Individual</option>
+            <option value="business">Business / Company</option>
+          </select>
+          <span class="field-error" id="regAccountTypeError"></span>
+        </label>
+
+        <label>
+          Full Name
+          <input id="regName" type="text" placeholder="Rahul Sharma" autocomplete="name">
+          <span class="field-error" id="regNameError"></span>
+        </label>
+
+        <label>
+          Email
+          <input id="regEmail" type="email" placeholder="you@company.com" autocomplete="email">
+          <span class="field-error" id="regEmailError"></span>
+        </label>
+
+        <label>
+          Mobile Number
+          <input id="regMobile" type="tel" placeholder="9876543210" maxlength="10" autocomplete="tel">
+          <span class="field-error" id="regMobileError"></span>
+        </label>
+
+        <label>
+          Password
+          <div class="password-row">
+            <input id="regPassword" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+            <button type="button" id="toggleRegPassword" class="small-btn">Show</button>
+          </div>
+          <span class="field-hint">Must contain: uppercase · lowercase · number · special character</span>
+          <span class="field-error" id="regPasswordError"></span>
+        </label>
+
+        <label>
+          Confirm Password
+          <div class="password-row">
+            <input id="regConfirm" type="password" placeholder="Re-enter password" autocomplete="new-password">
+            <button type="button" id="toggleRegConfirm" class="small-btn">Show</button>
+          </div>
+          <span class="field-error" id="regConfirmError"></span>
+        </label>
+
+        <div id="businessFields" style="display:none;">
+          <label>
+            Business/Company Email
+            <input id="regBusinessEmail" type="email" placeholder="you@company.com" autocomplete="email">
+            <span class="field-error" id="regBusinessEmailError"></span>
+          </label>
+
+          <label>
+            Business/Company Name
+            <input id="regBusinessName" type="text" placeholder="Nexlance Digital" autocomplete="organization">
+            <span class="field-error" id="regBusinessNameError"></span>
+          </label>
+
+          <label>
+            Business/Company Address
+            <textarea id="regBusinessAddress" rows="3" placeholder="Business/Company Address"></textarea>
+            <span class="field-error" id="regBusinessAddressError"></span>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <button class="btn-primary btn-block" id="registerBtn" type="submit">Create Account</button>
+        </div>
+
+        <div id="registerMessage" class="form-message" aria-live="polite"></div>
+      </form>
+
+      <!-- ====== FORGOT PASSWORD SECTION ====== -->
+      <div id="forgotSection" style="display:none;">
+        <p class="forgot-desc">
+          Enter your registered email address. We'll send a one-time OTP to your inbox so you can reset your password securely.
+        </p>
+
+        <div class="form" style="gap:16px;">
+          <label style="display:flex;flex-direction:column;gap:7px;font-size:.85rem;font-weight:600;color:#555;">
+            Email Address
+            <input id="forgotEmail" type="email" placeholder="you@company.com" autocomplete="email"
+              style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid #e0d6ff;background:#faf9ff;font-size:.9rem;color:#333;outline:none;transition:border-color .2s,box-shadow .2s;font-family:'Segoe UI',sans-serif;">
+            <span class="field-error" id="forgotEmailError"></span>
+          </label>
+
+          <button class="btn-primary btn-block" type="button" id="sendResetBtn">
+            Send OTP
+          </button>
+
+          <div id="forgotOtpFields" style="display:none;gap:16px;">
+            <label style="display:flex;flex-direction:column;gap:7px;font-size:.85rem;font-weight:600;color:#555;">
+              Enter OTP
+              <input id="forgotOtp" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit OTP"
+                style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid #e0d6ff;background:#faf9ff;font-size:.9rem;color:#333;outline:none;transition:border-color .2s,box-shadow .2s;font-family:'Segoe UI',sans-serif;">
+              <span class="field-error" id="forgotOtpError"></span>
+            </label>
+
+            <label>
+              New Password
+              <div class="password-row">
+                <input id="forgotNewPassword" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+                <button type="button" id="toggleForgotNewPassword" class="small-btn">Show</button>
+              </div>
+              <span class="field-error" id="forgotNewPasswordError"></span>
+            </label>
+
+            <label>
+              Confirm New Password
+              <div class="password-row">
+                <input id="forgotConfirmPassword" type="password" placeholder="Re-enter password" autocomplete="new-password">
+                <button type="button" id="toggleForgotConfirmPassword" class="small-btn">Show</button>
+              </div>
+              <span class="field-error" id="forgotConfirmPasswordError"></span>
+            </label>
+
+            <button class="btn-primary btn-block" type="button" id="verifyOtpBtn">
+              Verify OTP & Save Password
+            </button>
+          </div>
+
+          <div id="forgotMessage" class="form-message" aria-live="polite"></div>
+
+          <div style="text-align:center;">
+            <a href="#" class="link-muted" id="backToLoginLink" style="font-size:.85rem;">
+              ← Back to Sign In
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <aside class="auth-art">
+      <img src="images/dash.jpeg" alt="Dashboard preview" loading="lazy">
+      <div class="auth-art-caption">Live analytics, quick insights, and powerful control — all in one place.</div>
+    </aside>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <!-- App config (sets up `auth` + `db` clients) -->
+  <script src="supabase-config.js"></script>
+  <!-- Auth logic -->
+  <script src="auth.js"></script>
+</body>
+</html>

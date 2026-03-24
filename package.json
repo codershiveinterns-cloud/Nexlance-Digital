@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "start": "node backend/server.js",
+    "start:compat": "node server.js"
+  },
+  "dependencies": {
+    "firebase": "^12.10.0"
+  }
+}

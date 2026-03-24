@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Hero */
+        .sec-hero { padding:140px 0 70px; background:linear-gradient(135deg,#0f0c29 0%,#1e1b4b 50%,#302b63 100%); text-align:center; position:relative; overflow:hidden; }
+        .sec-hero::before { content:''; position:absolute; width:600px; height:600px; border-radius:50%; background:rgba(79,70,229,.12); top:-200px; right:-200px; }
+        .sec-hero::after  { content:''; position:absolute; width:400px; height:400px; border-radius:50%; background:rgba(124,58,237,.1); bottom:-150px; left:-150px; }
+        .sec-hero .container { position:relative; z-index:1; }
+        .sec-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:#a5b4fc; text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
+        .sec-hero h1 { font-size:var(--font-size-5xl); font-weight:800; color:#fff; line-height:1.15; margin-bottom:1rem; }
+        .sec-hero p { font-size:var(--font-size-lg); color:rgba(255,255,255,.75); max-width:580px; margin:0 auto 2.5rem; line-height:1.7; }
+        .sec-hero-badges { display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; }
+        .sec-cert-badge { display:flex; align-items:center; gap:.6rem; background:rgba(255,255,255,.08); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.15); border-radius:var(--radius-lg); padding:.75rem 1.25rem; }
+        .sec-cert-badge .cert-icon { font-size:1.4rem; }
+        .sec-cert-badge .cert-text strong { display:block; font-size:var(--font-size-sm); font-weight:700; color:#fff; }
+        .sec-cert-badge .cert-text span { font-size:var(--font-size-xs); color:rgba(255,255,255,.6); }
+
+        /* Trust bar */
+        .trust-bar { display:flex; justify-content:center; gap:4rem; padding:2.5rem 0; background:var(--color-bg-alt); border-bottom:1px solid var(--color-border); }
+        .trust-stat { text-align:center; }
+        .trust-stat strong { display:block; font-size:var(--font-size-2xl); font-weight:800; color:var(--color-secondary); }
+        .trust-stat span { font-size:var(--font-size-sm); color:var(--color-text-light); }
+
+        /* Sections */
+        .sec-section { padding:80px 0; }
+        .sec-section:nth-child(even) { background:var(--color-bg-alt); }
+
+        /* Feature grid */
+        .sec-features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.75rem; }
+        .sec-feat { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:2rem; transition:all .2s; }
+        .sec-feat:hover { border-color:var(--color-secondary); box-shadow:var(--shadow-lg); transform:translateY(-4px); }
+        .sec-feat-icon { width:52px; height:52px; border-radius:var(--radius-lg); background:linear-gradient(135deg,var(--color-secondary),var(--color-accent)); display:flex; align-items:center; justify-content:center; font-size:1.5rem; margin-bottom:1.25rem; }
+        .sec-feat h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.5rem; color:var(--color-text); }
+        .sec-feat p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.65; }
+
+        /* Certifications */
+        .cert-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem; }
+        .cert-card { background:#fff; border:1.5px solid var(--color-border); border-radius:var(--radius-xl); padding:2rem; text-align:center; transition:all .2s; }
+        .cert-card:hover { border-color:var(--color-secondary); box-shadow:var(--shadow-md); }
+        .cert-card-icon { font-size:2.5rem; margin-bottom:1rem; }
+        .cert-card h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.4rem; color:var(--color-text); }
+        .cert-card p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.55; margin-bottom:1rem; }
+        .cert-status { display:inline-flex; align-items:center; gap:.4rem; font-size:var(--font-size-xs); font-weight:700; color:#10b981; background:#dcfce7; padding:.3rem .75rem; border-radius:var(--radius-full); }
+        .cert-status::before { content:'✓'; }
+
+        /* Encryption section */
+        .encrypt-layout { display:grid; grid-template-columns:1fr 1fr; gap:4rem; align-items:center; }
+        .encrypt-visual { background:linear-gradient(135deg,#0f0c29,#1e1b4b); border-radius:var(--radius-2xl); padding:2.5rem; font-family:monospace; color:#a5b4fc; font-size:.85rem; line-height:1.8; overflow:hidden; position:relative; }
+        .encrypt-visual::before { content:'ENCRYPTION LAYER'; position:absolute; top:1rem; right:1.25rem; font-size:.65rem; font-weight:700; color:rgba(165,180,252,.4); letter-spacing:.12em; }
+        .enc-green { color:#34d399; }
+        .enc-yellow { color:#fbbf24; }
+        .enc-blue { color:#60a5fa; }
+        .enc-comment { color:rgba(165,180,252,.4); }
+        .encrypt-text h2 { font-size:var(--font-size-3xl); font-weight:800; margin-bottom:1rem; line-height:1.2; }
+        .encrypt-text p { color:var(--color-text-light); font-size:var(--font-size-base); line-height:1.7; margin-bottom:1.25rem; }
+        .encrypt-list { list-style:none; padding:0; display:flex; flex-direction:column; gap:.65rem; }
+        .encrypt-list li { display:flex; align-items:flex-start; gap:.75rem; font-size:var(--font-size-sm); color:var(--color-text-light); }
+        .encrypt-list li::before { content:'🔒'; flex-shrink:0; margin-top:.05em; }
+
+        /* Bug Bounty */
+        .bounty-card { background:linear-gradient(135deg,#f0f4ff,#e8edff); border:1.5px solid #c7d2fe; border-radius:var(--radius-2xl); padding:3.5rem; display:grid; grid-template-columns:1fr auto; gap:3rem; align-items:center; }
+        .bounty-title { font-size:var(--font-size-3xl); font-weight:800; margin-bottom:.75rem; }
+        .bounty-text p { color:var(--color-text-light); font-size:var(--font-size-base); line-height:1.7; margin-bottom:1.5rem; }
+        .bounty-rewards { display:flex; gap:1.5rem; flex-wrap:wrap; }
+        .reward-pill { display:flex; align-items:center; gap:.5rem; background:#fff; border:1px solid #c7d2fe; border-radius:var(--radius-lg); padding:.6rem 1rem; font-size:var(--font-size-sm); }
+        .reward-pill strong { color:var(--color-secondary); font-weight:700; }
+        .bounty-aside { display:flex; flex-direction:column; gap:1rem; min-width:200px; }
+
+        /* FAQ */
+        .sec-faq { max-width:800px; margin:0 auto; }
+        .faq-item { border:1px solid var(--color-border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:.75rem; }
+        .faq-q { padding:1.25rem 1.5rem; font-weight:600; font-size:var(--font-size-sm); cursor:pointer; display:flex; justify-content:space-between; align-items:center; background:#fff; transition:background .15s; user-select:none; }
+        .faq-q:hover { background:var(--color-bg-alt); }
+        .faq-q .faq-arrow { transition:transform .25s; font-size:.85rem; color:var(--color-text-lighter); }
+        .faq-item.open .faq-q .faq-arrow { transform:rotate(180deg); }
+        .faq-a { max-height:0; overflow:hidden; transition:max-height .35s ease; }
+        .faq-item.open .faq-a { max-height:300px; }
+        .faq-a-inner { padding:.25rem 1.5rem 1.25rem; font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.7; background:#fff; }
+
+        /* Contact CTA */
+        .sec-contact-cta { background:linear-gradient(135deg,#1e1b4b,#4f46e5); border-radius:var(--radius-2xl); padding:4rem; text-align:center; color:#fff; }
+        .sec-contact-cta h2 { font-size:var(--font-size-3xl); font-weight:800; margin-bottom:.75rem; }
+        .sec-contact-cta p { color:rgba(255,255,255,.75); font-size:var(--font-size-base); margin-bottom:2rem; }
+        .sec-contact-cta .contact-methods { display:flex; justify-content:center; gap:1.5rem; flex-wrap:wrap; }
+        .contact-method { display:flex; align-items:center; gap:.75rem; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:var(--radius-xl); padding:1.25rem 1.75rem; text-decoration:none; transition:all .2s; }
+        .contact-method:hover { background:rgba(255,255,255,.15); }
+        .contact-method-icon { font-size:1.5rem; }
+        .contact-method-text strong { display:block; font-size:var(--font-size-sm); font-weight:700; color:#fff; }
+        .contact-method-text span { font-size:var(--font-size-xs); color:rgba(255,255,255,.65); }
+
+        @media(max-width:1024px){ .sec-features-grid{grid-template-columns:repeat(2,1fr);} .cert-grid{grid-template-columns:repeat(2,1fr);} }
+        @media(max-width:768px){ .encrypt-layout{grid-template-columns:1fr;} .bounty-card{grid-template-columns:1fr;} .trust-bar{flex-wrap:wrap;gap:2rem;} .sec-features-grid{grid-template-columns:1fr;} .cert-grid{grid-template-columns:1fr 1fr;} .sec-hero h1{font-size:var(--font-size-4xl);} }
+        @media(max-width:480px){ .cert-grid{grid-template-columns:1fr;} .sec-hero-badges{flex-direction:column;align-items:center;} }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="#">Products <span class="arrow">▾</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                        </div>
+                        <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+                <li class="nav-item"><a href="features.html">Features</a></li>
+                <li class="nav-item"><a href="help-center.html">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="login.html" class="btn-text">Log In</a>
+                <a href="login.html" class="btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="sec-hero">
+        <div class="container">
+            <span class="sec-hero-label">Trust & Safety</span>
+            <h1>Security you can<br>count on</h1>
+            <p>Nexlance is built from the ground up with enterprise-grade security. Your data and your customers' data are protected at every layer.</p>
+            <div class="sec-hero-badges">
+                <div class="sec-cert-badge">
+                    <span class="cert-icon">🛡️</span>
+                    <div class="cert-text"><strong>SOC 2 Type II</strong><span>Certified</span></div>
+                </div>
+                <div class="sec-cert-badge">
+                    <span class="cert-icon">🔐</span>
+                    <div class="cert-text"><strong>ISO 27001</strong><span>Certified</span></div>
+                </div>
+                <div class="sec-cert-badge">
+                    <span class="cert-icon">🇪🇺</span>
+                    <div class="cert-text"><strong>GDPR</strong><span>Compliant</span></div>
+                </div>
+                <div class="sec-cert-badge">
+                    <span class="cert-icon">💳</span>
+                    <div class="cert-text"><strong>PCI DSS</strong><span>Level 1</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Trust bar -->
+    <div class="trust-bar">
+        <div class="trust-stat"><strong>256-bit</strong><span>AES Encryption</span></div>
+        <div class="trust-stat"><strong>99.99%</strong><span>Uptime SLA</span></div>
+        <div class="trust-stat"><strong>4M+</strong><span>Sites Protected</span></div>
+        <div class="trust-stat"><strong>24/7</strong><span>Security Monitoring</span></div>
+    </div>
+
+    <!-- Security Features -->
+    <section class="sec-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Protection</span>
+                <h2 class="section-title">Multi-layer security architecture</h2>
+                <p class="section-subtitle">Every Nexlance site benefits from dozens of overlapping security controls, from infrastructure to application layer.</p>
+            </div>
+            <div class="sec-features-grid">
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🔒</div>
+                    <h3>SSL / TLS Encryption</h3>
+                    <p>Every Nexlance site gets a free SSL certificate automatically. All data in transit is encrypted with TLS 1.3, the latest industry standard.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🔥</div>
+                    <h3>Web Application Firewall</h3>
+                    <p>Our WAF blocks malicious traffic, SQL injections, XSS attacks, and other OWASP Top 10 vulnerabilities before they reach your site.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🛡️</div>
+                    <h3>DDoS Protection</h3>
+                    <p>Enterprise-grade DDoS mitigation absorbs and deflects large-scale attacks, keeping your site online even under extreme conditions.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🔑</div>
+                    <h3>Two-Factor Authentication</h3>
+                    <p>Protect your account with TOTP-based 2FA or hardware security keys (FIDO2/WebAuthn). Team SSO available on Business plans.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🕵️</div>
+                    <h3>Continuous Monitoring</h3>
+                    <p>Our security operations centre monitors systems 24/7. Automated anomaly detection flags suspicious activity in real time.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">💾</div>
+                    <h3>Automatic Backups</h3>
+                    <p>Daily encrypted backups with 30-day retention. Restore your entire site or individual pages with one click from the dashboard.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🧩</div>
+                    <h3>Role-Based Access Control</h3>
+                    <p>Granular permissions let you control exactly what each team member can see and do. Audit logs capture every change.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">🌐</div>
+                    <h3>CDN Security</h3>
+                    <p>Traffic flows through our global CDN with built-in bot mitigation, rate limiting, and edge-level threat blocking across 200+ locations.</p>
+                </div>
+                <div class="sec-feat">
+                    <div class="sec-feat-icon">📋</div>
+                    <h3>Audit Logs</h3>
+                    <p>Comprehensive audit trails for every account action—logins, changes, exports, and API calls—retained for 12 months on Business plans.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Certifications -->
+    <section class="sec-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Compliance</span>
+                <h2 class="section-title">Industry certifications & compliance</h2>
+                <p class="section-subtitle">We undergo rigorous third-party audits so you don't have to take our word for it.</p>
+            </div>
+            <div class="cert-grid">
+                <div class="cert-card">
+                    <div class="cert-card-icon">🏅</div>
+                    <h3>SOC 2 Type II</h3>
+                    <p>Annual audit verifying our security, availability, processing integrity, confidentiality, and privacy controls.</p>
+                    <span class="cert-status">Certified</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">📜</div>
+                    <h3>ISO 27001</h3>
+                    <p>International standard for information security management systems — independently audited and certified.</p>
+                    <span class="cert-status">Certified</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">🇪🇺</div>
+                    <h3>GDPR</h3>
+                    <p>Full compliance with EU General Data Protection Regulation. Data processing agreements available for all plans.</p>
+                    <span class="cert-status">Compliant</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">💳</div>
+                    <h3>PCI DSS Level 1</h3>
+                    <p>The highest level of PCI compliance for payment card industry security, ensuring safe e-commerce transactions.</p>
+                    <span class="cert-status">Certified</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">🏳️</div>
+                    <h3>HIPAA Ready</h3>
+                    <p>Infrastructure meets HIPAA requirements for healthcare customers. BAA agreements available upon request.</p>
+                    <span class="cert-status">Available</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">🇺🇸</div>
+                    <h3>CCPA</h3>
+                    <p>Compliant with California Consumer Privacy Act. Data subject request tooling built into every account.</p>
+                    <span class="cert-status">Compliant</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">🔏</div>
+                    <h3>CSA STAR</h3>
+                    <p>Cloud Security Alliance STAR certification validates cloud-specific security controls and transparency.</p>
+                    <span class="cert-status">Certified</span>
+                </div>
+                <div class="cert-card">
+                    <div class="cert-card-icon">🌍</div>
+                    <h3>ePrivacy</h3>
+                    <p>Compliant with ePrivacy Directive for cookie and tracking requirements across all European markets.</p>
+                    <span class="cert-status">Compliant</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Encryption -->
+    <section class="sec-section">
+        <div class="container">
+            <div class="encrypt-layout">
+                <div class="encrypt-visual">
+<span class="enc-comment">// Data at rest & in transit</span>
+<span class="enc-green">encryption</span>: {
+  <span class="enc-blue">algorithm</span>: <span class="enc-yellow">"AES-256-GCM"</span>,
+  <span class="enc-blue">keyDerivation</span>: <span class="enc-yellow">"PBKDF2-SHA256"</span>,
+  <span class="enc-blue">transit</span>: <span class="enc-yellow">"TLS 1.3"</span>,
+  <span class="enc-blue">certificates</span>: <span class="enc-yellow">"Let's Encrypt + CA"</span>,
+  <span class="enc-blue">hsts</span>: <span class="enc-green">true</span>,
+  <span class="enc-blue">hpkp</span>: <span class="enc-green">true</span>,
+}
+
+<span class="enc-comment">// Access control</span>
+<span class="enc-green">auth</span>: {
+  <span class="enc-blue">mfa</span>: <span class="enc-yellow">"TOTP / WebAuthn"</span>,
+  <span class="enc-blue">sso</span>: <span class="enc-yellow">"SAML 2.0 / OIDC"</span>,
+  <span class="enc-blue">sessions</span>: <span class="enc-yellow">"JWT + refresh"</span>,
+  <span class="enc-blue">rateLimit</span>: <span class="enc-green">true</span>,
+}
+                </div>
+                <div class="encrypt-text">
+                    <h2>End-to-end encryption for everything</h2>
+                    <p>All data stored on Nexlance — your content, customer data, analytics, and media — is encrypted at rest using AES-256. All network traffic uses TLS 1.3 with forward secrecy.</p>
+                    <p>Encryption keys are managed using hardware security modules (HSMs) and rotated regularly. No Nexlance employee can access your data without your authorization.</p>
+                    <ul class="encrypt-list">
+                        <li>AES-256-GCM encryption for data at rest</li>
+                        <li>TLS 1.3 with HSTS for all connections</li>
+                        <li>Hardware Security Module (HSM) key management</li>
+                        <li>Zero-knowledge password hashing with bcrypt</li>
+                        <li>Automated certificate provisioning and renewal</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bug Bounty -->
+    <section class="sec-section">
+        <div class="container">
+            <div class="bounty-card">
+                <div class="bounty-text">
+                    <h2 class="bounty-title">Responsible Disclosure &<br>Bug Bounty Program</h2>
+                    <p>We believe in working with the security community to make the web safer. If you discover a vulnerability in Nexlance, we want to hear from you. We offer rewards for responsible disclosure of qualifying security issues.</p>
+                    <div class="bounty-rewards">
+                        <div class="reward-pill">🔴 Critical <strong>Up to $10,000</strong></div>
+                        <div class="reward-pill">🟠 High <strong>Up to $5,000</strong></div>
+                        <div class="reward-pill">🟡 Medium <strong>Up to $1,000</strong></div>
+                        <div class="reward-pill">🟢 Low <strong>Up to $250</strong></div>
+                    </div>
+                </div>
+                <div class="bounty-aside">
+                    <a href="contact.html" class="btn-primary">Report a Vulnerability</a>
+                    <a href="#" class="btn-outline">View Program Scope</a>
+                    <p style="font-size:var(--font-size-xs);color:var(--color-text-light);text-align:center;line-height:1.5;">We ask that you give us 90 days to remediate before public disclosure.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="sec-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">FAQ</span>
+                <h2 class="section-title">Security questions answered</h2>
+            </div>
+            <div class="sec-faq">
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        Where is my data stored?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">Your data is stored in redundant data centres located in the US, EU, and Asia-Pacific regions. You can choose your preferred data residency region in your account settings. All storage uses AES-256 encryption with HSM-managed keys.</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        Does Nexlance sell or share my data?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">No. We never sell your data or your customers' data to third parties. We use data only to operate and improve the Nexlance service. Our full data practices are described in our <a href="privacy.html" style="color:var(--color-secondary)">Privacy Policy</a>.</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        How do I enable two-factor authentication?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">Go to your Account Settings → Security → Two-Factor Authentication and follow the setup wizard. We support TOTP apps (Google Authenticator, Authy), SMS as a fallback, and hardware security keys (YubiKey, FIDO2). We strongly recommend enabling 2FA on all accounts.</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        What happens to my data if I cancel my account?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">You can export all your data at any time. Upon cancellation, your data is retained for 30 days so you can reactivate if needed. After 30 days, all data is permanently and securely deleted from our systems in accordance with our deletion policy.</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        Is Nexlance GDPR compliant?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">Yes. Nexlance is fully GDPR compliant. We act as a Data Processor for your customer data, and you remain the Data Controller. We offer Data Processing Agreements (DPAs), data subject request tooling, and privacy-by-design features across all plans.</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        How does Nexlance handle security incidents?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">Our incident response team is on call 24/7. In the event of a data breach, we will notify affected customers within 72 hours as required by GDPR. All incidents are logged, investigated, and documented. You can monitor real-time system status at <a href="status.html" style="color:var(--color-secondary)">status.nexlance.com</a>.</div>
+                    </div>
+                </div>
+                <div class="faq-item">
+                    <div class="faq-q" onclick="toggleFaq(this)">
+                        Does Nexlance conduct penetration testing?
+                        <span class="faq-arrow">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        <div class="faq-a-inner">Yes. We conduct annual third-party penetration tests on all critical infrastructure, application layers, and API endpoints. In addition to scheduled tests, our bug bounty program enables continuous community-driven security research. Test results are shared with Enterprise customers upon request under NDA.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact CTA -->
+    <section class="sec-section">
+        <div class="container">
+            <div class="sec-contact-cta">
+                <h2>Questions about security?</h2>
+                <p>Our security team is available to answer questions, provide documentation, or schedule a call for Enterprise customers.</p>
+                <div class="contact-methods">
+                    <a href="mailto:vijaypratap@nexlancedigital.com" class="contact-method">
+                        <span class="contact-method-icon">📧</span>
+                        <div class="contact-method-text">
+                            <strong>Email Security Team</strong>
+                            <span>vijaypratap@nexlancedigital.com</span>
+                        </div>
+                    </a>
+                    <a href="contact.html" class="contact-method">
+                        <span class="contact-method-icon">💬</span>
+                        <div class="contact-method-text">
+                            <strong>Contact Us</strong>
+                            <span>Open a support ticket</span>
+                        </div>
+                    </a>
+                    <a href="#" class="contact-method">
+                        <span class="contact-method-icon">📄</span>
+                        <div class="contact-method-text">
+                            <strong>Trust Center</strong>
+                            <span>Download our SOC 2 report</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">𝕏</a>
+                        <a href="#" aria-label="LinkedIn">in</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                                            </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms &amp; Services</a>
+                    <a href="sitemap.html">Sitemap</a>
+                    <a href="status.html">Status</a>
+                    <a href="security.html">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <script src="main.js"></script>
+    <script>
+        // Navbar transparent → white on scroll (dark hero)
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) navbar.classList.add('scrolled');
+            else navbar.classList.remove('scrolled');
+        });
+
+        function toggleFaq(el) {
+            const item = el.closest('.faq-item');
+            const isOpen = item.classList.contains('open');
+            document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+            if (!isOpen) item.classList.add('open');
+        }
+    </script>
+</body>
+</html>

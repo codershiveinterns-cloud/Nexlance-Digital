@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webinars — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .page-hero { padding:140px 0 60px; background:linear-gradient(135deg,#f8fafc 0%,#e0e7ff 50%,#f8fafc 100%); text-align:center; position:relative; overflow:hidden; }
+        .page-hero::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(79,70,229,.07); top:-150px; right:-150px; }
+        .page-hero::after  { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,.07); bottom:-80px; left:-80px; }
+        .page-hero .container { position:relative; z-index:1; }
+        .page-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
+        .page-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+        .page-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:580px; margin:0 auto; line-height:1.7; }
+
+        /* Tabs */
+        .wb-tabs { display:flex; justify-content:center; gap:0; border-bottom:2px solid var(--color-border); margin-bottom:3rem; }
+        .wb-tab { padding:1rem 2rem; font-size:var(--font-size-base); font-weight:600; color:var(--color-text-light); background:none; border:none; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .2s; }
+        .wb-tab.active { color:var(--color-secondary); border-bottom-color:var(--color-secondary); }
+        .wb-tab:hover:not(.active) { color:var(--color-text); }
+        .wb-panel { display:none; }
+        .wb-panel.active { display:block; }
+
+        /* Upcoming webinar cards */
+        .wb-upcoming-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:2rem; }
+        .wb-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-2xl); overflow:hidden; transition:all .2s; }
+        .wb-card:hover { box-shadow:var(--shadow-xl); transform:translateY(-4px); }
+        .wb-card-header { height:180px; display:flex; align-items:center; justify-content:center; font-size:4rem; position:relative; }
+        .wb-live-badge { position:absolute; top:12px; left:12px; background:#ef4444; color:#fff; font-size:var(--font-size-xs); font-weight:700; padding:.3rem .75rem; border-radius:var(--radius-full); display:flex; align-items:center; gap:.4rem; }
+        .wb-live-dot { width:7px; height:7px; background:#fff; border-radius:50%; animation:pulse 1.5s ease-in-out infinite; }
+        .wb-date-badge { position:absolute; top:12px; right:12px; background:rgba(0,0,0,.6); color:#fff; font-size:var(--font-size-xs); font-weight:700; padding:.3rem .75rem; border-radius:var(--radius-full); }
+        .wb-card-body { padding:1.75rem; }
+        .wb-topic { font-size:var(--font-size-xs); font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--color-secondary); margin-bottom:.5rem; }
+        .wb-card-body h3 { font-size:var(--font-size-xl); font-weight:800; margin-bottom:.75rem; line-height:1.3; }
+        .wb-card-body p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.7; margin-bottom:1.25rem; }
+        .wb-meta { display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
+        .wb-meta-item { display:flex; align-items:center; gap:.4rem; font-size:var(--font-size-sm); color:var(--color-text-light); }
+        .wb-speaker { display:flex; align-items:center; gap:.75rem; margin-bottom:1.25rem; }
+        .wb-speaker-av { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,var(--color-secondary),var(--color-accent)); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:var(--font-size-sm); flex-shrink:0; }
+        .wb-speaker-info strong { display:block; font-size:var(--font-size-sm); font-weight:700; }
+        .wb-speaker-info span { font-size:var(--font-size-xs); color:var(--color-text-light); }
+
+        /* Recorded grid */
+        .wb-rec-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; }
+        .wb-rec-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); overflow:hidden; transition:all .2s; }
+        .wb-rec-card:hover { box-shadow:var(--shadow-lg); transform:translateY(-3px); }
+        .wb-rec-thumb { height:150px; display:flex; align-items:center; justify-content:center; font-size:2.5rem; position:relative; cursor:pointer; }
+        .play-overlay { position:absolute; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .2s; }
+        .wb-rec-card:hover .play-overlay { opacity:1; }
+        .play-btn { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.9); display:flex; align-items:center; justify-content:center; font-size:1.25rem; }
+        .wb-rec-body { padding:1.25rem; }
+        .wb-rec-body h4 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.4rem; line-height:1.4; }
+        .wb-rec-meta { display:flex; gap:1rem; font-size:var(--font-size-xs); color:var(--color-text-lighter); margin-bottom:.75rem; }
+        .wb-rec-tags { display:flex; flex-wrap:wrap; gap:.4rem; }
+        .wb-tag { font-size:var(--font-size-xs); font-weight:600; padding:.2rem .65rem; border-radius:var(--radius-full); background:rgba(79,70,229,.08); color:var(--color-secondary); }
+
+        @media(max-width:1024px){ .wb-rec-grid{grid-template-columns:repeat(2,1fr);} }
+        @media(max-width:768px){ .wb-upcoming-grid,.wb-rec-grid{grid-template-columns:1fr;} .page-hero h1{font-size:var(--font-size-4xl);} }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item has-dropdown">
+                <a href="#">Products <span class="arrow">▾</span></a>
+                <div class="dropdown"><div class="dropdown-grid">
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                </div></div>
+            </li>
+            <li class="nav-item has-dropdown">
+                <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                <div class="dropdown dropdown-templates">
+                    <div class="dropdown-grid templates-grid">
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                    </div>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                </div>
+            </li>
+            <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+            <li class="nav-item"><a href="features.html">Features</a></li>
+            <li class="nav-item"><a href="#">Resources</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text">Log In</a>
+            <a href="login.html" class="btn-primary">Get Started</a>
+        </div>
+        <button class="mobile-toggle" id="mobile-toggle"><span></span><span></span><span></span></button>
+    </div>
+</nav>
+
+<section class="page-hero">
+    <div class="container">
+        <span class="page-hero-label">Webinars</span>
+        <h1>Learn from <span class="gradient-text">the experts</span></h1>
+        <p>Free live webinars and recorded sessions covering everything from launching your first website to scaling your online store.</p>
+    </div>
+</section>
+
+<section style="background:#fff;">
+    <div class="container">
+        <div class="wb-tabs">
+            <button class="wb-tab active" data-panel="upcoming">Upcoming (3)</button>
+            <button class="wb-tab" data-panel="recorded">Recorded Sessions</button>
+        </div>
+
+        <!-- Upcoming -->
+        <div class="wb-panel active" id="panel-upcoming">
+            <div class="wb-upcoming-grid">
+
+                <div class="wb-card">
+                    <div class="wb-card-header" style="background:linear-gradient(135deg,#e0e7ff,#c4b5fd);">
+                        <img src="images/start.jpg" alt="Webinar Thumbnail" style="width:100%;height:100%;object-fit:cover;">
+                        <span class="wb-date-badge">Mar 5 · 6PM IST</span>
+                    </div>
+                    <div class="wb-card-body">
+                        <div class="wb-topic">Getting Started</div>
+                        <h3>Build a Professional Website in 60 Minutes</h3>
+                        <p>Watch our product expert build a complete business website live — from template selection to custom domain setup and going live.</p>
+                        <div class="wb-meta">
+                            <span class="wb-meta-item">🕐 60 minutes</span>
+                            <span class="wb-meta-item">🆓 Free</span>
+                            <span class="wb-meta-item">👥 342 registered</span>
+                        </div>
+                        <div class="wb-speaker">
+                            <div class="wb-speaker-av">RN</div>
+                            <div class="wb-speaker-info"><strong>Rohan Nair</strong><span>Chief Product Officer, Nexlance</span></div>
+                        </div>
+                        <a href="login.html" class="btn-primary" style="width:100%;display:block;text-align:center;padding:.9rem;">Register Free</a>
+                    </div>
+                </div>
+
+                <div class="wb-card">
+                    <div class="wb-card-header" style="background:linear-gradient(135deg,#d1fae5,#6ee7b7);">
+                        <img src="images/ecommerce1.webp" alt="Webinar Thumbnail" style="width:100%;height:100%;object-fit:cover;">
+                        <span class="wb-date-badge">Mar 12 · 7PM IST</span>
+                    </div>
+                    <div class="wb-card-body">
+                        <div class="wb-topic">E-commerce</div>
+                        <h3>Launch Your Online Store: Payments, Shipping & SEO</h3>
+                        <p>Step-by-step walkthrough of setting up products, configuring Razorpay/Stripe, managing orders, and getting your store found on Google.</p>
+                        <div class="wb-meta">
+                            <span class="wb-meta-item">🕐 90 minutes</span>
+                            <span class="wb-meta-item">🆓 Free</span>
+                            <span class="wb-meta-item">👥 518 registered</span>
+                        </div>
+                        <div class="wb-speaker">
+                            <div class="wb-speaker-av">SG</div>
+                            <div class="wb-speaker-info"><strong>Sunita Gupta</strong><span>VP Marketing, Nexlance</span></div>
+                        </div>
+                        <a href="login.html" class="btn-primary" style="width:100%;display:block;text-align:center;padding:.9rem;">Register Free</a>
+                    </div>
+                </div>
+
+                <div class="wb-card" style="grid-column:1/-1;">
+                    <div style="display:grid; grid-template-columns:300px 1fr; overflow:hidden; border-radius:inherit;">
+                        <div class="wb-card-header" style="background:linear-gradient(135deg,#1e1b4b,#7c3aed); height:auto; min-height:220px;">
+                            <img src="images/ai-tools.webp" alt="Webinar Thumbnail" style="width:100%;height:100%;object-fit:cover;">
+                            <span class="wb-date-badge">Mar 20 · 5PM IST</span>
+                        </div>
+                        <div class="wb-card-body">
+                            <div class="wb-topic">AI Tools · Advanced</div>
+                            <h3>AI-Powered Web Design: Build Smarter, Not Harder</h3>
+                            <p>Deep dive into Nexlance's AI Design Assistant. Learn how to use AI to generate entire websites, write copy, create images, and optimize for SEO — all without design experience.</p>
+                            <div class="wb-meta">
+                                <span class="wb-meta-item">🕐 75 minutes</span>
+                                <span class="wb-meta-item">🆓 Free</span>
+                                <span class="wb-meta-item">👥 891 registered</span>
+                            </div>
+                            <div class="wb-speaker">
+                                <div class="wb-speaker-av">AK</div>
+                                <div class="wb-speaker-info"><strong>Arjun Kapoor</strong><span>CEO & Co-Founder, Nexlance</span></div>
+                            </div>
+                            <a href="login.html" class="btn-primary">Register Free</a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Recorded -->
+        <div class="wb-panel" id="panel-recorded">
+            <div class="wb-rec-grid">
+                <div class="wb-rec-card">
+                    <div class="wb-rec-thumb" style="background:linear-gradient(135deg,#e0e7ff,#c4b5fd);">
+                        ✏️
+                        <div class="play-overlay"><div class="play-btn">▶</div></div>
+                    </div>
+                    <div class="wb-rec-body">
+                        <h4>Editor Masterclass: Advanced Layout Techniques</h4>
+                        <div class="wb-rec-meta"><span>🕐 52 min</span><span>📅 Jan 2026</span></div>
+                        <div class="wb-rec-tags"><span class="wb-tag">Editor</span><span class="wb-tag">Design</span></div>
+                    </div>
+                </div>
+                <div class="wb-rec-card">
+                    <div class="wb-rec-thumb" style="background:linear-gradient(135deg,#fef3c7,#fcd34d);">
+                        📊
+                        <div class="play-overlay"><div class="play-btn">▶</div></div>
+                    </div>
+                    <div class="wb-rec-body">
+                        <h4>SEO Fundamentals for Small Business Owners</h4>
+                        <div class="wb-rec-meta"><span>🕐 68 min</span><span>📅 Dec 2025</span></div>
+                        <div class="wb-rec-tags"><span class="wb-tag">SEO</span><span class="wb-tag">Marketing</span></div>
+                    </div>
+                </div>
+                <div class="wb-rec-card">
+                    <div class="wb-rec-thumb" style="background:linear-gradient(135deg,#d1fae5,#6ee7b7);">
+                        💰
+                        <div class="play-overlay"><div class="play-btn">▶</div></div>
+                    </div>
+                    <div class="wb-rec-body">
+                        <h4>5 Ways to Increase Your Online Store Revenue</h4>
+                        <div class="wb-rec-meta"><span>🕐 44 min</span><span>📅 Dec 2025</span></div>
+                        <div class="wb-rec-tags"><span class="wb-tag">E-commerce</span><span class="wb-tag">Growth</span></div>
+                    </div>
+                </div>
+                <div class="wb-rec-card">
+                    <div class="wb-rec-thumb" style="background:linear-gradient(135deg,#fee2e2,#fca5a5);">
+                        📧
+                        <div class="play-overlay"><div class="play-btn">▶</div></div>
+                    </div>
+                    <div class="wb-rec-body">
+                        <h4>Email Marketing: Build & Nurture Your Subscriber List</h4>
+                        <div class="wb-rec-meta"><span>🕐 61 min</span><span>📅 Nov 2025</span></div>
+                        <div class="wb-rec-tags"><span class="wb-tag">Email</span><span class="wb-tag">Marketing</span></div>
+                    </div>
+                </div>
+                <div class="wb-rec-card">
+                    <div class="wb-rec-thumb" style="background:linear-gradient(135deg,#ede9fe,#c4b5fd);">
+                        🎨
+                        <div class="play-overlay"><div class="play-btn">▶</div></div>
+                    </div>
+                    <div class="wb-rec-body">
+                        <h4>Design Principles: Make Your Website Look Professional</h4>
+                        <div class="wb-rec-meta"><span>🕐 55 min</span><span>📅 Oct 2025</span></div>
+                        <div class="wb-rec-tags"><span class="wb-tag">Design</span><span class="wb-tag">Getting Started</span></div>
+                    </div>
+                </div>
+                <div class="wb-rec-card">
+                    <div class="wb-rec-thumb" style="background:linear-gradient(135deg,#e0f2fe,#bae6fd);">
+                        🔗
+                        <div class="play-overlay"><div class="play-btn">▶</div></div>
+                    </div>
+                    <div class="wb-rec-body">
+                        <h4>Integrations & Automation with Zapier</h4>
+                        <div class="wb-rec-meta"><span>🕐 38 min</span><span>📅 Sep 2025</span></div>
+                        <div class="wb-rec-tags"><span class="wb-tag">Developer</span><span class="wb-tag">Automation</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Want us to cover a specific topic?</h2>
+            <p>Tell us what webinar you'd like to see next and we'll make it happen.</p>
+            <a href="contact.html" class="btn-primary btn-large">Suggest a Topic</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer"><div class="container">
+    <div class="footer-grid">
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">𝕏</a><a href="#">in</a></div></div>
+        <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
+        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div>
+        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
+</div></footer>
+<button class="back-to-top" id="back-to-top">↑</button>
+<script src="main.js"></script>
+<script>
+    document.querySelectorAll('.wb-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.wb-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.wb-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+        });
+    });
+    document.querySelectorAll('.wb-rec-thumb').forEach(th => {
+        th.addEventListener('click', () => alert('▶ Video playback would open here in a production environment.'));
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template Demo - Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <style>
+        :root {
+            --demo-accent: #4f46e5;
+            --demo-accent-soft: rgba(79, 70, 229, 0.12);
+            --demo-text: #1f2937;
+            --demo-muted: #6b7280;
+            --demo-surface: #ffffff;
+            --demo-bg: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
+            color: var(--demo-text);
+            background: var(--demo-bg);
+        }
+
+        .demo-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 5vw;
+            background: rgba(255,255,255,0.84);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+            position: sticky;
+            top: 0;
+        }
+
+        .demo-logo {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--demo-accent);
+        }
+
+        .demo-links {
+            display: flex;
+            gap: 22px;
+            color: var(--demo-muted);
+            font-size: 0.95rem;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.05fr 0.95fr;
+            gap: 40px;
+            align-items: center;
+            padding: 72px 5vw 48px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.4rem, 5vw, 4.8rem);
+            line-height: 1.02;
+            margin: 0 0 16px;
+        }
+
+        .hero p {
+            color: var(--demo-muted);
+            line-height: 1.7;
+            font-size: 1.04rem;
+            margin: 0 0 24px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .hero-actions a {
+            text-decoration: none;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 12px 18px;
+        }
+
+        .hero-actions .primary {
+            background: var(--demo-accent);
+            color: #fff;
+        }
+
+        .hero-actions .secondary {
+            background: var(--demo-accent-soft);
+            color: var(--demo-accent);
+        }
+
+        .hero-visual {
+            background: #fff;
+            border-radius: 28px;
+            overflow: hidden;
+            min-height: 420px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.16);
+        }
+
+        .hero-visual img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .section {
+            padding: 12px 5vw 56px;
+        }
+
+        .section h2 {
+            margin: 0 0 10px;
+            font-size: 2rem;
+        }
+
+        .section p {
+            margin: 0 0 22px;
+            color: var(--demo-muted);
+            line-height: 1.7;
+            max-width: 700px;
+        }
+
+        .feature-grid,
+        .metric-strip {
+            display: grid;
+            gap: 18px;
+        }
+
+        .feature-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .metric-strip {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-top: 26px;
+        }
+
+        .feature-card,
+        .metric {
+            background: var(--demo-surface);
+            border-radius: 22px;
+            padding: 22px;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+        }
+
+        .feature-card strong,
+        .metric strong {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p,
+        .metric span {
+            margin: 0;
+            color: var(--demo-muted);
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric strong {
+            color: var(--demo-accent);
+            font-size: 1.8rem;
+        }
+
+        .demo-footer {
+            padding: 24px 5vw 42px;
+            color: var(--demo-muted);
+        }
+
+        @media (max-width: 900px) {
+            .hero,
+            .feature-grid,
+            .metric-strip {
+                grid-template-columns: 1fr;
+            }
+
+            .demo-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="demo-nav">
+        <div class="demo-logo" id="demoBrand">Nexlance Demo</div>
+        <nav class="demo-links">
+            <span>Home</span>
+            <span>About</span>
+            <span>Features</span>
+            <span>Contact</span>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div>
+            <p id="demoKicker" style="font-weight:700;color:var(--demo-accent);margin-bottom:12px;">Template Demo</p>
+            <h1 id="demoTitle">Live preview website</h1>
+            <p id="demoDescription">This preview shows how the chosen template can look as a real website.</p>
+            <div class="hero-actions">
+                <a class="primary" href="login.html?mode=register" id="demoUseTemplateBtn" data-template-demo-action>Use This Template</a>
+                <a class="secondary" href="templates.html">Back to Templates</a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <img id="demoImage" src="images/portfolio.jpg" alt="Template demo">
+        </div>
+    </section>
+
+    <section class="section">
+        <h2 id="sectionTitle">Built for modern brands</h2>
+        <p id="sectionText">Each preview page is tuned to the content style of that template.</p>
+        <div class="feature-grid" id="featureGrid"></div>
+        <div class="metric-strip" id="metricStrip"></div>
+    </section>
+
+    <footer class="demo-footer">
+        Demo website preview for Nexlance templates.
+    </footer>
+
+    <script src="template-registry.js"></script>
+    <script src="template-flow.js"></script>
+    <script>
+        const demos = {
+            'minimal-portfolio': { brand:'Ava Stone', kicker:'Portfolio Demo', title:'A clean portfolio for bold creative work.', description:'Showcase projects, case studies, and testimonials with a minimal layout that keeps the focus on your work.', sectionTitle:'What this portfolio demo includes', sectionText:'A polished landing page, featured projects, client quotes, and a conversion-ready contact section.', image:'images/portfolio.jpg', accent:'#5b21b6', features:['Project gallery with large visuals','About section for your personal story','Simple lead capture contact area'], metrics:['12 Projects','34 Reviews','98% Mobile','1-click edits'] },
+            'agency-pro': { brand:'Northline Agency', kicker:'Agency Demo', title:'A conversion-focused website for service agencies.', description:'Present offers, case studies, and team credibility in a layout designed to bring in leads.', sectionTitle:'Made for growth teams', sectionText:'This demo stacks proof, services, and calls to action the way agency buyers expect.', image:'images/agency.jpg', accent:'#1d4ed8', features:['Service blocks with pricing hooks','Case studies and outcomes','Trust-building team sections'], metrics:['4.8x Leads','26 Pages','18 Case studies','2-step contact'] },
+            'fashion-store': { brand:'Maison Rue', kicker:'Store Demo', title:'A stylish storefront built to sell collections fast.', description:'Highlight new arrivals, best sellers, and editorial photography in a premium ecommerce layout.', sectionTitle:'Optimized for online sales', sectionText:'This demo combines product storytelling and fast purchase paths for fashion-focused brands.', image:'images/f4.avif', accent:'#db2777', features:['Shoppable product spotlights','Editorial collection banners','Clean cart-focused CTAs'], metrics:['24 Products','3 Banners','2.1s Speed','75% Repeat flow'] },
+            'writers-blog': { brand:'Notes by Clara', kicker:'Blog Demo', title:'A readable, elegant blog for writers and editors.', description:'Publish essays, stories, and updates in a layout that feels calm, editorial, and easy to browse.', sectionTitle:'Designed for long-form content', sectionText:'The demo emphasizes reading comfort, author identity, and article discovery.', image:'images/writing.webp', accent:'#7c3aed', features:['Featured article flow','Author bio and newsletter signup','Clean typography for reading'], metrics:['48 Posts','3 Layouts','Weekly newsletter','SEO-ready'] },
+            'photographer': { brand:'Nina Hart Studio', kicker:'Photography Demo', title:'A visual-first portfolio for photographers.', description:'Lead with galleries, booking calls to action, and testimonials that support premium photography services.', sectionTitle:'Built around image impact', sectionText:'This demo balances dramatic visuals with clear booking and package sections.', image:'images/photogrPHER.avif', accent:'#0f766e', features:['Full-width image storytelling','Session package highlights','Inquiry-ready booking sections'], metrics:['120 Photos','5 Categories','2 CTA zones','Premium layout'] },
+            'startup-landing': { brand:'SprintStack', kicker:'Startup Demo', title:'A sharp landing page for product launches.', description:'Explain the product, prove value, and push signups with a startup-friendly SaaS presentation.', sectionTitle:'Built to convert visitors', sectionText:'The demo uses concise messaging, product proof, and signup CTAs throughout the page.', image:'images/startup.avif', accent:'#334155', features:['Feature sections with UI shots','Investor-friendly trust indicators','Signup funnel sections'], metrics:['3 CTA points','14 Sections','99% Responsive','Fast story'] },
+            'fine-dining': { brand:'Luna Table', kicker:'Restaurant Demo', title:'A refined restaurant website with reservation focus.', description:'Feature signature dishes, atmosphere photography, and reservation links for a premium dining experience.', sectionTitle:'Made for hospitality brands', sectionText:'This demo mixes menu presentation, location info, and booking CTAs for restaurants.', image:'images/dinner.jpg', accent:'#b91c1c', features:['Chef spotlight and menus','Reservation-first hero area','Location and timing details'], metrics:['3 Menus','Above-fold booking','Gallery story','Mobile-ready'] },
+            'electronics-store': { brand:'VoltHub', kicker:'Electronics Demo', title:'A product-heavy store layout for gadgets and tech.', description:'Show categories, deals, and product specs in a structure that helps buyers compare and purchase quickly.', sectionTitle:'Structured for catalog browsing', sectionText:'The demo organizes collections and promotions for high-intent ecommerce shoppers.', image:'images/electronic.jpg', accent:'#2563eb', features:['Category blocks for large inventory','Product comparison modules','Accessory upsell sections'], metrics:['60 Products','4 Promo zones','Spec cards','Cart-first'] },
+            'creative-agency': { brand:'Frame Theory', kicker:'Creative Demo', title:'A high-energy agency site for design-led teams.', description:'Present creative services, signature work, and campaign thinking in a bold digital studio style.', sectionTitle:'Built for standout presentation', sectionText:'The demo leans into visual rhythm, social proof, and large portfolio sections.', image:'images/creative.jpg', accent:'#6d28d9', features:['Bold project case studies','Creative process timeline','Pitch-ready service overview'], metrics:['9 Visuals','6 Modules','Brand-first','Fast leads'] },
+            'designer-portfolio': { brand:'Mira Vega', kicker:'Designer Demo', title:'A portfolio website for designers who sell taste.', description:'Show process, visuals, and premium presentation for UI, brand, or product design work.', sectionTitle:'Ideal for personal brands', sectionText:'This demo is structured to elevate design work without crowding the page.', image:'images/design.jpg', accent:'#e11d48', features:['Before-and-after case studies','Selected work with hierarchy','Simple client inquiry section'], metrics:['8 Projects','3 Proof areas','Premium palette','Fast refreshes'] },
+            'saas-product': { brand:'Flowpilot', kicker:'SaaS Demo', title:'A modern SaaS homepage for subscription products.', description:'Explain value fast, preview the product UI, and guide users into a trial or demo request.', sectionTitle:'Structured for software products', sectionText:'The demo helps SaaS teams turn interest into signups with clear positioning and CTA rhythm.', image:'images/SaaS-Development.avif', accent:'#059669', features:['Product UI showcase','Benefit-driven copy layout','Trial and pricing sections'], metrics:['3 Signup CTAs','12 Highlights','Usage proof','Recurring growth'] },
+            'cafe-bakery': { brand:'Golden Crumb', kicker:'Cafe Demo', title:'A warm neighborhood cafe and bakery website.', description:'Highlight baked goods, coffee menu, opening hours, and location details in a cozy branded layout.', sectionTitle:'Perfect for local food brands', sectionText:'This demo balances product photography, location trust, and menu clarity.', image:'images/cafe.webp', accent:'#c2410c', features:['Seasonal menu sections','Store and hours block','Warm product storytelling'], metrics:['Daily specials','2 CTA blocks','Location-first','Simple updates'] },
+            'tech-blog': { brand:'Signal Stack', kicker:'Tech Blog Demo', title:'A crisp publication layout for technology content.', description:'Cover product launches, tutorials, reviews, and newsletters in a clean editorial design.', sectionTitle:'Made for publishing often', sectionText:'This demo helps blogs organize content, surface trending posts, and grow subscribers.', image:'images/tech.jpg', accent:'#1d4ed8', features:['Topic-based navigation','Newsletter and trending posts','Reading-first structure'], metrics:['50 Articles','3 Streams','Subscriber growth','Search-friendly'] },
+            'consulting-firm': { brand:'Westbridge Advisory', kicker:'Consulting Demo', title:'A trustworthy consulting website for serious clients.', description:'Establish authority with service clarity, industry proof, and direct inquiry paths.', sectionTitle:'Built for credibility', sectionText:'The demo leans on structure, proof, and polished service framing for professional firms.', image:'images/consulting.jpg', accent:'#475569', features:['Industry expertise sections','Client proof highlights','Lead capture booking areas'], metrics:['4 Pillars','Executive-ready','3 Proof sections','High-trust flow'] },
+            'wedding-gallery': { brand:'Ever After Stories', kicker:'Wedding Demo', title:'A romantic gallery site for weddings and events.', description:'Feature story-led photo collections, pricing packages, and inquiry forms for wedding photographers.', sectionTitle:'Made for event storytelling', sectionText:'This demo emphasizes emotion, image sequencing, and conversion-ready booking blocks.', image:'images/wedding.jpg', accent:'#be185d', features:['Story gallery sections','Package and date inquiry','Elegant testimonials'], metrics:['6 Galleries','Premium booking','Visual-first','Smooth mobile'] },
+            'digital-marketing': { brand:'Growth Harbor', kicker:'Marketing Demo', title:'A results-driven site for digital marketing services.', description:'Show campaign wins, channel expertise, and growth offers in a modern lead-focused design.', sectionTitle:'Made for acquisition teams', sectionText:'This demo highlights outcomes, services, and the process behind marketing delivery.', image:'images/digital.jpg', accent:'#7c3aed', features:['Channel-based service sections','Campaign result highlights','Lead-generation CTA flow'], metrics:['5 Services','10 KPI blocks','3 Lead magnets','Fast sales handoff'] },
+            'jewelry-luxury': { brand:'Aurelia House', kicker:'Luxury Store Demo', title:'A premium ecommerce site for luxury products.', description:'Combine exclusivity, product detail, and visual polish for high-value online collections.', sectionTitle:'Designed for premium positioning', sectionText:'This demo supports elevated storytelling and conversion for luxury-focused stores.', image:'images/luxury.jpg', accent:'#7c2d12', features:['Editorial collection sections','Premium product presentation','Luxury product detail flow'], metrics:['12 Collections','High-value CTAs','Elegant mobile','Gift modules'] },
+            'app-download': { brand:'Pulse Mobile', kicker:'App Demo', title:'A clean launch page for mobile app downloads.', description:'Feature app benefits, screenshots, ratings, and app-store links in a product-first structure.', sectionTitle:'Built to drive installs', sectionText:'This demo is aimed at app founders who need a landing page that converts interest into downloads.', image:'images/app.avif', accent:'#0f766e', features:['App screenshot gallery','Install-driven benefit sections','Ratings and store CTAs'], metrics:['2 Store CTAs','5 Highlights','Review proof','Launch-ready'] }
+        };
+
+        const params = new URLSearchParams(window.location.search);
+        const slug = params.get('template') || 'minimal-portfolio';
+        const demo = demos[slug] || demos['minimal-portfolio'];
+
+        document.documentElement.style.setProperty('--demo-accent', demo.accent);
+        document.documentElement.style.setProperty('--demo-accent-soft', `${demo.accent}22`);
+        document.getElementById('demoBrand').textContent = demo.brand;
+        document.getElementById('demoKicker').textContent = demo.kicker;
+        document.getElementById('demoTitle').textContent = demo.title;
+        document.getElementById('demoDescription').textContent = demo.description;
+        document.getElementById('sectionTitle').textContent = demo.sectionTitle;
+        document.getElementById('sectionText').textContent = demo.sectionText;
+        document.getElementById('demoImage').src = demo.image;
+        document.getElementById('demoImage').alt = `${demo.brand} demo preview`;
+        document.title = `${demo.brand} Demo - Nexlance`;
+
+        const useTemplateButton = document.getElementById('demoUseTemplateBtn');
+        if (useTemplateButton) {
+            const templateId = `${slug}-template`;
+            const templateConfig = typeof getTemplateConfig === 'function' ? getTemplateConfig(templateId) : null;
+            if (templateConfig) {
+                useTemplateButton.setAttribute('data-template-id', templateConfig.id);
+                useTemplateButton.setAttribute('href', templateConfig.page);
+            }
+        }
+
+        document.getElementById('featureGrid').innerHTML = demo.features.map(feature => `
+            <article class="feature-card">
+                <strong>${feature}</strong>
+                <p>${demo.description}</p>
+            </article>
+        `).join('');
+
+        document.getElementById('metricStrip').innerHTML = demo.metrics.map(metric => {
+            const parts = metric.split(' ');
+            return `
+                <article class="metric">
+                    <strong>${parts.shift()}</strong>
+                    <span>${parts.join(' ')}</span>
+                </article>
+            `;
+        }).join('');
+    </script>
+</body>
+</html>

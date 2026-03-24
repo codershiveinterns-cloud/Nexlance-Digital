@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Developers — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .dev-hero { padding:140px 0 70px; background:linear-gradient(135deg,#0f0c29 0%,#1e1b4b 50%,#302b63 100%); text-align:center; color:#fff; position:relative; overflow:hidden; }
+        .dev-hero::before { content:''; position:absolute; width:600px; height:600px; border-radius:50%; background:rgba(99,102,241,.12); top:-200px; right:-200px; }
+        .dev-hero::after  { content:''; position:absolute; width:400px; height:400px; border-radius:50%; background:rgba(167,139,250,.1); bottom:-150px; left:-150px; }
+        .dev-hero .container { position:relative; z-index:1; }
+        .dev-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:#a5b4fc; text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; background:rgba(165,180,252,.1); padding:.35rem .85rem; border-radius:999px; }
+        .dev-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; color:#fff; }
+        .dev-hero p { font-size:var(--font-size-lg); color:rgba(255,255,255,.7); max-width:600px; margin:0 auto 2.5rem; line-height:1.7; }
+        .dev-hero-btns { display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; }
+        .btn-dev-primary { padding:1rem 2rem; background:#6366f1; color:#fff; border-radius:999px; font-weight:700; font-size:var(--font-size-base); border:none; cursor:pointer; transition:all .2s; text-decoration:none; display:inline-flex; align-items:center; gap:.5rem; }
+        .btn-dev-primary:hover { background:#4f46e5; transform:translateY(-2px); box-shadow:0 8px 20px rgba(99,102,241,.4); }
+        .btn-dev-outline { padding:1rem 2rem; background:transparent; color:#fff; border-radius:999px; font-weight:700; font-size:var(--font-size-base); border:2px solid rgba(255,255,255,.3); cursor:pointer; transition:all .2s; text-decoration:none; display:inline-flex; align-items:center; gap:.5rem; }
+        .btn-dev-outline:hover { border-color:#fff; background:rgba(255,255,255,.08); }
+
+        /* Quick start cards */
+        .qs-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem; }
+        .qs-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:1.75rem; transition:all .2s; cursor:pointer; }
+        .qs-card:hover { border-color:#6366f1; box-shadow:var(--shadow-lg); transform:translateY(-3px); }
+        .qs-icon { font-size:2rem; margin-bottom:1rem; }
+        .qs-card h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.4rem; }
+        .qs-card p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.5; }
+
+        /* Code block */
+        .code-block { background:#0f0c29; border-radius:var(--radius-xl); overflow:hidden; }
+        .code-header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem; background:#1e1b4b; }
+        .code-dots { display:flex; gap:.5rem; }
+        .code-dots span { width:12px; height:12px; border-radius:50%; }
+        .code-dots span:nth-child(1){background:#ef4444;} .code-dots span:nth-child(2){background:#f59e0b;} .code-dots span:nth-child(3){background:#10b981;}
+        .code-lang { font-size:var(--font-size-xs); font-weight:700; color:#a5b4fc; text-transform:uppercase; letter-spacing:.08em; }
+        .code-copy { font-size:var(--font-size-xs); font-weight:600; color:rgba(255,255,255,.5); cursor:pointer; transition:color .2s; background:none; border:none; }
+        .code-copy:hover { color:#fff; }
+        .code-body { padding:1.75rem; font-family:'Fira Code','Cascadia Code',monospace; font-size:var(--font-size-sm); line-height:1.8; color:#e2e8f0; overflow-x:auto; }
+        .code-body .c-keyword { color:#a78bfa; }
+        .code-body .c-string  { color:#6ee7b7; }
+        .code-body .c-comment { color:#64748b; }
+        .code-body .c-method  { color:#60a5fa; }
+        .code-body .c-var     { color:#fcd34d; }
+
+        /* Tabs for code */
+        .code-tabs { display:flex; gap:0; background:#1e1b4b; border-bottom:1px solid rgba(255,255,255,.08); }
+        .code-tab { padding:.75rem 1.5rem; font-size:var(--font-size-sm); font-weight:600; color:rgba(255,255,255,.4); cursor:pointer; border-bottom:2px solid transparent; transition:all .2s; background:none; border-top:none; border-left:none; border-right:none; }
+        .code-tab.active { color:#a5b4fc; border-bottom-color:#6366f1; }
+
+        /* SDK cards */
+        .sdk-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem; }
+        .sdk-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:1.75rem; text-align:center; transition:all .2s; }
+        .sdk-card:hover { box-shadow:var(--shadow-lg); border-color:#6366f1; transform:translateY(-3px); }
+        .sdk-icon { font-size:2.5rem; margin-bottom:.75rem; }
+        .sdk-card h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.25rem; }
+        .sdk-version { font-size:var(--font-size-xs); color:var(--color-success); font-weight:700; margin-bottom:.75rem; }
+        .sdk-card p { font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1rem; }
+
+        /* API reference table */
+        .api-table { width:100%; border-collapse:collapse; }
+        .api-table th, .api-table td { padding:.9rem 1rem; text-align:left; border-bottom:1px solid var(--color-border); font-size:var(--font-size-sm); }
+        .api-table th { background:var(--color-bg-alt); font-weight:700; font-size:var(--font-size-xs); text-transform:uppercase; letter-spacing:.06em; }
+        .api-table tbody tr:hover { background:var(--color-bg-alt); }
+        .method-badge { display:inline-block; padding:.2rem .6rem; border-radius:var(--radius-sm); font-size:var(--font-size-xs); font-weight:800; letter-spacing:.05em; }
+        .m-get  { background:#dcfce7; color:#15803d; }
+        .m-post { background:#dbeafe; color:#1d4ed8; }
+        .m-put  { background:#fef9c3; color:#854d0e; }
+        .m-del  { background:#fee2e2; color:#991b1b; }
+        .api-endpoint { font-family:monospace; font-size:var(--font-size-sm); color:var(--color-secondary); }
+        .tbl-wrap { border:1px solid var(--color-border); border-radius:var(--radius-xl); overflow:hidden; }
+
+        /* Community */
+        .comm-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; }
+        .comm-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:2rem; text-align:center; transition:all .2s; }
+        .comm-card:hover { box-shadow:var(--shadow-lg); border-color:var(--color-secondary); transform:translateY(-3px); }
+        .comm-icon { font-size:2.5rem; margin-bottom:1rem; }
+        .comm-card h3 { font-size:var(--font-size-lg); font-weight:700; margin-bottom:.5rem; }
+        .comm-card p { font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1.25rem; line-height:1.6; }
+
+        @media(max-width:1024px){ .qs-grid,.sdk-grid{grid-template-columns:repeat(2,1fr);} .comm-grid{grid-template-columns:1fr;} }
+        @media(max-width:640px){ .qs-grid,.sdk-grid{grid-template-columns:1fr;} .dev-hero h1{font-size:var(--font-size-4xl);} }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar" style="background:transparent;">
+    <div class="nav-container">
+        <a href="index.html" class="logo" style="color:#fff;"><span class="logo-icon" style="color:#a5b4fc;">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item has-dropdown">
+                <a href="#" style="color:rgba(255,255,255,.8);">Products <span class="arrow">▾</span></a>
+                <div class="dropdown"><div class="dropdown-grid">
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                </div></div>
+            </li>
+            <li class="nav-item has-dropdown">
+                <a href="templates.html" style="color:rgba(255,255,255,.8);">Templates <span class="arrow">▾</span></a>
+                <div class="dropdown dropdown-templates">
+                    <div class="dropdown-grid templates-grid">
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                    </div>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                </div>
+            </li>
+            <li class="nav-item"><a href="pricing.html" style="color:rgba(255,255,255,.8);">Pricing</a></li>
+            <li class="nav-item"><a href="features.html" style="color:rgba(255,255,255,.8);">Features</a></li>
+            <li class="nav-item"><a href="#" style="color:rgba(255,255,255,.8);">Resources</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text" style="color:rgba(255,255,255,.8);">Log In</a>
+            <a href="login.html" class="btn-dev-primary" style="padding:.65rem 1.25rem; font-size:var(--font-size-sm);">Get Started</a>
+        </div>
+        <button class="mobile-toggle" id="mobile-toggle" style="--span-color:#fff;"><span style="background:#fff;"></span><span style="background:#fff;"></span><span style="background:#fff;"></span></button>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="dev-hero">
+    <div class="container">
+        <span class="dev-hero-label">Developers</span>
+        <h1>Build on top of <span style="color:#a5b4fc;">Nexlance</span></h1>
+        <p>REST API, JavaScript SDK, webhooks, and Zapier integrations. Extend and automate everything on the Nexlance platform.</p>
+        <div class="dev-hero-btns">
+            <a href="#quickstart" class="btn-dev-primary">🚀 Quick Start</a>
+            <a href="#api-reference" class="btn-dev-outline">📖 API Reference</a>
+        </div>
+    </div>
+</section>
+
+<!-- Quick start -->
+<section id="quickstart" style="background:#fff;">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">Quick Start</span>
+            <h2 class="section-title">Start building in minutes</h2>
+        </div>
+        <div class="qs-grid" style="margin-bottom:3rem;">
+            <div class="qs-card"><div class="qs-icon">🔑</div><h3>Get API Key</h3><p>Generate your API key from the Developer settings in your Nexlance dashboard.</p></div>
+            <div class="qs-card"><div class="qs-icon">📦</div><h3>Install SDK</h3><p>Install the official JavaScript, Python, or PHP SDK via npm, pip, or Composer.</p></div>
+            <div class="qs-card"><div class="qs-icon">🔧</div><h3>Make First Call</h3><p>Authenticate and make your first API call to list sites or manage content.</p></div>
+            <div class="qs-card"><div class="qs-icon">🚀</div><h3>Go Live</h3><p>Test in sandbox mode, then switch to production when you're ready to ship.</p></div>
+        </div>
+
+        <!-- Code example -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; align-items:start;">
+            <div>
+                <h3 style="font-size:var(--font-size-2xl); font-weight:800; margin-bottom:1rem;">Authentication</h3>
+                <p style="color:var(--color-text-light); line-height:1.8; margin-bottom:1.5rem;">All API requests are authenticated using Bearer tokens. Generate your API key from Dashboard → Settings → API Keys.</p>
+                <ul style="display:flex;flex-direction:column;gap:.65rem;list-style:none;">
+                    <li style="display:flex;gap:.65rem;font-size:var(--font-size-sm);"><span style="color:#10b981;font-weight:700;">✓</span> Rate limit: 1,000 requests/min (Business), 10,000 (Commerce)</li>
+                    <li style="display:flex;gap:.65rem;font-size:var(--font-size-sm);"><span style="color:#10b981;font-weight:700;">✓</span> All responses in JSON format</li>
+                    <li style="display:flex;gap:.65rem;font-size:var(--font-size-sm);"><span style="color:#10b981;font-weight:700;">✓</span> TLS 1.3 required for all requests</li>
+                    <li style="display:flex;gap:.65rem;font-size:var(--font-size-sm);"><span style="color:#10b981;font-weight:700;">✓</span> Sandbox environment: api-sandbox.nexlance.com</li>
+                </ul>
+            </div>
+            <div class="code-block">
+                <div class="code-header">
+                    <div class="code-dots"><span></span><span></span><span></span></div>
+                    <div class="code-tabs">
+                        <button class="code-tab active" onclick="switchCodeTab(this,'js')">JavaScript</button>
+                        <button class="code-tab" onclick="switchCodeTab(this,'py')">Python</button>
+                        <button class="code-tab" onclick="switchCodeTab(this,'curl')">cURL</button>
+                    </div>
+                    <button class="code-copy" onclick="copyCode()">Copy</button>
+                </div>
+                <div class="code-body" id="codeExample">
+<span class="c-comment">// Install: npm install @nexlance/sdk</span>
+<span class="c-keyword">import</span> { NexlanceClient } <span class="c-keyword">from</span> <span class="c-string">'@nexlance/sdk'</span>;
+
+<span class="c-keyword">const</span> <span class="c-var">client</span> = <span class="c-keyword">new</span> <span class="c-method">NexlanceClient</span>({
+  apiKey: <span class="c-string">'nlk_live_your_api_key_here'</span>
+});
+
+<span class="c-comment">// List all sites</span>
+<span class="c-keyword">const</span> { <span class="c-var">sites</span> } = <span class="c-keyword">await</span> client.sites.<span class="c-method">list</span>();
+console.<span class="c-method">log</span>(<span class="c-var">sites</span>);
+
+<span class="c-comment">// Create a new page</span>
+<span class="c-keyword">const</span> <span class="c-var">page</span> = <span class="c-keyword">await</span> client.pages.<span class="c-method">create</span>({
+  siteId: <span class="c-string">'site_abc123'</span>,
+  title: <span class="c-string">'About Us'</span>,
+  slug: <span class="c-string">'about'</span>
+});
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SDKs -->
+<section style="background:var(--color-bg-alt);">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">SDKs</span>
+            <h2 class="section-title">Official client libraries</h2>
+            <p class="section-subtitle">Use our maintained SDKs for faster integration in your preferred language.</p>
+        </div>
+        <div class="sdk-grid">
+            <div class="sdk-card">
+                <div class="sdk-icon">⚡</div>
+                <h3>JavaScript / TypeScript</h3>
+                <div class="sdk-version">v2.4.1 · Latest</div>
+                <p>Full TypeScript types, Promise-based, works in Node.js and browser.</p>
+                <a href="#" class="btn-secondary" style="display:block;text-align:center;">npm install @nexlance/sdk</a>
+            </div>
+            <div class="sdk-card">
+                <div class="sdk-icon">🐍</div>
+                <h3>Python</h3>
+                <div class="sdk-version">v1.8.0 · Latest</div>
+                <p>Python 3.8+, async support with asyncio, fully type-annotated.</p>
+                <a href="#" class="btn-secondary" style="display:block;text-align:center;">pip install nexlance</a>
+            </div>
+            <div class="sdk-card">
+                <div class="sdk-icon">🐘</div>
+                <h3>PHP</h3>
+                <div class="sdk-version">v1.5.2 · Latest</div>
+                <p>PHP 8.0+, PSR-4 autoloading, Laravel and Symfony compatible.</p>
+                <a href="#" class="btn-secondary" style="display:block;text-align:center;">composer require nexlance/sdk</a>
+            </div>
+            <div class="sdk-card">
+                <div class="sdk-icon">💎</div>
+                <h3>Ruby</h3>
+                <div class="sdk-version">v1.2.0 · Latest</div>
+                <p>Ruby 3.0+, Rails-friendly, Faraday-based HTTP client.</p>
+                <a href="#" class="btn-secondary" style="display:block;text-align:center;">gem install nexlance</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- API Reference -->
+<section id="api-reference" style="background:#fff;">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">API Reference</span>
+            <h2 class="section-title">REST API endpoints</h2>
+            <p class="section-subtitle">Base URL: <code style="background:var(--color-bg-alt);padding:.2rem .5rem;border-radius:4px;font-size:.85rem;">https://api.nexlance.com/v1</code></p>
+        </div>
+        <div class="tbl-wrap">
+            <table class="api-table">
+                <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/sites</td><td>List all sites in your account</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-post">POST</span></td><td class="api-endpoint">/sites</td><td>Create a new site</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/sites/{id}</td><td>Get a specific site by ID</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-put">PUT</span></td><td class="api-endpoint">/sites/{id}</td><td>Update site settings</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-del">DEL</span></td><td class="api-endpoint">/sites/{id}</td><td>Delete a site permanently</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/sites/{id}/pages</td><td>List all pages of a site</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-post">POST</span></td><td class="api-endpoint">/sites/{id}/pages</td><td>Create a new page</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/sites/{id}/analytics</td><td>Get analytics data for a site</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/store/products</td><td>List all store products</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-post">POST</span></td><td class="api-endpoint">/store/products</td><td>Create a product</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/store/orders</td><td>List orders with filters</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-post">POST</span></td><td class="api-endpoint">/webhooks</td><td>Register a webhook endpoint</td><td>API Key</td></tr>
+                    <tr><td><span class="method-badge m-get">GET</span></td><td class="api-endpoint">/me</td><td>Get authenticated account info</td><td>API Key</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- <div style="text-align:center;margin-top:2rem;">
+            <a href="#" class="btn-secondary btn-large">View Full API Reference →</a>
+        </div> -->
+    </div>
+</section>
+
+<!-- Webhooks & Integrations -->
+<section style="background:var(--color-bg-alt);">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">Webhooks & Integrations</span>
+            <h2 class="section-title">Connect everything</h2>
+            <p class="section-subtitle">Real-time webhooks and 1,000+ integrations via Zapier, Make (Integromat), and native connectors.</p>
+        </div> 
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:start;">
+            <div>
+                <h3 style="font-size:var(--font-size-xl);font-weight:700;margin-bottom:1rem;">Webhook Events</h3>
+                <p style="color:var(--color-text-light);margin-bottom:1.5rem;font-size:var(--font-size-sm);line-height:1.7;">Subscribe to events and receive real-time POST notifications to your endpoint when things happen in your account.</p>
+                <div style="display:flex;flex-direction:column;gap:.65rem;">
+                    <div style="background:#fff;border-radius:var(--radius-md);padding:.85rem 1rem;border:1px solid var(--color-border);font-family:monospace;font-size:var(--font-size-sm);color:var(--color-secondary);">site.published</div>
+                    <div style="background:#fff;border-radius:var(--radius-md);padding:.85rem 1rem;border:1px solid var(--color-border);font-family:monospace;font-size:var(--font-size-sm);color:var(--color-secondary);">order.created</div>
+                    <div style="background:#fff;border-radius:var(--radius-md);padding:.85rem 1rem;border:1px solid var(--color-border);font-family:monospace;font-size:var(--font-size-sm);color:var(--color-secondary);">order.fulfilled</div>
+                    <div style="background:#fff;border-radius:var(--radius-md);padding:.85rem 1rem;border:1px solid var(--color-border);font-family:monospace;font-size:var(--font-size-sm);color:var(--color-secondary);">subscriber.added</div>
+                    <div style="background:#fff;border-radius:var(--radius-md);padding:.85rem 1rem;border:1px solid var(--color-border);font-family:monospace;font-size:var(--font-size-sm);color:var(--color-secondary);">form.submitted</div>
+                    <div style="background:#fff;border-radius:var(--radius-md);padding:.85rem 1rem;border:1px solid var(--color-border);font-family:monospace;font-size:var(--font-size-sm);color:var(--color-secondary);">member.joined</div>
+                </div>
+            </div>
+            <div>
+                <h3 style="font-size:var(--font-size-xl);font-weight:700;margin-bottom:1rem;">Native Integrations</h3>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+                    <div style="background:#fff;border-radius:var(--radius-lg);padding:1.25rem;text-align:center;border:1px solid var(--color-border);">
+                        <div style="font-size:1.75rem;margin-bottom:.5rem;">⚡</div>
+                        <div style="font-size:var(--font-size-xs);font-weight:700;">Zapier</div>
+                    </div>
+                    <div style="background:#fff;border-radius:var(--radius-lg);padding:1.25rem;text-align:center;border:1px solid var(--color-border);">
+                        <div style="font-size:1.75rem;margin-bottom:.5rem;">📧</div>
+                        <div style="font-size:var(--font-size-xs);font-weight:700;">Mailchimp</div>
+                    </div>
+                    <div style="background:#fff;border-radius:var(--radius-lg);padding:1.25rem;text-align:center;border:1px solid var(--color-border);">
+                        <div style="font-size:1.75rem;margin-bottom:.5rem;">📊</div>
+                        <div style="font-size:var(--font-size-xs);font-weight:700;">Google Analytics</div>
+                    </div>
+                    <div style="background:#fff;border-radius:var(--radius-lg);padding:1.25rem;text-align:center;border:1px solid var(--color-border);">
+                        <div style="font-size:1.75rem;margin-bottom:.5rem;">💳</div>
+                        <div style="font-size:var(--font-size-xs);font-weight:700;">Stripe</div>
+                    </div>
+                    <div style="background:#fff;border-radius:var(--radius-lg);padding:1.25rem;text-align:center;border:1px solid var(--color-border);">
+                        <div style="font-size:1.75rem;margin-bottom:.5rem;">🔔</div>
+                        <div style="font-size:var(--font-size-xs);font-weight:700;">Slack</div>
+                    </div>
+                    <div style="background:#fff;border-radius:var(--radius-lg);padding:1.25rem;text-align:center;border:1px solid var(--color-border);">
+                        <div style="font-size:1.75rem;margin-bottom:.5rem;">📁</div>
+                        <div style="font-size:var(--font-size-xs);font-weight:700;">Airtable</div>
+                    </div>
+                </div>
+                <a href="integrations.html" style="display:inline-block;margin-top:1rem;font-size:var(--font-size-sm);font-weight:600;color:var(--color-secondary);">View all 1,000+ integrations →</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Community -->
+<section style="background:#fff;">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">Community</span>
+            <h2 class="section-title">Join the developer community</h2>
+        </div>
+        <div class="comm-grid">
+            <div class="comm-card">
+                <div class="comm-icon">💬</div>
+                <h3>Discord Server</h3>
+                <p>Join 5,000+ developers building on Nexlance. Ask questions, share projects, and get live help from the team.</p>
+                <a href="#" class="btn-primary">Join Discord</a>
+            </div>
+            <div class="comm-card">
+                <div class="comm-icon">🐙</div>
+                <h3>GitHub</h3>
+                <p>Our SDKs, example projects, and open-source tools are on GitHub. Star, fork, and contribute.</p>
+                <a href="#" class="btn-secondary">View on GitHub</a>
+            </div>
+            <div class="comm-card">
+                <div class="comm-icon">📖</div>
+                <h3>Developer Blog</h3>
+                <p>Technical deep dives, API tutorials, integration guides, and engineering updates from our team.</p>
+                <a href="blog.html" class="btn-secondary">Read the Blog</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Ready to start building?</h2>
+            <p>Create a free developer account and get your API key in under 2 minutes.</p>
+            <a href="login.html" class="btn-primary btn-large">Get API Key Free</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer"><div class="container">
+    <div class="footer-grid">
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">𝕏</a><a href="#">in</a></div></div>
+        <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
+        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div>
+        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
+</div></footer>
+<button class="back-to-top" id="back-to-top">↑</button>
+<script src="main.js"></script>
+<script>
+    const codeExamples = {
+        js: `<span class="c-comment">// Install: npm install @nexlance/sdk</span>
+<span class="c-keyword">import</span> { NexlanceClient } <span class="c-keyword">from</span> <span class="c-string">'@nexlance/sdk'</span>;
+
+<span class="c-keyword">const</span> <span class="c-var">client</span> = <span class="c-keyword">new</span> <span class="c-method">NexlanceClient</span>({
+  apiKey: <span class="c-string">'nlk_live_your_api_key_here'</span>
+});
+
+<span class="c-keyword">const</span> { <span class="c-var">sites</span> } = <span class="c-keyword">await</span> client.sites.<span class="c-method">list</span>();
+console.<span class="c-method">log</span>(<span class="c-var">sites</span>);`,
+        py: `<span class="c-comment"># Install: pip install nexlance</span>
+<span class="c-keyword">from</span> nexlance <span class="c-keyword">import</span> NexlanceClient
+
+<span class="c-var">client</span> = <span class="c-method">NexlanceClient</span>(
+    api_key=<span class="c-string">"nlk_live_your_api_key_here"</span>
+)
+
+<span class="c-comment"># List all sites</span>
+<span class="c-var">sites</span> = client.sites.<span class="c-method">list</span>()
+<span class="c-method">print</span>(<span class="c-var">sites</span>)`,
+        curl: `<span class="c-comment"># List sites via cURL</span>
+<span class="c-method">curl</span> -X GET <span class="c-string">"https://api.nexlance.com/v1/sites"</span> \\
+  -H <span class="c-string">"Authorization: Bearer nlk_live_your_key"</span> \\
+  -H <span class="c-string">"Content-Type: application/json"</span>
+
+<span class="c-comment"># Create a site</span>
+<span class="c-method">curl</span> -X POST <span class="c-string">"https://api.nexlance.com/v1/sites"</span> \\
+  -H <span class="c-string">"Authorization: Bearer nlk_live_your_key"</span> \\
+  -d '{"name":"My Site","template":"minimal"}'`
+    };
+    function switchCodeTab(btn, lang) {
+        document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('codeExample').innerHTML = codeExamples[lang];
+    }
+    function copyCode() {
+        const text = document.getElementById('codeExample').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.querySelector('.code-copy');
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
+        });
+    }
+    // Fix navbar on scroll since we start transparent
+    window.addEventListener('scroll', () => {
+        const nav = document.getElementById('navbar');
+        if (window.scrollY > 80) {
+            nav.style.background = 'rgba(255,255,255,0.95)';
+            nav.style.backdropFilter = 'blur(10px)';
+            nav.style.boxShadow = '0 1px 2px rgba(0,0,0,.05)';
+            nav.querySelectorAll('.nav-item > a, .btn-text').forEach(a => a.style.color = '');
+            const logo = nav.querySelector('.logo');
+            if (logo) { logo.style.color = ''; logo.querySelector('.logo-icon').style.color = ''; }
+        } else {
+            nav.style.background = 'transparent';
+            nav.style.backdropFilter = '';
+            nav.style.boxShadow = '';
+        }
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const integrationsLink = Array.from(document.querySelectorAll('a')).find(link =>
+            /View all 1,000\+ integrations/i.test((link.textContent || '').trim())
+        );
+
+        if (integrationsLink) {
+            integrationsLink.href = 'integrations.html';
+        }
+
+        const footer = document.querySelector('footer.footer');
+        if (footer) {
+            footer.outerHTML = `
+<footer class="footer">
+    <div class="container">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <a href="index.html" class="logo">
+                    <span class="logo-icon">&#9670;</span>
+                    Nexlance
+                </a>
+                <p>Build beautiful websites without writing a single line of code.</p>
+                <div class="social-links">
+                    <a href="https://x.com/nexlancedigital" aria-label="Twitter">&#120143;</a>
+                    <a href="https://www.linkedin.com/in/nexlance-digital-8175293b1" aria-label="LinkedIn">in</a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Product</h4>
+                <ul>
+                    <li><a href="templates.html">Templates</a></li>
+                    <li><a href="features.html">Features</a></li>
+                    <li><a href="pricing.html">Pricing</a></li>
+                    <li><a href="updates.html">Updates</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Resources</h4>
+                <ul>
+                    <li><a href="help-center.html">Help Center</a></li>
+                    <li><a href="webinars.html">Webinars</a></li>
+                    <li><a href="blog.html">Blog</a></li>
+                    <li><a href="developers.html">Developers</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="about.html">About Us</a></li>
+                    <li><a href="careers.html">Careers</a></li>
+                    <li><a href="press.html">Press</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+            <div class="footer-links">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="privacy.html">Privacy Policy</a></li>
+                    <li><a href="terms.html">Terms of Service</a></li>
+                    <li><a href="refund.html">Refund Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Nexlance. All rights reserved.</p>
+            <p> &#128205; 82a James Carter Road, Mildenhall, United Kingdom, IP28 7DE </p>
+            <div class="footer-bottom-links">
+                <a href="terms.html">Terms &amp; Services </a>
+                <a href="sitemap.html">Sitemap</a>
+                <a href="status.html">Status</a>
+                <a href="security.html">Security</a>
+            </div>
+        </div>
+    </div>
+</footer>`;
+        }
+    });
+</script>
+</body>
+</html>

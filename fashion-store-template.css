@@ -1,0 +1,50 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #24181e; background: radial-gradient(circle at top left, rgba(244, 114, 182, 0.18), transparent 28%), linear-gradient(180deg, #fff8fb 0%, #fff1f5 100%); }
+.fs-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 5vw; background: rgba(255,248,251,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(157, 23, 77, 0.12); }
+.fs-brand { font-size: 1.45rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #be185d; }
+.fs-nav { display: flex; gap: 24px; }
+.fs-nav a, .fs-cta, .fs-btn { text-decoration: none; font-family: "Segoe UI", sans-serif; }
+.fs-nav a { color: #6b4e5b; }
+.fs-cta, .fs-btn { border-radius: 999px; font-weight: 700; }
+.fs-cta { padding: 12px 18px; background: #24181e; color: #fff7fa; }
+.fs-hero, .fs-section { padding-left: 5vw; padding-right: 5vw; }
+.fs-hero { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 46px; align-items: center; padding-top: 64px; padding-bottom: 56px; }
+.fs-kicker { margin: 0 0 14px; color: #be185d; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.fs-copy h1, .fs-heading h2, .lookbook-panel h2, .shop-panel h2 { margin: 0 0 18px; line-height: 1.04; letter-spacing: -0.04em; }
+.fs-copy h1 { font-size: clamp(3rem, 5vw, 5.4rem); }
+.fs-text, .collection-card p, .lookbook-panel p, .quote-meta span, .highlight-card p, .shop-panel p { color: #6b4e5b; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.fs-actions { display: flex; gap: 14px; flex-wrap: wrap; margin: 28px 0 34px; }
+.fs-btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 20px; }
+.fs-primary { background: linear-gradient(135deg, #ec4899, #be185d); color: #fff; }
+.fs-secondary { background: rgba(236, 72, 153, 0.12); color: #be185d; }
+.fs-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.fs-metrics div, .collection-card, .lookbook-panel, .quote-panel, .highlight-card, .shop-panel, .fs-floating { background: rgba(255,255,255,0.86); border: 1px solid rgba(190, 24, 93, 0.14); box-shadow: 0 18px 45px rgba(83, 23, 49, 0.08); }
+.fs-metrics div { padding: 20px; border-radius: 24px; }
+.fs-metrics strong { display: block; font-size: 2rem; margin-bottom: 6px; color: #24181e; font-family: "Segoe UI", sans-serif; }
+.fs-metrics span { color: #7c6270; font-size: 0.92rem; font-family: "Segoe UI", sans-serif; }
+.fs-visual { position: relative; }
+.fs-visual img { width: 100%; min-height: 540px; object-fit: cover; display: block; border-radius: 32px; box-shadow: 0 24px 60px rgba(83, 23, 49, 0.14); }
+.fs-floating { position: absolute; right: -18px; bottom: 24px; max-width: 280px; padding: 22px; border-radius: 26px; }
+.fs-floating span { display: block; margin-bottom: 8px; color: #be185d; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.fs-floating strong { display: block; margin-bottom: 10px; font-size: 1.3rem; }
+.fs-floating p { margin: 0; color: #6b4e5b; line-height: 1.7; font-family: "Segoe UI", sans-serif; }
+.fs-section { padding-top: 54px; padding-bottom: 34px; }
+.fs-heading { max-width: 740px; margin-bottom: 28px; }
+.fs-heading h2, .lookbook-panel h2, .shop-panel h2 { font-size: clamp(2.1rem, 4vw, 3.5rem); }
+.collection-grid, .highlight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.collection-card, .lookbook-panel, .quote-panel, .highlight-card { border-radius: 28px; padding: 24px; }
+.collection-card h3, .highlight-card h3 { margin: 0 0 10px; font-size: 1.3rem; }
+.split-layout { display: grid; grid-template-columns: 1fr 0.92fr; gap: 24px; align-items: stretch; }
+.lookbook-panel ul { margin: 18px 0 0; padding-left: 18px; color: #6b4e5b; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.quote { margin: 0 0 18px; font-size: clamp(1.4rem, 2.5vw, 2.05rem); line-height: 1.5; }
+.quote-meta strong { display: block; margin-bottom: 4px; }
+.highlight-card span { display: inline-flex; margin-bottom: 12px; color: #be185d; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.shop-panel { display: grid; grid-template-columns: 1fr 0.95fr; gap: 28px; padding: 30px; border-radius: 32px; }
+.fs-form { display: grid; gap: 12px; }
+.fs-form input, .fs-form textarea { width: 100%; padding: 14px 16px; border-radius: 18px; border: 1px solid rgba(190, 24, 93, 0.18); background: #fff; font: inherit; font-family: "Segoe UI", sans-serif; }
+.fs-form button { padding: 15px 20px; border: none; border-radius: 18px; background: linear-gradient(135deg, #24181e, #be185d); color: #fff7fa; font: inherit; font-weight: 700; cursor: pointer; font-family: "Segoe UI", sans-serif; }
+#fsFormMessage { margin: 4px 0 0; color: #be185d; font-weight: 600; font-family: "Segoe UI", sans-serif; }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+@media (max-width: 1100px) { .fs-hero, .split-layout, .shop-panel { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .fs-header { flex-wrap: wrap; justify-content: center; } .fs-nav { width: 100%; justify-content: center; flex-wrap: wrap; } .fs-metrics, .collection-grid, .highlight-grid { grid-template-columns: 1fr; } .fs-floating { position: static; max-width: none; margin-top: 18px; } }

@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Careers — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ---- Page Hero ---- */
+        .page-hero {
+            padding: 160px 0 80px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .page-hero::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.08);
+            top: -150px; right: -150px;
+        }
+        .page-hero::after {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            border-radius: 50%;
+            background: rgba(124, 58, 237, 0.08);
+            bottom: -100px; left: -100px;
+        }
+        .page-hero .container { position: relative; z-index: 1; }
+        .page-hero-label {
+            display: inline-block;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--color-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+        .page-hero h1 {
+            font-size: var(--font-size-5xl);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+        }
+        .page-hero p {
+            font-size: var(--font-size-lg);
+            color: var(--color-text-light);
+            max-width: 640px;
+            margin: 0 auto 2rem;
+            line-height: 1.7;
+        }
+
+        /* ---- Benefits ---- */
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+        .benefit-card {
+            background: #fff;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-border);
+            transition: all var(--transition-base);
+        }
+        .benefit-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+        .benefit-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+        .benefit-card h3 { font-size: var(--font-size-base); font-weight: 700; margin-bottom: 0.5rem; }
+        .benefit-card p { font-size: var(--font-size-sm); color: var(--color-text-light); line-height: 1.6; }
+
+        /* ---- Culture strip ---- */
+        .culture-strip {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+        .culture-img {
+            border-radius: var(--radius-2xl);
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            height: 380px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+        }
+        .culture-content h2 { font-size: var(--font-size-3xl); font-weight: 800; margin-bottom: 1rem; }
+        .culture-content p { font-size: var(--font-size-base); color: var(--color-text-light); line-height: 1.8; margin-bottom: 1rem; }
+
+        /* ---- Jobs filter ---- */
+        .jobs-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+        .job-filter-btn {
+            padding: 0.5rem 1.25rem;
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--color-text-light);
+            background: #fff;
+            border: 1.5px solid var(--color-border);
+            border-radius: var(--radius-full);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        .job-filter-btn:hover, .job-filter-btn.active {
+            color: var(--color-secondary);
+            border-color: var(--color-secondary);
+            background: rgba(79, 70, 229, 0.05);
+        }
+
+        /* ---- Job cards ---- */
+        .jobs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .job-card {
+            background: #fff;
+            border: 1.5px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            padding: 1.75rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2rem;
+            transition: all var(--transition-base);
+        }
+        .job-card:hover {
+            border-color: var(--color-secondary);
+            box-shadow: var(--shadow-md);
+            transform: translateX(4px);
+        }
+        .job-info { flex: 1; }
+        .job-dept {
+            display: inline-block;
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--color-secondary);
+            margin-bottom: 0.4rem;
+        }
+        .job-title {
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .job-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .job-tag {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+        }
+        .job-apply {
+            flex-shrink: 0;
+        }
+
+        /* ---- No openings message ---- */
+        .no-jobs {
+            display: none;
+            text-align: center;
+            padding: 4rem;
+            color: var(--color-text-light);
+        }
+
+        /* ---- Hiring Process ---- */
+        .process-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            position: relative;
+        }
+        .process-grid::before {
+            content: '';
+            position: absolute;
+            top: 40px;
+            left: 12.5%;
+            right: 12.5%;
+            height: 2px;
+            background: var(--color-border);
+            z-index: 0;
+        }
+        .process-step {
+            text-align: center;
+            padding: 0 1rem;
+            position: relative;
+            z-index: 1;
+        }
+        .process-num {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--color-secondary), var(--color-accent));
+            color: #fff;
+            font-size: var(--font-size-2xl);
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            box-shadow: var(--shadow-lg);
+        }
+        .process-step h4 { font-size: var(--font-size-base); font-weight: 700; margin-bottom: 0.5rem; }
+        .process-step p { font-size: var(--font-size-sm); color: var(--color-text-light); line-height: 1.6; }
+
+        @media (max-width: 1024px) {
+            .benefits-grid { grid-template-columns: repeat(2, 1fr); }
+            .culture-strip { grid-template-columns: 1fr; }
+            .process-grid { grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+            .process-grid::before { display: none; }
+        }
+        @media (max-width: 768px) {
+            .page-hero h1 { font-size: var(--font-size-4xl); }
+            .job-card { flex-direction: column; align-items: flex-start; }
+            .process-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .benefits-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                Nexlance
+            </a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#products">Products <span class="arrow">▾</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🌐</span>
+                                <div><h4>Websites</h4><p>Professional site builder</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🛒</span>
+                                <div><h4>E-commerce</h4><p>Online store solutions</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📧</span>
+                                <div><h4>Email Marketing</h4><p>Campaign tools</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📅</span>
+                                <div><h4>Scheduling</h4><p>Appointment booking</p></div>
+                            </a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#templates">Templates <span class="arrow">▾</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Portfolio</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Business</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Blog</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Store</span>
+                            </a>
+                        </div>
+                        <a href="index.html#templates" class="dropdown-view-all">View All Templates →</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="index.html#pricing">Pricing</a></li>
+                <li class="nav-item"><a href="index.html#features">Features</a></li>
+                <li class="nav-item"><a href="index.html#resources">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="login.html" class="btn-text">Log In</a>
+                <a href="login.html" class="btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Hero -->
+    <section class="page-hero">
+        <div class="container">
+            <span class="page-hero-label">Careers</span>
+            <h1>Help us build the <span class="gradient-text">future of the web</span></h1>
+            <p>We're a fast-growing team of builders, designers, and problem-solvers. If you're excited about making the internet more accessible, we'd love to meet you.</p>
+            <a href="#open-roles" class="btn-primary btn-large">View Open Roles</a>
+        </div>
+    </section>
+
+    <!-- Why Join Us / Benefits -->
+    <section style="background: #fff;">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Why Nexlance</span>
+                <h2 class="section-title">More than just a job</h2>
+                <p class="section-subtitle">We invest in our people the same way we invest in our product — thoughtfully, generously, and for the long term.</p>
+            </div>
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">💰</div>
+                    <h3>Competitive Salary</h3>
+                    <p>Top-of-market compensation with equity participation. We share in the company's success with you.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🏥</div>
+                    <h3>Full Health Coverage</h3>
+                    <p>Comprehensive health, dental, and vision insurance for you and your family. 100% premium covered.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🌴</div>
+                    <h3>Flexible PTO</h3>
+                    <p>Unlimited paid time off and a company-wide mental health week each quarter. Rest is productive.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🏠</div>
+                    <h3>Remote-First</h3>
+                    <p>Work from anywhere. We have hubs in Bangalore, Mumbai, and Singapore — but presence is never mandatory.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📚</div>
+                    <h3>Learning Budget</h3>
+                    <p>₹1,00,000 annual budget for courses, books, conferences, and certifications. We grow together.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🍽️</div>
+                    <h3>Meals & Snacks</h3>
+                    <p>Daily catered lunches at office hubs and a generous monthly meal allowance for remote team members.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">💻</div>
+                    <h3>Top-Tier Equipment</h3>
+                    <p>Your choice of MacBook Pro or high-end workstation, plus a ₹50,000 home office setup stipend.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">👶</div>
+                    <h3>Parental Leave</h3>
+                    <p>24 weeks fully paid parental leave for primary caregivers, 8 weeks for secondary caregivers.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Culture -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="culture-strip">
+                <div class="culture-img">🎯</div>
+                <div class="culture-content">
+                    <span class="section-label">Our Culture</span>
+                    <h2>Makers welcome</h2>
+                    <p>We're a company of doers. We ship fast, learn fast, and celebrate both wins and failures. Every team member has a direct line to impact — no bureaucracy, no red tape.</p>
+                    <p>We run quarterly offsites, weekly all-hands, and daily standups that actually matter. Our Slack channels are full of memes and breakthroughs in equal measure.</p>
+                    <p>Diversity is non-negotiable. Our team spans 14 nationalities, and we're actively working to close gaps across gender, background, and experience level.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Open Roles -->
+    <section id="open-roles" style="background: #fff;">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Open Positions</span>
+                <h2 class="section-title">Find your role</h2>
+                <p class="section-subtitle">We're hiring across engineering, design, product, and growth. Don't see your role? Send us an open application.</p>
+            </div>
+
+            <!-- Filter -->
+            <div class="jobs-filter">
+                <button class="job-filter-btn active" data-filter="all">All Departments</button>
+                <button class="job-filter-btn" data-filter="engineering">Engineering</button>
+                <button class="job-filter-btn" data-filter="design">Design</button>
+                <button class="job-filter-btn" data-filter="product">Product</button>
+                <button class="job-filter-btn" data-filter="growth">Growth</button>
+                <button class="job-filter-btn" data-filter="operations">Operations</button>
+            </div>
+
+            <!-- Job listings -->
+            <div class="jobs-list" id="jobs-list">
+
+                <div class="job-card" data-dept="engineering">
+                    <div class="job-info">
+                        <span class="job-dept">Engineering</span>
+                        <div class="job-title">Senior Backend Engineer — Node.js / PostgreSQL</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Bangalore / Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹35–55 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="engineering">
+                    <div class="job-info">
+                        <span class="job-dept">Engineering</span>
+                        <div class="job-title">Frontend Engineer — React / TypeScript</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹28–45 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="engineering">
+                    <div class="job-info">
+                        <span class="job-dept">Engineering</span>
+                        <div class="job-title">DevOps / Platform Engineer</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Bangalore / Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹30–50 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="design">
+                    <div class="job-info">
+                        <span class="job-dept">Design</span>
+                        <div class="job-title">Product Designer (Mid–Senior)</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹22–38 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="design">
+                    <div class="job-info">
+                        <span class="job-dept">Design</span>
+                        <div class="job-title">Motion Designer</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Bangalore</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹18–28 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="product">
+                    <div class="job-info">
+                        <span class="job-dept">Product</span>
+                        <div class="job-title">Senior Product Manager — Growth</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Bangalore / Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹40–60 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="growth">
+                    <div class="job-info">
+                        <span class="job-dept">Growth</span>
+                        <div class="job-title">Performance Marketing Manager</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹20–35 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="growth">
+                    <div class="job-info">
+                        <span class="job-dept">Growth</span>
+                        <div class="job-title">Content Marketing Lead</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Remote</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹18–30 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+                <div class="job-card" data-dept="operations">
+                    <div class="job-info">
+                        <span class="job-dept">Operations</span>
+                        <div class="job-title">Customer Success Manager</div>
+                        <div class="job-meta">
+                            <span class="job-tag">📍 Bangalore / Mumbai</span>
+                            <span class="job-tag">💼 Full-time</span>
+                            <span class="job-tag">💰 ₹14–22 LPA</span>
+                        </div>
+                    </div>
+                    <div class="job-apply">
+                        <a href="contact.html" class="btn-primary">Apply Now</a>
+                    </div>
+                </div>
+
+            </div>
+            <div class="no-jobs" id="no-jobs">No openings in this department right now. <a href="contact.html" style="color: var(--color-secondary); font-weight:600;">Send an open application →</a></div>
+        </div>
+    </section>
+
+    <!-- Hiring Process -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Our Process</span>
+                <h2 class="section-title">What to expect</h2>
+                <p class="section-subtitle">We respect your time. Our process is transparent, fast, and feedback-rich — typically completed in 2–3 weeks.</p>
+            </div>
+            <div class="process-grid">
+                <div class="process-step">
+                    <div class="process-num">1</div>
+                    <h4>Apply Online</h4>
+                    <p>Submit your application. A human — not a bot — reviews every submission within 5 business days.</p>
+                </div>
+                <div class="process-step">
+                    <div class="process-num">2</div>
+                    <h4>Intro Call</h4>
+                    <p>A 30-minute chat with our recruiter to align on expectations, role scope, and your career goals.</p>
+                </div>
+                <div class="process-step">
+                    <div class="process-num">3</div>
+                    <h4>Skills Interview</h4>
+                    <p>A role-specific assessment — live coding, design review, or case study. We keep it relevant, never trivial.</p>
+                </div>
+                <div class="process-step">
+                    <div class="process-num">4</div>
+                    <h4>Offer</h4>
+                    <p>If it's a match, you'll receive a detailed written offer within 48 hours of your final interview.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Don't see a perfect fit?</h2>
+                <p>Send us an open application. We're always looking for exceptional people.</p>
+                <a href="contact.html" class="btn-primary btn-large">Send Open Application</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">𝕏</a>
+                        <a href="#" aria-label="LinkedIn">in</a>
+                       
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                                            </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms &amp; Services</a>
+                    <a href="sitemap.html">Sitemap</a>
+                    <a href="status.html">Status</a>
+                    <a href="security.html">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <script src="main.js"></script>
+    <script>
+        // Department filter
+        const filterBtns = document.querySelectorAll('.job-filter-btn');
+        const jobCards = document.querySelectorAll('.job-card');
+        const noJobs = document.getElementById('no-jobs');
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const filter = btn.dataset.filter;
+                let visible = 0;
+
+                jobCards.forEach(card => {
+                    const show = filter === 'all' || card.dataset.dept === filter;
+                    card.style.display = show ? 'flex' : 'none';
+                    if (show) visible++;
+                });
+
+                noJobs.style.display = visible === 0 ? 'block' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>

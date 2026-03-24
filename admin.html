@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<style>
+.admin-shell {
+    display: grid;
+    gap: 22px;
+}
+
+.admin-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.admin-toolbar-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-toolbar-actions button,
+.admin-toolbar-actions input {
+    border-radius: 999px;
+    border: 1px solid #ded6fb;
+    padding: 11px 16px;
+    background: #fff;
+}
+
+.admin-toolbar-actions button {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.admin-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.admin-kpi {
+    background: #fff;
+    border: 1px solid #ece7fb;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 12px 30px rgba(76, 63, 191, 0.08);
+}
+
+.admin-kpi h3 {
+    margin: 0 0 8px;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #948ca8;
+}
+
+.admin-kpi strong {
+    display: block;
+    font-size: 2rem;
+    color: #2d1b69;
+}
+
+.admin-kpi span {
+    color: #7e7694;
+    font-size: 0.88rem;
+}
+
+.admin-panels {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 22px;
+}
+
+.admin-panel {
+    background: #fff;
+    border: 1px solid #ece7fb;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(76, 63, 191, 0.08);
+}
+
+.admin-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid #f0ebff;
+}
+
+.admin-panel-header h3 {
+    margin: 0;
+    color: #4b3fbf;
+}
+
+.admin-panel-body {
+    padding: 20px;
+}
+
+.metric-list {
+    display: grid;
+    gap: 14px;
+}
+
+.metric-row {
+    display: grid;
+    gap: 8px;
+}
+
+.metric-row-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.92rem;
+    color: #4f4565;
+}
+
+.metric-bar {
+    height: 10px;
+    background: #f2efff;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.metric-bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(135deg, #4b3fbf, #6c5ce7);
+    border-radius: inherit;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+    text-align: left;
+    padding: 14px 12px;
+    border-bottom: 1px solid #f3efff;
+    font-size: 0.9rem;
+    vertical-align: top;
+}
+
+.data-table th {
+    color: #8d86a4;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.76rem;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: #f2efff;
+    color: #4b3fbf;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.activity-list {
+    display: grid;
+    gap: 12px;
+}
+
+.activity-item {
+    display: grid;
+    gap: 6px;
+    border-bottom: 1px solid #f3efff;
+    padding-bottom: 12px;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.activity-item strong {
+    color: #2d1b69;
+}
+
+.activity-item span,
+.activity-item small {
+    color: #7e7694;
+}
+
+.admin-empty {
+    color: #948ca8;
+    font-size: 0.92rem;
+}
+
+@media (max-width: 1100px) {
+    .admin-panels {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <aside class="sidebar">
+        <h2 class="logo">Nexlance</h2>
+        <ul class="nav">
+            <li><a href="dashboard.html">Dashboard</a></li>
+            <li><a href="clients.html">Clients</a></li>
+            <li><a href="team.html">Team</a></li>
+            <li><a href="projects.html">Projects</a></li>
+            <li><a href="invoices.html">Invoices</a></li>
+            <li><a href="services.html">Services</a></li>
+            <li><a href="access-roles.html">Access / Roles</a></li>
+            <li class="active"><a href="admin.html">Admin</a></li>
+        </ul>
+    </aside>
+
+    <main class="main">
+        <div class="page-header">
+            <div class="page-header-left">
+                <h1>Admin Control Center</h1>
+                <p>Protected visibility into users, subscriptions, templates, payments, and activity.</p>
+            </div>
+        </div>
+
+        <section class="admin-shell">
+            <div class="admin-toolbar">
+                <div>
+                    <strong id="adminIdentity">Loading admin session...</strong>
+                    <div style="color:#7e7694;font-size:0.92rem;">Server-protected analytics with admin-only API access.</div>
+                </div>
+                <div class="admin-toolbar-actions">
+                    <input type="search" id="adminSearch" placeholder="Search users">
+                    <button type="button" id="adminRefreshBtn">Refresh</button>
+                    <button type="button" id="adminExportBtn">Export CSV</button>
+                    <button type="button" id="adminLogoutBtn">Log Out</button>
+                </div>
+            </div>
+
+            <div class="admin-kpis">
+                <article class="admin-kpi"><h3>Total Users</h3><strong id="kpiUsers">-</strong><span id="kpiUsersSub">All registered accounts</span></article>
+                <article class="admin-kpi"><h3>New Users</h3><strong id="kpiNewUsers">-</strong><span id="kpiNewUsersSub">Daily / weekly / monthly</span></article>
+                <article class="admin-kpi"><h3>Subscriptions</h3><strong id="kpiSubscriptions">-</strong><span id="kpiSubscriptionsSub">Active vs expired</span></article>
+                <article class="admin-kpi"><h3>Total Revenue</h3><strong id="kpiRevenue">-</strong><span id="kpiRevenueSub">All successful payments</span></article>
+                <article class="admin-kpi"><h3>Template Purchases</h3><strong id="kpiTemplatePurchases">-</strong><span id="kpiTemplatePurchasesSub">Paid template downloads</span></article>
+                <article class="admin-kpi"><h3>Logins / Logouts</h3><strong id="kpiSessions">-</strong><span id="kpiSessionsSub">Tracked account activity</span></article>
+            </div>
+
+            <div class="admin-panels">
+                <section class="admin-panel">
+                    <div class="admin-panel-header">
+                        <h3>Template Usage</h3>
+                        <span class="pill">Most used templates</span>
+                    </div>
+                    <div class="admin-panel-body">
+                        <div class="metric-list" id="templateChart"></div>
+                    </div>
+                </section>
+
+                <section class="admin-panel">
+                    <div class="admin-panel-header">
+                        <h3>Payment Summary</h3>
+                        <span class="pill">Revenue breakdown</span>
+                    </div>
+                    <div class="admin-panel-body">
+                        <div class="metric-list" id="paymentSummary"></div>
+                    </div>
+                </section>
+            </div>
+
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <h3>Users</h3>
+                    <span class="pill" id="usersCountPill">0 users</span>
+                </div>
+                <div class="admin-panel-body" style="overflow:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Plan</th>
+                                <th>Projects</th>
+                                <th>Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="admin-panels">
+                <section class="admin-panel">
+                    <div class="admin-panel-header">
+                        <h3>Payments</h3>
+                        <span class="pill">Recent payment history</span>
+                    </div>
+                    <div class="admin-panel-body" style="overflow:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>When</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="admin-panel">
+                    <div class="admin-panel-header">
+                        <h3>Activity Logs</h3>
+                        <span class="pill">Recent events</span>
+                    </div>
+                    <div class="admin-panel-body">
+                        <div class="activity-list" id="activityList"></div>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="supabase-config.js"></script>
+<script>
+let adminAnalytics = null;
+
+function getAdminApiUrl(pathname) {
+    const normalizedPath = String(pathname || '').startsWith('/')
+        ? String(pathname || '')
+        : `/${String(pathname || '')}`;
+
+    if (window.location.protocol === 'file:') {
+        return `http://localhost:4242${normalizedPath}`;
+    }
+
+    if (/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname) && window.location.port && window.location.port !== '4242') {
+        return `http://localhost:4242${normalizedPath}`;
+    }
+
+    return normalizedPath;
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'EUR'
+    }).format(Number(amount || 0));
+}
+
+function formatDateTime(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('en-IN');
+}
+
+function renderMetricBars(containerId, rows, labelKey) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!rows || !rows.length) {
+        container.innerHTML = '<div class="admin-empty">No data available yet.</div>';
+        return;
+    }
+
+    const max = Math.max(...rows.map(row => Number(row.count || 0)), 1);
+    container.innerHTML = rows.map(row => `
+        <div class="metric-row">
+            <div class="metric-row-top">
+                <span>${row[labelKey] || 'Unknown'}</span>
+                <strong>${row.count || 0}</strong>
+            </div>
+            <div class="metric-bar"><span style="width:${Math.max(8, (Number(row.count || 0) / max) * 100)}%"></span></div>
+        </div>
+    `).join('');
+}
+
+function renderUsers(users) {
+    const body = document.getElementById('usersTableBody');
+    const pill = document.getElementById('usersCountPill');
+    pill.textContent = `${users.length} user${users.length === 1 ? '' : 's'}`;
+    if (!users.length) {
+        body.innerHTML = '<tr><td colspan="5" class="admin-empty">No users found for this search.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = users.map(user => `
+        <tr>
+            <td>${user.name || '-'}</td>
+            <td>${user.email || '-'}</td>
+            <td><span class="pill">${user.planCode || 'individual'} / ${user.planStatus || 'free'}</span></td>
+            <td>${user.projectCount || 0}</td>
+            <td>${user.lastActivityType || '-'}<br><small>${formatDateTime(user.lastActivityAt)}</small></td>
+        </tr>
+    `).join('');
+}
+
+function renderPayments(payments) {
+    const body = document.getElementById('paymentsTableBody');
+    if (!payments.length) {
+        body.innerHTML = '<tr><td colspan="5" class="admin-empty">No payments recorded yet.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = payments.map(payment => `
+        <tr>
+            <td>${payment.email || '-'}</td>
+            <td>${payment.type || '-'}${payment.planCode ? `<br><small>${payment.planCode}</small>` : ''}${payment.templateName ? `<br><small>${payment.templateName}</small>` : ''}</td>
+            <td>${formatCurrency(payment.amount || 0)}</td>
+            <td><span class="pill">${payment.status || 'unknown'}</span></td>
+            <td>${formatDateTime(payment.createdAt)}</td>
+        </tr>
+    `).join('');
+}
+
+function renderActivity(activity) {
+    const list = document.getElementById('activityList');
+    if (!activity.length) {
+        list.innerHTML = '<div class="admin-empty">No activity logs recorded yet.</div>';
+        return;
+    }
+
+    list.innerHTML = activity.map(item => `
+        <article class="activity-item">
+            <strong>${item.eventType || 'activity'} - ${item.actorEmail || 'unknown user'}</strong>
+            <span>${item.message || 'No message recorded.'}</span>
+            <small>${formatDateTime(item.createdAt)}</small>
+        </article>
+    `).join('');
+}
+
+function renderSummary(summary) {
+    document.getElementById('kpiUsers').textContent = summary.totalUsers || 0;
+    document.getElementById('kpiNewUsers').textContent = summary.newUsersDaily || 0;
+    document.getElementById('kpiNewUsersSub').textContent = `${summary.newUsersDaily || 0} today / ${summary.newUsersWeekly || 0} this week / ${summary.newUsersMonthly || 0} this month`;
+    document.getElementById('kpiSubscriptions').textContent = summary.activeSubscriptions || 0;
+    document.getElementById('kpiSubscriptionsSub').textContent = `${summary.activeSubscriptions || 0} active / ${summary.expiredSubscriptions || 0} expired`;
+    document.getElementById('kpiRevenue').textContent = formatCurrency(summary.totalRevenue || 0);
+    document.getElementById('kpiRevenueSub').textContent = `${summary.paymentCount || 0} successful payments tracked`;
+    document.getElementById('kpiTemplatePurchases').textContent = summary.templatePurchases || 0;
+    document.getElementById('kpiTemplatePurchasesSub').textContent = `${summary.templateProjectCount || 0} template projects created`;
+    document.getElementById('kpiSessions').textContent = `${summary.loginCount || 0} / ${summary.logoutCount || 0}`;
+    document.getElementById('kpiSessionsSub').textContent = 'Logins / logouts';
+}
+
+function renderPaymentSummary(summary) {
+    const rows = [
+        { label: 'Plan purchases', count: summary.planPurchases || 0 },
+        { label: 'Template purchases', count: summary.templatePurchases || 0 },
+        { label: 'Active subscriptions', count: summary.activeSubscriptions || 0 },
+        { label: 'Expired subscriptions', count: summary.expiredSubscriptions || 0 }
+    ];
+    renderMetricBars('paymentSummary', rows.map(row => ({ templateName: row.label, count: row.count })), 'templateName');
+}
+
+async function loadAdminAnalytics() {
+    const search = document.getElementById('adminSearch').value.trim();
+    const response = await fetch(`${getAdminApiUrl('/api/admin/analytics')}?search=${encodeURIComponent(search)}`, {
+        credentials: 'include'
+    });
+    if (response.status === 401) {
+        localStorage.removeItem('nexlance_admin_ui');
+        window.location.href = 'admin-login.html?redirect=admin.html';
+        return;
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || 'Could not load admin analytics.');
+    }
+
+    adminAnalytics = data;
+    renderSummary(data.summary || {});
+    renderMetricBars('templateChart', (data.templateAnalytics && data.templateAnalytics.mostUsedTemplates) || [], 'templateName');
+    renderPaymentSummary(data.summary || {});
+    renderUsers(data.users || []);
+    renderPayments(data.payments || []);
+    renderActivity(data.activity || []);
+}
+
+function exportUsersCsv() {
+    if (!adminAnalytics || !Array.isArray(adminAnalytics.users) || !adminAnalytics.users.length) {
+        alert('No user data is available to export yet.');
+        return;
+    }
+
+    const rows = [
+        ['Name', 'Email', 'Plan', 'Plan Status', 'Projects', 'Last Activity', 'Last Activity At'],
+        ...adminAnalytics.users.map(user => [
+            user.name || '',
+            user.email || '',
+            user.planCode || '',
+            user.planStatus || '',
+            user.projectCount || 0,
+            user.lastActivityType || '',
+            user.lastActivityAt || ''
+        ])
+    ];
+
+    const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'nexlance-admin-users.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function initAdmin() {
+    const sessionResponse = await fetch(getAdminApiUrl('/api/admin/session'), { credentials: 'include' });
+    const session = await sessionResponse.json().catch(() => ({}));
+    if (!sessionResponse.ok || !session.authenticated) {
+        localStorage.removeItem('nexlance_admin_ui');
+        window.location.href = 'admin-login.html?redirect=admin.html';
+        return;
+    }
+
+    document.getElementById('adminIdentity').textContent = `Signed in as ${session.email}`;
+    await loadAdminAnalytics();
+}
+
+document.getElementById('adminRefreshBtn').addEventListener('click', () => {
+    loadAdminAnalytics().catch(error => alert(error.message || 'Could not refresh admin analytics.'));
+});
+
+document.getElementById('adminSearch').addEventListener('input', () => {
+    loadAdminAnalytics().catch(error => alert(error.message || 'Could not search admin analytics.'));
+});
+
+document.getElementById('adminExportBtn').addEventListener('click', exportUsersCsv);
+
+document.getElementById('adminLogoutBtn').addEventListener('click', async () => {
+    await fetch(getAdminApiUrl('/api/admin/logout'), {
+        method: 'POST',
+        credentials: 'include'
+    });
+    localStorage.removeItem('nexlance_admin_ui');
+    window.location.href = 'admin-login.html';
+});
+
+initAdmin().catch(error => {
+    alert(error.message || 'Could not initialize the admin dashboard.');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Services — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li class="active"><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search services...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Services</h1>
+        <p>Manage your agency's service offerings and pricing</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-primary" onclick="openAddModal()">+ Add Service</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Services</div>
+        <div class="stat-value" id="sTotal">0</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Total Revenue</div>
+        <div class="stat-value" id="sTotalRev">₹0</div>
+        <div class="stat-sub">All services combined</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Active Clients</div>
+        <div class="stat-value" id="sActiveClients">0</div>
+        <div class="stat-sub">Across all services</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Top Service</div>
+        <div class="stat-value" style="font-size:1rem;" id="sTopService">—</div>
+        <div class="stat-sub">Highest revenue</div>
+      </div>
+    </div>
+
+    <!-- Services Grid -->
+    <div class="services-grid" id="servicesGrid">
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:#aaa;">Loading services...</div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add / Edit Service Modal -->
+<div class="modal-overlay" id="serviceModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Add Service</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label>Service Icon (emoji)</label>
+        <input type="text" id="fIcon" placeholder="🌐" maxlength="4" style="font-size:1.4rem;text-align:center;">
+      </div>
+      <div class="form-group">
+        <label>Service Name *</label>
+        <input type="text" id="fName" placeholder="Business Website">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="fDesc" placeholder="Brief description of this service..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Starting Price (₹)</label>
+        <input type="number" id="fPrice" placeholder="25000">
+      </div>
+      <div class="form-group">
+        <label>Avg Delivery Time (days)</label>
+        <input type="number" id="fDays" placeholder="30">
+      </div>
+      <div class="form-group">
+        <label>Active Clients</label>
+        <input type="number" id="fClients" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>Total Revenue Generated (₹)</label>
+        <input type="number" id="fRevenue" placeholder="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveService()">Save Service</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+let services = [];
+let editingId = null;
+function ensureDataAccess() {
+  if (!isUpgradeRequiredForData()) return true;
+  showToast(getUpgradeRequiredMessage(), 'error');
+  return false;
+}
+
+async function init() {
+  services = await fetchServices();
+  renderStats();
+  renderGrid();
+}
+
+function renderStats() {
+  const totalRev = services.reduce((s,sv) => s + (sv.revenue_generated||0), 0);
+  const totalClients = services.reduce((s,sv) => s + (sv.active_clients||0), 0);
+  const top = services.reduce((a,b) => (a.revenue_generated||0) > (b.revenue_generated||0) ? a : b, {});
+  document.getElementById('sTotal').textContent = services.length;
+  document.getElementById('sTotalRev').textContent = formatCurrency(totalRev);
+  document.getElementById('sActiveClients').textContent = totalClients;
+  document.getElementById('sTopService').textContent = top.name || '—';
+}
+
+function renderGrid() {
+  const grid = document.getElementById('servicesGrid');
+  if (isUpgradeRequiredForData()) {
+    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></div>`;
+    return;
+  }
+  if (!services.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">🛠</div><h3>No services yet</h3><p>Add your first service offering</p></div></div>`;
+    return;
+  }
+  grid.innerHTML = services.map(sv => `
+    <div class="service-card">
+      <div class="service-icon">${sv.icon || '🌐'}</div>
+      <h3>${sv.name}</h3>
+      <p>${sv.description || 'No description provided'}</p>
+      <div class="service-price">
+        ${formatCurrency(sv.pricing || 0)}
+        <span>${sv.avg_delivery_days > 0 ? '/ project' : '/ month'}</span>
+      </div>
+      <div class="service-stats">
+        <div class="service-stat">
+          <div class="s-label">Active Clients</div>
+          <div class="s-value">${sv.active_clients || 0}</div>
+        </div>
+        <div class="service-stat">
+          <div class="s-label">Revenue</div>
+          <div class="s-value">${formatCurrency(sv.revenue_generated || 0)}</div>
+        </div>
+        <div class="service-stat">
+          <div class="s-label">Avg Delivery</div>
+          <div class="s-value">${sv.avg_delivery_days > 0 ? sv.avg_delivery_days + ' days' : 'Ongoing'}</div>
+        </div>
+        <div class="service-stat">
+          <div class="s-label">Avg Per Client</div>
+          <div class="s-value">${sv.active_clients > 0 ? formatCurrency(Math.round((sv.revenue_generated||0) / sv.active_clients)) : '—'}</div>
+        </div>
+      </div>
+      <div class="service-card-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openEditModal('${sv.id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="handleDelete('${sv.id}')">🗑 Remove</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openAddModal() {
+  if (!ensureDataAccess()) return;
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add Service';
+  ['fName','fDesc','fPrice','fDays','fClients','fRevenue'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fIcon').value = '🌐';
+  document.getElementById('serviceModal').classList.add('active');
+}
+
+function openEditModal(id) {
+  if (!ensureDataAccess()) return;
+  const sv = services.find(s => s.id === id);
+  if (!sv) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Service';
+  document.getElementById('fIcon').value = sv.icon || '🌐';
+  document.getElementById('fName').value = sv.name || '';
+  document.getElementById('fDesc').value = sv.description || '';
+  document.getElementById('fPrice').value = sv.pricing || '';
+  document.getElementById('fDays').value = sv.avg_delivery_days || '';
+  document.getElementById('fClients').value = sv.active_clients || '';
+  document.getElementById('fRevenue').value = sv.revenue_generated || '';
+  document.getElementById('serviceModal').classList.add('active');
+}
+function closeModal() { document.getElementById('serviceModal').classList.remove('active'); }
+
+async function saveService() {
+  if (!ensureDataAccess()) return;
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { showToast('Service name is required', 'error'); return; }
+  const data = {
+    name,
+    icon: document.getElementById('fIcon').value.trim() || '🌐',
+    description: document.getElementById('fDesc').value.trim(),
+    pricing: Number(document.getElementById('fPrice').value) || 0,
+    avg_delivery_days: Number(document.getElementById('fDays').value) || 0,
+    active_clients: Number(document.getElementById('fClients').value) || 0,
+    revenue_generated: Number(document.getElementById('fRevenue').value) || 0
+  };
+  try {
+    if (editingId) {
+      const upd = await updateService(editingId, data);
+      const idx = services.findIndex(s => s.id === editingId);
+      if (idx > -1) services[idx] = upd;
+      showToast('Service updated!', 'success');
+    } else {
+      const created = await addService(data);
+      services.push(created);
+      showToast('Service added!', 'success');
+    }
+    closeModal(); renderStats(); renderGrid();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function handleDelete(id) {
+  if (!ensureDataAccess()) return;
+  if (!confirm('Remove this service?')) return;
+  try {
+    await deleteService(id);
+    services = services.filter(s => s.id !== id);
+    renderStats(); renderGrid();
+    showToast('Service removed.', 'info');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+document.getElementById('serviceModal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+init();
+</script>
+</body>
+</html>

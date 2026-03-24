@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Nexlance</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="dashboard.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  .trial-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #4b3fbf, #6c5ce7);
+    color: #fff;
+    box-shadow: 0 14px 32px rgba(108, 92, 231, 0.22);
+  }
+
+  .trial-banner.expired {
+    background: linear-gradient(135deg, #2d1b69, #e17055);
+  }
+
+  .trial-banner.active {
+    background: linear-gradient(135deg, #0f8b5f, #00b894);
+  }
+
+  .trial-banner h3 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+  }
+
+  .trial-banner p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 0.92rem;
+  }
+
+  .trial-timer {
+    min-width: 220px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.12);
+    text-align: center;
+  }
+
+  .trial-timer strong {
+    display: block;
+    font-size: 1.2rem;
+    margin-top: 4px;
+  }
+
+  .trial-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .upgrade-button {
+    border: none;
+    border-radius: 999px;
+    padding: 12px 18px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #fff;
+    color: #4b3fbf;
+  }
+
+  .upgrade-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.86);
+    margin-bottom: 6px;
+  }
+
+  .plans-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(31, 26, 68, 0.62);
+    z-index: 1000;
+  }
+
+  .plans-modal.open {
+    display: flex;
+  }
+
+  .plans-dialog {
+    width: min(960px, 100%);
+    background: #fff;
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(45, 27, 105, 0.24);
+  }
+
+  .plans-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .plans-header h2 {
+    margin: 0 0 6px;
+    color: #2d1b69;
+  }
+
+  .plans-header p {
+    margin: 0;
+    color: #777;
+  }
+
+  .plans-close {
+    border: none;
+    background: #f3efff;
+    color: #4b3fbf;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+
+  .plans-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .plan-card {
+    border: 1px solid #e6defa;
+    border-radius: 18px;
+    padding: 20px;
+    background: #fcfbff;
+  }
+
+  .plan-card.featured {
+    background: linear-gradient(180deg, #f4f1ff, #ffffff);
+    border-color: #6c5ce7;
+    box-shadow: 0 12px 30px rgba(108, 92, 231, 0.12);
+  }
+
+  .plan-price {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #2d1b69;
+    margin: 8px 0 14px;
+  }
+
+  .plan-card ul {
+    padding-left: 18px;
+    color: #555;
+    line-height: 1.7;
+    min-height: 128px;
+  }
+
+  .plan-card a {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 700;
+    background: #6c5ce7;
+    color: #fff;
+  }
+
+  .plan-card.featured a {
+    background: #4b3fbf;
+  }
+
+  .danger-button {
+    border: none;
+    border-radius: 999px;
+    padding: 12px 18px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #d63031;
+    color: #fff;
+  }
+
+  .danger-button.ghost {
+    background: #fceaea;
+    color: #b42318;
+  }
+
+  .danger-note {
+    color: #777;
+    line-height: 1.6;
+    margin: 0 0 18px;
+  }
+
+  .danger-warning {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #fff2f2;
+    color: #b42318;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 900px) {
+    .trial-banner {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .plans-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li class="active"><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li id="adminNavItem" style="display:none;"><a href="admin.html">Admin Panel</a></li>
+      <li id="settingsNavItem"><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search dashboards, clients, projects...">
+      <button type="button" class="profile profile-button" id="openSettingsProfileBtn" aria-label="Open settings">
+        <span class="profile-avatar-small" id="topbarAvatar">NA</span>
+        <span id="topbarProfileLabel">Account</span>
+      </button>
+    </div>
+
+    <section class="page-view" id="dashboardHomeView">
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Dashboard</h1>
+        <p id="dashDate" class="page-header-date"></p>
+      </div>
+      <div class="page-header-actions">
+        <a href="invoice-create.html" class="btn btn-secondary btn-sm">+ Invoice</a>
+        <a href="clients.html" class="btn btn-primary btn-sm">+ Add Client</a>
+      </div>
+    </div>
+
+    <section class="trial-banner" id="trialBanner">
+      <div>
+        <h3 id="trialTitle">Your 3-day dashboard trial is active</h3>
+        <p id="trialMessage">You can use dashboard features during the trial. Templates still require separate payment.</p>
+      </div>
+      <div class="trial-actions">
+        <div class="trial-timer" id="trialTimer">
+          <span id="trialTimerLabel">Trial ends in</span>
+          <strong id="trialCountdown">3d 00h 00m 00s</strong>
+        </div>
+        <div id="upgradeControls" hidden>
+          <div class="upgrade-label">Full access to the website</div>
+          <button type="button" class="upgrade-button" id="upgradePlanBtn">Upgrade Plan</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <h4>Monthly Revenue</h4>
+        <h2 id="dRevenue">€328</h2>
+        <p class="card-meta">Up 12% vs last month</p>
+      </div>
+      <div class="card">
+        <h4>Active Projects</h4>
+        <h2 id="dProjects">18</h2>
+        <p class="card-meta">Across all clients</p>
+      </div>
+      <!-- <div class="card">
+        <h4>Pending Approvals</h4>
+        <h2 id="dApprovals">6</h2>
+        <div style="font-size:0.78rem;color:#aaa;margin-top:4px;">Awaiting review</div>
+      </div> -->
+      <div class="card">
+        <h4>Complete project</h4>
+        <h2 id="dOverdue">4</h2>
+        <p class="card-meta">Need attention</p>
+      </div>
+      <div class="card">
+        <h4>Pending Payments</h4>
+        <h2 id="dPending">€1,049</h2>
+        <p class="card-meta">Outstanding balance</p>
+      </div>
+    </section>
+
+    <div class="quick-links">
+      <a href="clients.html" class="quick-link">
+        <span class="quick-link-title">Clients</span>
+        <span class="quick-link-label">Clients</span>
+      </a>
+      <a href="projects.html" class="quick-link">
+        <span class="quick-link-title">Projects</span>
+        <span class="quick-link-label">Projects</span>
+      </a>
+      <a href="invoices.html" class="quick-link">
+        <span class="quick-link-title">Invoices</span>
+        <span class="quick-link-label">Invoices</span>
+      </a>
+      <a href="team.html" class="quick-link">
+        <span class="quick-link-title">Team</span>
+        <span class="quick-link-label">Team</span>
+      </a>
+      <a href="services.html" class="quick-link">
+        <span class="quick-link-title">Services</span>
+        <span class="quick-link-label">Services</span>
+      </a>
+      <a href="access-roles.html" class="quick-link">
+        <span class="quick-link-title">Roles</span>
+        <span class="quick-link-label">Access</span>
+      </a>
+      <a href="admin.html" id="adminQuickLink" class="quick-link" style="display:none;">
+        <span class="quick-link-title">Admin</span>
+        <span class="quick-link-label">Admin Panel</span>
+      </a>
+      <a href="invoice-create.html" class="quick-link quick-link-primary">
+        <span class="quick-link-title">New</span>
+        <span class="quick-link-label">New Invoice</span>
+      </a>
+    </div>
+
+    <section class="charts">
+      <div class="chart-box">
+        <h3>Website Projects by Status</h3>
+        <canvas id="projectStatusChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Revenue Analytics - 2025</h3>
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </section>
+
+    <section class="activity">
+      <h3>Recent Activity</h3>
+      <ul id="activityFeed">
+        <li>Homepage design approved by TechVision Pvt Ltd</li>
+        <li>Payment of €328 received from ShopKart India</li>
+        <li>New task assigned to Arjun - Contact Form Setup</li>
+        <li>StartupHub Landing Page moved to Live</li>
+        <li>Overdue invoice reminder sent to FashionHub</li>
+        <li>New client added - Digital Edge</li>
+      </ul>
+    </section>
+
+    <section class="alerts">
+      <h3>Urgent Alerts</h3>
+      <div class="alert danger">2 projects with delayed delivery - FashionHub, Digital Edge</div>
+      <div class="alert warning">Hosting expiring in 10 days - TechVision (techvision.in)</div>
+      <div class="alert warning">SSL certificate expiring - FashionHub (fashionhub.in)</div>
+      <div class="alert danger">3 unpaid invoices totalling €1,049</div>
+    </section>
+    </section>
+
+    <section class="page-view settings-view" id="settingsView" hidden>
+      <div class="settings-page-header">
+        <div>
+          <span class="settings-eyebrow">Dashboard Settings</span>
+          <h1>Settings</h1>
+          <p>Manage your account, appearance, notifications, privacy, and security in one clean workspace.</p>
+        </div>
+        <label class="settings-search" for="settingsSearchInput">
+          <span>Search settings</span>
+          <input type="search" id="settingsSearchInput" placeholder="Search profile, privacy, theme, logout...">
+        </label>
+      </div>
+
+      <div class="settings-layout">
+        <aside class="settings-sidebar" aria-label="Settings sections">
+          <button type="button" class="settings-tab active" data-settings-target="profile">
+            <span class="settings-tab-title">Profile</span>
+            <span class="settings-tab-copy">User details and account summary</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="appearance">
+            <span class="settings-tab-title">Theme</span>
+            <span class="settings-tab-copy">Dark or bright dashboard mode</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="preferences">
+            <span class="settings-tab-title">Preferences</span>
+            <span class="settings-tab-copy">Workspace behavior and shortcuts</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="notifications">
+            <span class="settings-tab-title">Notifications</span>
+            <span class="settings-tab-copy">Alerts, updates, and reminders</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="privacy">
+            <span class="settings-tab-title">Privacy</span>
+            <span class="settings-tab-copy">Visibility and analytics preferences</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="security">
+            <span class="settings-tab-title">Security</span>
+            <span class="settings-tab-copy">Access, sessions, and password tools</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="account">
+            <span class="settings-tab-title">Account</span>
+            <span class="settings-tab-copy">Logout and delete account</span>
+          </button>
+        </aside>
+
+        <div class="settings-panels">
+          <section class="settings-panel active" data-settings-panel="profile" data-settings-keywords="profile name email avatar account plan mobile business member since details">
+            <div class="settings-section-card settings-profile-card">
+              <div class="settings-profile-summary">
+                <div class="settings-avatar" id="settingsProfileAvatar">NA</div>
+                <div>
+                  <p class="settings-kicker">Signed in as</p>
+                  <h2 id="settingsProfileName">Nexlance User</h2>
+                  <p id="settingsProfileEmail">user@example.com</p>
+                </div>
+              </div>
+              <div class="settings-profile-badges">
+                <span class="settings-badge" id="settingsPlanBadge">Individual plan</span>
+                <span class="settings-badge settings-badge-muted" id="settingsAccountTypeBadge">Personal account</span>
+              </div>
+            </div>
+
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Basic account information</h3>
+                  <p>Helpful account details pulled into one place.</p>
+                </div>
+              </div>
+              <div class="settings-info-grid">
+                <div class="settings-info-item">
+                  <span>Name</span>
+                  <strong id="settingsInfoName">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Email</span>
+                  <strong id="settingsInfoEmail">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Mobile</span>
+                  <strong id="settingsInfoMobile">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Plan</span>
+                  <strong id="settingsInfoPlan">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Account type</span>
+                  <strong id="settingsInfoAccountType">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Member since</span>
+                  <strong id="settingsInfoCreatedAt">-</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="appearance" data-settings-keywords="appearance theme dark mode light bright color display interface">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Theme</h3>
+                  <p>Choose how the dashboard looks while you work.</p>
+                </div>
+              </div>
+              <div class="theme-choice-grid">
+                <button type="button" class="theme-choice active" id="lightThemeBtn" data-theme-option="light">
+                  <span class="theme-choice-preview theme-choice-preview-light"></span>
+                  <strong>Light mode</strong>
+                  <span>Bright, clean, and minimal for daytime work.</span>
+                </button>
+                <button type="button" class="theme-choice" id="darkThemeBtn" data-theme-option="dark">
+                  <span class="theme-choice-preview theme-choice-preview-dark"></span>
+                  <strong>Dark mode</strong>
+                  <span>Comfortable contrast for low-light sessions.</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="preferences" data-settings-keywords="preferences workspace startup default behavior shortcuts">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Workspace preferences</h3>
+                  <p>Set up the dashboard the way you like to work.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Open settings from profile button</h4>
+                    <p>Keep the top-right account button linked to this settings workspace.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="settingsQuickOpenToggle" checked>
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="notifications" data-settings-keywords="notifications alerts reminders billing updates email project activity">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Notification preferences</h3>
+                  <p>Control the alerts that matter most to you.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Project activity alerts</h4>
+                    <p>Important project status changes and delivery reminders.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="notificationsProjectUpdates" checked>
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Billing reminders</h4>
+                    <p>Stay updated on pending invoices and payment activity.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="notificationsBillingAlerts" checked>
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Product tips</h4>
+                    <p>Occasional guidance about useful dashboard features.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="notificationsProductTips">
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="privacy" data-settings-keywords="privacy analytics visibility profile search tracking data">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Privacy settings</h3>
+                  <p>Manage how your account and activity information is handled.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Show profile details in workspace</h4>
+                    <p>Display your name and avatar in account surfaces on this dashboard.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="privacyProfileVisibility" checked>
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Usage analytics</h4>
+                    <p>Allow product analytics that help improve dashboard usability.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="privacyUsageAnalytics" checked>
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Search indexing in local settings</h4>
+                    <p>Keep your settings searchable inside this page for faster navigation.</p>
+                  </div>
+                  <label class="toggle-switch-row">
+                    <input type="checkbox" id="privacySearchIndexing" checked>
+                    <span class="toggle-slider-ui"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="security" data-settings-keywords="security password login plan access session protection account created reset">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Security</h3>
+                  <p>Review account access details and recovery options.</p>
+                </div>
+              </div>
+              <div class="settings-info-grid">
+                <div class="settings-info-item">
+                  <span>Login email</span>
+                  <strong id="settingsSecurityEmail">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Current plan</span>
+                  <strong id="settingsSecurityPlan">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Account status</span>
+                  <strong id="settingsSecurityStatus">Secure</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Timezone</span>
+                  <strong id="settingsSecurityTimezone">-</strong>
+                </div>
+              </div>
+              <div class="settings-action-row">
+                <a href="reset-password.html" class="settings-inline-action">Open password reset</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="account" data-settings-keywords="account logout delete sign out danger zone">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Account actions</h3>
+                  <p>Move sensitive actions out of the main dashboard and keep them here.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Log out</h4>
+                    <p>Sign out from this dashboard session safely.</p>
+                  </div>
+                  <button type="button" class="settings-action-button" id="openLogoutFromSettingsBtn">Log out</button>
+                </div>
+                <div class="setting-row danger-row">
+                  <div>
+                    <h4>Delete account</h4>
+                    <p>Permanently remove your account and stored data.</p>
+                  </div>
+                  <button type="button" class="settings-action-button settings-action-danger" id="openDeleteFromSettingsBtn">Delete account</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="settings-footer-note" id="settingsSearchStatus">Use the left sections to navigate your account settings.</div>
+    </section>
+  </main>
+</div>
+
+<div class="plans-modal" id="plansModal" aria-hidden="true">
+  <div class="plans-dialog" role="dialog" aria-modal="true" aria-labelledby="plansModalTitle">
+    <div class="plans-header">
+      <div>
+        <h2 id="plansModalTitle">Choose your plan</h2>
+        <p>Upgrade now to keep full access to the website after your 3-day trial.</p>
+      </div>
+      <button type="button" class="plans-close" id="closePlansModal" aria-label="Close plans modal">x</button>
+    </div>
+    <div class="plans-grid">
+      <article class="plan-card">
+        <h3>Personal</h3>
+        <p>Best for solo creators and small sites.</p>
+        <div class="plan-price">€16<span style="font-size:0.95rem;font-weight:600;color:#777;">/month</span></div>
+        <ul>
+          <li>Custom domain</li>
+          <li>SSL certificate</li>
+          <li>Unlimited bandwidth</li>
+          <li>Email support</li>
+        </ul>
+        <a href="#" data-plan-name="Personal">Choose Personal</a>
+      </article>
+      <article class="plan-card featured">
+        <h3>Business</h3>
+        <p>For teams that need commerce and analytics.</p>
+        <div class="plan-price">€26<span style="font-size:0.95rem;font-weight:600;color:#777;">/month</span></div>
+        <ul>
+          <li>Everything in Personal</li>
+          <li>Advanced analytics</li>
+          <li>Professional email</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="#" data-plan-name="Business">Choose Business</a>
+      </article>
+      <article class="plan-card">
+        <h3>Commerce</h3>
+        <p>Built for stores with higher sales volume.</p>
+        <div class="plan-price">€40<span style="font-size:0.95rem;font-weight:600;color:#777;">/month</span></div>
+        <ul>
+          <li>Everything in Business</li>
+          <li>No transaction fees</li>
+          <li>Inventory management</li>
+          <li>Customer accounts</li>
+        </ul>
+        <a href="#" data-plan-name="Commerce">Choose Commerce</a>
+      </article>
+    </div>
+  </div>
+</div>
+
+<div class="plans-modal" id="deleteAccountModal" aria-hidden="true">
+  <div class="plans-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteAccountTitle">
+    <div class="plans-header">
+      <div>
+        <h2 id="deleteAccountTitle">Delete account</h2>
+        <p>This action is permanent.</p>
+      </div>
+      <button type="button" class="plans-close" id="closeDeleteAccountModal" aria-label="Close delete account modal">x</button>
+    </div>
+    <p class="danger-note">Your account data will be deleted permanently. Only your email address will be kept so the same email cannot get another free trial.</p>
+    <div class="danger-warning">This cannot be undone.</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <button type="button" class="danger-button ghost" id="cancelDeleteAccountBtn">Cancel</button>
+      <button type="button" class="danger-button" id="confirmDeleteAccountBtn">Yes, delete account</button>
+    </div>
+    <div id="deleteAccountMessage" class="form-message" style="margin-top:16px;text-align:left;"></div>
+  </div>
+</div>
+
+<div class="plans-modal" id="logoutModal" aria-hidden="true">
+  <div class="plans-dialog" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+    <div class="plans-header">
+      <div>
+        <h2 id="logoutModalTitle">Log out</h2>
+        <p>Do you want to log out?</p>
+      </div>
+      <button type="button" class="plans-close" id="closeLogoutModal" aria-label="Close logout modal">x</button>
+    </div>
+    <p class="danger-note">You will be signed out of your current account.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <button type="button" class="danger-button ghost" id="cancelLogoutBtn">Cancel</button>
+      <button type="button" class="danger-button" id="confirmLogoutBtn">Yes</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="payment.js"></script>
+<script src="dashboard-shell.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

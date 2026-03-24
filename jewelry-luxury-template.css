@@ -1,0 +1,437 @@
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1f1720;
+    background:
+        radial-gradient(circle at top left, rgba(205, 167, 96, 0.18), transparent 28%),
+        linear-gradient(180deg, #f9f5ef 0%, #f3ede6 100%);
+}
+
+.lux-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 22px 5vw;
+    background: rgba(249, 245, 239, 0.9);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(108, 87, 54, 0.12);
+}
+
+.lux-brand {
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6c5736;
+}
+
+.lux-nav {
+    display: flex;
+    gap: 24px;
+}
+
+.lux-nav a,
+.lux-cta,
+.lux-btn {
+    text-decoration: none;
+}
+
+.lux-nav a {
+    color: #5f5344;
+    font-size: 0.98rem;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-cta,
+.lux-btn {
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.lux-cta {
+    padding: 12px 18px;
+    background: #1f1720;
+    color: #f9f5ef;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-hero,
+.lux-section,
+.lux-marquee {
+    padding-left: 5vw;
+    padding-right: 5vw;
+}
+
+.lux-hero {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 48px;
+    align-items: center;
+    padding-top: 64px;
+    padding-bottom: 56px;
+}
+
+.lux-kicker {
+    margin: 0 0 14px;
+    color: #8a6c38;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-copy h1,
+.lux-heading h2,
+.contact-panel h2,
+.split-copy h2 {
+    margin: 0 0 18px;
+    line-height: 1.02;
+    letter-spacing: -0.04em;
+}
+
+.lux-copy h1 {
+    font-size: clamp(3rem, 5vw, 5.7rem);
+    max-width: 760px;
+}
+
+.lux-text,
+.collection-card p,
+.split-copy p,
+.quote-meta span,
+.contact-panel p {
+    color: #5f5344;
+    line-height: 1.8;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-actions {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 28px 0 34px;
+}
+
+.lux-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 20px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-btn-primary {
+    background: linear-gradient(135deg, #caa24c, #8a6c38);
+    color: #fff8ef;
+}
+
+.lux-btn-secondary {
+    background: rgba(202, 162, 76, 0.12);
+    color: #8a6c38;
+}
+
+.lux-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.lux-metrics div,
+.collection-card,
+.atelier-panel,
+.testimonial-panel,
+.contact-panel,
+.floating-detail {
+    background: rgba(255, 251, 245, 0.86);
+    border: 1px solid rgba(138, 108, 56, 0.16);
+    box-shadow: 0 18px 45px rgba(64, 45, 21, 0.08);
+}
+
+.lux-metrics div {
+    padding: 20px;
+    border-radius: 24px;
+}
+
+.lux-metrics strong {
+    display: block;
+    font-size: 2rem;
+    color: #2b2118;
+    margin-bottom: 6px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-metrics span {
+    color: #7a6c5c;
+    font-size: 0.92rem;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-visual {
+    position: relative;
+    display: grid;
+    gap: 18px;
+}
+
+.lux-image-frame {
+    min-height: 520px;
+    border-radius: 32px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(64, 45, 21, 0.16);
+}
+
+.lux-image-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.floating-detail {
+    position: absolute;
+    right: -18px;
+    bottom: 24px;
+    max-width: 280px;
+    padding: 22px;
+    border-radius: 26px;
+}
+
+.floating-detail span {
+    display: block;
+    margin-bottom: 8px;
+    color: #8a6c38;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.floating-detail strong {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 1.3rem;
+}
+
+.floating-detail p {
+    margin: 0;
+    color: #5f5344;
+    line-height: 1.7;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-marquee {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+    padding-bottom: 18px;
+}
+
+.lux-marquee span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 62px;
+    border-radius: 18px;
+    background: rgba(255, 251, 245, 0.8);
+    color: #5f5344;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-section {
+    padding-top: 54px;
+    padding-bottom: 34px;
+}
+
+.lux-heading,
+.split-copy {
+    max-width: 740px;
+    margin-bottom: 28px;
+}
+
+.lux-heading h2,
+.split-copy h2,
+.contact-panel h2 {
+    font-size: clamp(2.1rem, 4vw, 3.6rem);
+}
+
+.collection-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.collection-card,
+.atelier-panel,
+.testimonial-panel {
+    border-radius: 28px;
+    padding: 24px;
+}
+
+.collection-card h3 {
+    margin: 0 0 10px;
+    font-size: 1.3rem;
+}
+
+.split-section {
+    display: grid;
+    grid-template-columns: 1fr 0.9fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.craft-list {
+    margin: 18px 0 0;
+    padding-left: 18px;
+    color: #5f5344;
+    line-height: 1.8;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.atelier-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.atelier-stat {
+    padding: 18px 0;
+    border-bottom: 1px solid rgba(138, 108, 56, 0.18);
+}
+
+.atelier-stat:last-child {
+    border-bottom: none;
+}
+
+.atelier-stat span {
+    display: block;
+    color: #8a6c38;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.atelier-stat strong {
+    font-size: 1.8rem;
+}
+
+.testimonial-wrap {
+    padding-top: 62px;
+}
+
+.testimonial-panel {
+    max-width: 920px;
+}
+
+.quote {
+    margin: 0 0 18px;
+    font-size: clamp(1.4rem, 2.6vw, 2.1rem);
+    line-height: 1.5;
+}
+
+.quote-meta strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.contact-panel {
+    display: grid;
+    grid-template-columns: 1fr 0.95fr;
+    gap: 28px;
+    padding: 30px;
+    border-radius: 32px;
+}
+
+.lux-form {
+    display: grid;
+    gap: 12px;
+}
+
+.lux-form input,
+.lux-form textarea {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(138, 108, 56, 0.24);
+    background: #fff;
+    font: inherit;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.lux-form button {
+    padding: 15px 20px;
+    border: none;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #2b2118, #8a6c38);
+    color: #fff8ef;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: "Segoe UI", sans-serif;
+}
+
+#luxFormMessage {
+    margin: 4px 0 0;
+    color: #6c5736;
+    font-weight: 600;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (max-width: 1100px) {
+    .lux-hero,
+    .split-section,
+    .contact-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .collection-grid,
+    .lux-marquee {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .lux-header {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .lux-nav {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .lux-metrics,
+    .collection-grid,
+    .lux-marquee {
+        grid-template-columns: 1fr;
+    }
+
+    .floating-detail {
+        position: static;
+        max-width: none;
+    }
+}

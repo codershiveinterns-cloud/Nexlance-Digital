@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings - Nexlance</title>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="dashboard.css">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li id="adminNavItem" style="display:none;"><a href="admin.html">Admin Panel</a></li>
+      <li class="active"><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search settings, privacy, theme...">
+      <button type="button" class="profile profile-button" id="openSettingsProfileBtn" aria-label="Open settings profile">
+        <span class="profile-avatar-small" id="topbarAvatar">NA</span>
+        <span id="topbarProfileLabel">Account</span>
+      </button>
+    </div>
+
+    <section class="settings-view">
+      <div class="settings-page-header">
+        <div>
+          <span class="settings-eyebrow">Dashboard Settings</span>
+          <h1>Settings</h1>
+          <p>Manage your account, appearance, notifications, privacy, and security in one clean workspace.</p>
+        </div>
+        <label class="settings-search" for="settingsSearchInput">
+          <span>Search settings</span>
+          <input type="search" id="settingsSearchInput" placeholder="Search profile, privacy, theme, logout...">
+        </label>
+      </div>
+
+      <div class="settings-layout">
+        <aside class="settings-sidebar" aria-label="Settings sections">
+          <button type="button" class="settings-tab active" data-settings-target="profile">
+            <span class="settings-tab-title">Profile</span>
+            <span class="settings-tab-copy">User details and account summary</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="appearance">
+            <span class="settings-tab-title">Theme</span>
+            <span class="settings-tab-copy">Dark or bright dashboard mode</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="preferences">
+            <span class="settings-tab-title">Preferences</span>
+            <span class="settings-tab-copy">Workspace behavior and shortcuts</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="notifications">
+            <span class="settings-tab-title">Notifications</span>
+            <span class="settings-tab-copy">Alerts, updates, and reminders</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="privacy">
+            <span class="settings-tab-title">Privacy</span>
+            <span class="settings-tab-copy">Visibility and analytics preferences</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="security">
+            <span class="settings-tab-title">Security</span>
+            <span class="settings-tab-copy">Access, sessions, and password tools</span>
+          </button>
+          <button type="button" class="settings-tab" data-settings-target="account">
+            <span class="settings-tab-title">Account</span>
+            <span class="settings-tab-copy">Logout and delete account</span>
+          </button>
+        </aside>
+
+        <div class="settings-panels">
+          <section class="settings-panel active" data-settings-panel="profile" data-settings-keywords="profile name email avatar account plan mobile business member since details">
+            <div class="settings-section-card settings-profile-card">
+              <div class="settings-profile-summary">
+                <div class="settings-avatar" id="settingsProfileAvatar">NA</div>
+                <div>
+                  <p class="settings-kicker">Signed in as</p>
+                  <h2 id="settingsProfileName">Nexlance User</h2>
+                  <p id="settingsProfileEmail">user@example.com</p>
+                </div>
+              </div>
+              <div class="settings-profile-badges">
+                <span class="settings-badge" id="settingsPlanBadge">Individual plan</span>
+                <span class="settings-badge settings-badge-muted" id="settingsAccountTypeBadge">Personal account</span>
+              </div>
+            </div>
+
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Account overview</h3>
+                  <p>Your profile details are synced here and reflected across dashboard pages.</p>
+                </div>
+              </div>
+              <div class="settings-info-grid">
+                <div class="settings-info-item">
+                  <span>Full name</span>
+                  <strong id="settingsInfoName">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Email</span>
+                  <strong id="settingsInfoEmail">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Mobile</span>
+                  <strong id="settingsInfoMobile">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Plan</span>
+                  <strong id="settingsInfoPlan">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Account type</span>
+                  <strong id="settingsInfoAccountType">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Member since</span>
+                  <strong id="settingsInfoCreatedAt">-</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="appearance" data-settings-keywords="appearance theme dark mode light bright color display interface">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Choose your theme</h3>
+                  <p>Choose how the dashboard looks while you work.</p>
+                </div>
+              </div>
+              <div class="theme-choice-grid">
+                <button type="button" class="theme-choice active" id="lightThemeBtn" data-theme-option="light">
+                  <span class="theme-choice-preview theme-choice-preview-light"></span>
+                  <span>Light mode</span>
+                </button>
+                <button type="button" class="theme-choice" id="darkThemeBtn" data-theme-option="dark">
+                  <span class="theme-choice-preview theme-choice-preview-dark"></span>
+                  <span>Dark mode</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="preferences" data-settings-keywords="preferences workspace startup default behavior shortcuts">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Workspace preferences</h3>
+                  <p>Keep the same experience consistent across every dashboard page.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Open settings from profile button</h4>
+                    <p>Keep the top-right account button linked to this settings workspace.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="settingsQuickOpenToggle" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="notifications" data-settings-keywords="notifications alerts reminders billing updates email project activity">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Notification preferences</h3>
+                  <p>Choose which reminders and dashboard updates matter to you.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Project updates</h4>
+                    <p>Receive status and activity updates about your projects.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="notificationsProjectUpdates" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Billing alerts</h4>
+                    <p>Stay on top of invoice reminders and payment notices.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="notificationsBillingAlerts" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Product tips</h4>
+                    <p>Get occasional product suggestions and setup tips.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="notificationsProductTips">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="privacy" data-settings-keywords="privacy analytics visibility profile search tracking data">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Privacy settings</h3>
+                  <p>Control account visibility and local dashboard behavior.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Profile visibility</h4>
+                    <p>Show your account name and avatar in dashboard top bars.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="privacyProfileVisibility" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Usage analytics</h4>
+                    <p>Allow local analytics preferences to stay enabled for insights.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="privacyUsageAnalytics" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="setting-row">
+                  <div>
+                    <h4>Search indexing in local settings</h4>
+                    <p>Keep your settings searchable inside this page for faster navigation.</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" id="privacySearchIndexing" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="security" data-settings-keywords="security password login plan access session protection account created reset">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Security overview</h3>
+                  <p>Review your access, plan protection, and password tools.</p>
+                </div>
+              </div>
+              <div class="settings-info-grid">
+                <div class="settings-info-item">
+                  <span>Account email</span>
+                  <strong id="settingsSecurityEmail">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Current plan</span>
+                  <strong id="settingsSecurityPlan">-</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Account status</span>
+                  <strong id="settingsSecurityStatus">Secure</strong>
+                </div>
+                <div class="settings-info-item">
+                  <span>Timezone</span>
+                  <strong id="settingsSecurityTimezone">-</strong>
+                </div>
+              </div>
+              <div class="settings-action-row">
+                <a href="reset-password.html" class="settings-inline-action">Open password reset</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="account" data-settings-keywords="account logout delete sign out danger zone">
+            <div class="settings-section-card">
+              <div class="settings-card-head">
+                <div>
+                  <h3>Account actions</h3>
+                  <p>Move sensitive actions out of the main dashboard and keep them here.</p>
+                </div>
+              </div>
+              <div class="settings-stack">
+                <div class="setting-row">
+                  <div>
+                    <h4>Log out</h4>
+                    <p>Sign out from this dashboard session safely.</p>
+                  </div>
+                  <button type="button" class="settings-action-button" id="openLogoutFromSettingsBtn">Log out</button>
+                </div>
+                <div class="setting-row danger-row">
+                  <div>
+                    <h4>Delete account</h4>
+                    <p>Permanently remove your account and stored data.</p>
+                  </div>
+                  <button type="button" class="settings-action-button settings-action-danger" id="openDeleteFromSettingsBtn">Delete account</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="settings-footer-note" id="settingsSearchStatus">Use the left sections to navigate your account settings.</div>
+    </section>
+  </main>
+</div>
+
+<div class="plans-modal" id="deleteAccountModal" aria-hidden="true">
+  <div class="plans-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteAccountTitle">
+    <div class="plans-header">
+      <div>
+        <h2 id="deleteAccountTitle">Delete account</h2>
+        <p>This action is permanent.</p>
+      </div>
+      <button type="button" class="plans-close" id="closeDeleteAccountModal" aria-label="Close delete account modal">x</button>
+    </div>
+    <p class="danger-note">Your account data will be deleted permanently. Only your email address will be kept so the same email cannot get another free trial.</p>
+    <div class="danger-warning">This cannot be undone.</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <button type="button" class="danger-button ghost" id="cancelDeleteAccountBtn">Cancel</button>
+      <button type="button" class="danger-button" id="confirmDeleteAccountBtn">Yes, delete account</button>
+    </div>
+    <div id="deleteAccountMessage" class="form-message" style="margin-top:16px;text-align:left;"></div>
+  </div>
+</div>
+
+<div class="plans-modal" id="logoutModal" aria-hidden="true">
+  <div class="plans-dialog" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+    <div class="plans-header">
+      <div>
+        <h2 id="logoutModalTitle">Log out</h2>
+        <p>Do you want to log out?</p>
+      </div>
+      <button type="button" class="plans-close" id="closeLogoutModal" aria-label="Close logout modal">x</button>
+    </div>
+    <p class="danger-note">You will be signed out of your current account.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <button type="button" class="danger-button ghost" id="cancelLogoutBtn">Cancel</button>
+      <button type="button" class="danger-button" id="confirmLogoutBtn">Yes</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

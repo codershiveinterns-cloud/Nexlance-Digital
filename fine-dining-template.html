@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fine Dining Template</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="fine-dining-template.css">
+</head>
+<body>
+    <header class="fd-header">
+        <div class="fd-brand">Luna Table</div>
+        <nav class="fd-nav">
+            <a href="#menu">Menu</a>
+            <a href="#experience">Experience</a>
+            <a href="#chef">Chef</a>
+            <a href="#reserve">Reserve</a>
+        </nav>
+        <a class="fd-cta" href="#reserve">Book a Table</a>
+    </header>
+
+    <main>
+        <section class="fd-hero">
+            <div class="fd-copy">
+                <p class="fd-kicker">Fine Dining Template</p>
+                <h1>An elevated restaurant website built for atmosphere and reservations.</h1>
+                <p class="fd-text">A premium fine dining website template designed for chef-led concepts, tasting menus, and hospitality brands that need a polished digital presence.</p>
+                <div class="fd-actions">
+                    <a class="fd-btn fd-primary" href="#reserve">Reserve Now</a>
+                    <a class="fd-btn fd-secondary" href="#menu">View Tasting Menu</a>
+                </div>
+                <div class="fd-metrics">
+                    <div>
+                        <strong class="counter" data-target="12">0</strong>
+                        <span>Course tasting menu</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="5">0</strong>
+                        <span>Signature pairings</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="94">0</strong>
+                        <span>Weekend table occupancy</span>
+                    </div>
+                </div>
+            </div>
+            <div class="fd-visual">
+                <img src="images/dinner.jpg" alt="Fine dining restaurant table">
+                <div class="fd-floating">
+                    <span>Chef's highlight</span>
+                    <strong>Fire-Roasted Truffle Course</strong>
+                    <p>Layered flavor, plated precision, and a menu journey designed for memorable evenings.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="fd-section" id="menu">
+            <div class="fd-heading">
+                <p class="fd-kicker">Menu</p>
+                <h2>Create a luxury dining site that feels immersive from the first scroll.</h2>
+            </div>
+            <div class="menu-grid">
+                <article class="menu-card reveal">
+                    <h3>Tasting Journey</h3>
+                    <p>Present your course sequence with elegant descriptions and premium visuals.</p>
+                </article>
+                <article class="menu-card reveal">
+                    <h3>Wine Pairings</h3>
+                    <p>Feature cellar curation, sommelier notes, and rare bottle highlights.</p>
+                </article>
+                <article class="menu-card reveal">
+                    <h3>Private Dining</h3>
+                    <p>Promote chef's tables, celebrations, and bespoke dining events with a premium tone.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="fd-section split-layout" id="experience">
+            <div class="experience-panel reveal">
+                <p class="fd-kicker">Dining Experience</p>
+                <h2>Use this area to sell atmosphere, service, and culinary identity.</h2>
+                <p>Perfect for explaining your concept, seasonal ingredients, room design, or the overall guest experience.</p>
+                <ul>
+                    <li>Seasonal tasting menu highlights</li>
+                    <li>Luxury reservation and private dining CTA</li>
+                    <li>Elegant storytelling for hospitality brands</li>
+                </ul>
+            </div>
+            <div class="quote-panel reveal">
+                <p class="quote">"This template feels like a real fine dining brand. It is refined, premium, and designed to drive reservations."</p>
+                <div class="quote-meta">
+                    <strong>Marco Ellery</strong>
+                    <span>Hospitality Creative Director</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="fd-section" id="chef">
+            <div class="fd-heading">
+                <p class="fd-kicker">Chef Story</p>
+                <h2>Build trust and prestige through culinary leadership.</h2>
+            </div>
+            <div class="chef-grid">
+                <article class="chef-card reveal">
+                    <span>01</span>
+                    <h3>Signature Philosophy</h3>
+                    <p>Tell the story behind your ingredients, inspirations, and plating point of view.</p>
+                </article>
+                <article class="chef-card reveal">
+                    <span>02</span>
+                    <h3>Seasonal Sourcing</h3>
+                    <p>Highlight farms, seafood programs, and the quality behind each service.</p>
+                </article>
+                <article class="chef-card reveal">
+                    <span>03</span>
+                    <h3>Private Events</h3>
+                    <p>Promote chef's tables, intimate celebrations, and curated guest experiences.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="fd-section reserve-wrap" id="reserve">
+            <div class="reserve-panel">
+                <div>
+                    <p class="fd-kicker">Reservation</p>
+                    <h2>Close with one clear action for guests.</h2>
+                    <p>This final section is ready for reservation requests, tasting menu bookings, or event inquiries.</p>
+                </div>
+                <form class="fd-form">
+                    <input type="text" placeholder="Guest name">
+                    <input type="email" placeholder="Email address">
+                    <input type="text" placeholder="Preferred date and time">
+                    <textarea rows="4" placeholder="Tell us about your reservation or event"></textarea>
+                    <button type="button" id="fdFormButton">Request Reservation</button>
+                    <p id="fdFormMessage"></p>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="fine-dining-template.js"></script>
+    <script src="template-edit.js"></script>
+</body>
+</html>

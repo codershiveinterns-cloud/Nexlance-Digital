@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projects — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  .trial-banner {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #4b3fbf, #6c5ce7);
+    color: #fff;
+    box-shadow: 0 14px 32px rgba(108, 92, 231, 0.22);
+  }
+
+  .trial-banner.active {
+    background: linear-gradient(135deg, #0f8b5f, #00b894);
+  }
+
+  .trial-banner.expired {
+    background: linear-gradient(135deg, #2d1b69, #e17055);
+  }
+
+  .trial-banner h3 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+  }
+
+  .trial-banner p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.92rem;
+  }
+
+  .trial-timer {
+    min-width: 220px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.12);
+    text-align: center;
+  }
+
+  .trial-timer strong {
+    display: block;
+    font-size: 1.2rem;
+    margin-top: 4px;
+  }
+
+  @media (max-width: 900px) {
+    .trial-banner {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+</style>
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li class="active"><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search projects...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Projects</h1>
+        <p>Track all website projects and their progress</p>
+      </div>
+    </div>
+
+    <section class="trial-banner" id="trialBanner">
+      <div>
+        <h3 id="trialTitle">Your 3-day dashboard trial is active</h3>
+        <p id="trialMessage">You can use dashboard features during the trial. Templates still require separate payment.</p>
+      </div>
+      <div class="trial-timer">
+        <span id="trialTimerLabel">Trial ends in</span>
+        <strong id="trialCountdown">3d 00h 00m 00s</strong>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Projects</div><div class="stat-value" id="sTotal">0</div></div>
+      <div class="stat-card blue"><div class="stat-label">In Progress</div><div class="stat-value" id="sActive">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Live / Completed</div><div class="stat-value" id="sDone">0</div></div>
+      <div class="stat-card red"><div class="stat-label">On Hold / Delayed</div><div class="stat-value" id="sHold">0</div></div>
+      <div class="stat-card orange"><div class="stat-label">Pending Review</div><div class="stat-value" id="sReview">0</div></div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input type="search" class="search-input" id="searchInput" placeholder="🔍  Search projects or clients...">
+      <select id="filterStatus">
+        <option value="">All Statuses</option>
+        <option>Planning</option>
+        <option>Design</option>
+        <option>Development</option>
+        <option>Testing</option>
+        <option>Live</option>
+        <option>On Hold</option>
+      </select>
+      <div class="spacer"></div>
+    </div>
+
+    <!-- Projects Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>All Projects</h3>
+        <span id="tableCount"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Project Name</th>
+            <th>Client</th>
+            <th>Start Date</th>
+            <th>Deadline</th>
+            <th>Status</th>
+            <th>Assigned Team</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="projectsBody">
+          <tr><td colspan="7"><div class="empty-state"><div class="e-icon">⏳</div><h3>Loading projects...</h3></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add / Edit Project Modal -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 id="modalTitle">New Project</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Project Name *</label><input type="text" id="fName" placeholder="Client — Website Project"></div>
+      <div class="form-group"><label>Client Name</label><input type="text" id="fClientName" placeholder="Company name"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="fStatus"><option>Planning</option><option>Design</option><option>Development</option><option>Testing</option><option>Live</option><option>On Hold</option></select>
+      </div>
+      <div class="form-group"><label>Start Date</label><input type="date" id="fStart"></div>
+      <div class="form-group"><label>Deadline</label><input type="date" id="fDeadline"></div>
+      <div class="form-group"><label>Assigned Team</label><input type="text" id="fTeam" placeholder="Arjun, Priya"></div>
+      <div class="form-group"><label>Progress (%)</label><input type="number" id="fProgress" min="0" max="100" placeholder="0"></div>
+      <div class="form-group full"><label>Scope of Work</label><textarea id="fScope" placeholder="Describe the scope of this project..."></textarea></div>
+      <div class="form-group full"><label>Deliverables</label><textarea id="fDeliverables" placeholder="List the deliverables..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProject()">Save Project</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script src="template-registry.js"></script>
+<script src="project-template-entry.js"></script>
+<script>
+let projects = [];
+let editingId = null;
+
+function formatTrialRemaining(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${days}d ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+}
+
+function renderTrialBanner() {
+  const banner = document.getElementById('trialBanner');
+  const title = document.getElementById('trialTitle');
+  const message = document.getElementById('trialMessage');
+  const timerLabel = document.getElementById('trialTimerLabel');
+  const countdown = document.getElementById('trialCountdown');
+  if (!banner || !title || !message || !timerLabel || !countdown) return;
+
+  const currentPlan = typeof getCurrentPlanRecord === 'function' ? getCurrentPlanRecord() : { code: 'individual', name: 'Individual' };
+  const trialRecord = typeof getStoredTrialRecord === 'function' ? getStoredTrialRecord() : null;
+  const trialActive = typeof isTrialStillActive === 'function' && isTrialStillActive();
+
+  if (currentPlan.code === 'business' || currentPlan.code === 'plus' || currentPlan.code === 'pro') {
+    banner.style.display = 'none';
+    return;
+  }
+
+  banner.style.display = 'flex';
+
+  if (trialActive && trialRecord && trialRecord.endsAt) {
+    const remainingMs = new Date(trialRecord.endsAt).getTime() - Date.now();
+    banner.classList.remove('expired');
+    banner.classList.add('active');
+    title.textContent = 'Your 3-day dashboard trial is active';
+    message.textContent = 'The dashboard is unlocked during this trial. Templates still require separate payment.';
+    timerLabel.textContent = 'Trial ends in';
+    countdown.textContent = formatTrialRemaining(remainingMs);
+    return;
+  }
+
+  banner.classList.remove('active');
+  banner.classList.add('expired');
+  title.textContent = 'Dashboard trial expired';
+  message.textContent = 'The dashboard is locked now. Only the Projects section is accessible for this account.';
+  timerLabel.textContent = 'Access';
+  countdown.textContent = 'Projects only';
+}
+
+function ensureDataAccess() {
+  if (!isUpgradeRequiredForData()) return true;
+  showToast(getUpgradeRequiredMessage(), 'error');
+  return false;
+}
+
+const statusBadges = {
+  'Live':'badge-green','Development':'badge-blue','Design':'badge-purple',
+  'Testing':'badge-teal','Planning':'badge-gray','On Hold':'badge-orange'
+};
+
+async function init() {
+  renderTrialBanner();
+  projects = await fetchProjects();
+  renderStats();
+  renderTable(projects);
+}
+
+function renderStats() {
+  document.getElementById('sTotal').textContent = projects.length;
+  document.getElementById('sActive').textContent = projects.filter(p => ['Development','Design','Testing'].includes(p.status)).length;
+  document.getElementById('sDone').textContent = projects.filter(p => p.status === 'Live').length;
+  document.getElementById('sHold').textContent = projects.filter(p => p.status === 'On Hold').length;
+  document.getElementById('sReview').textContent = projects.filter(p => p.status === 'Planning').length;
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('projectsBody');
+  document.getElementById('tableCount').textContent = data.length + ' projects';
+  if (isUpgradeRequiredForData()) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></td></tr>`;
+    return;
+  }
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">📁</div><h3>No projects found</h3><p>Create your first project</p></div></td></tr>`;
+    return;
+  }
+  const today = new Date();
+  tbody.innerHTML = data.map(p => {
+    const deadline = p.deadline ? new Date(p.deadline) : null;
+    const overdue = deadline && deadline < today && p.status !== 'Live';
+    return `<tr onclick="openProjectDetail('${p.id}')" style="cursor:pointer;">
+      <td><div style="font-weight:600;color:#333;">${p.name}</div></td>
+      <td><div style="font-size:0.85rem;color:#666;">${p.client_name || '—'}</div></td>
+      <td style="color:#888;font-size:0.85rem;">${formatDate(p.start_date)}</td>
+      <td>
+        <span style="color:${overdue ? '#d63031' : '#555'};font-size:0.85rem;font-weight:${overdue?'600':'400'}">
+          ${formatDate(p.deadline)}${overdue ? ' ⚠️' : ''}
+        </span>
+      </td>
+      <td><span class="badge ${statusBadges[p.status] || 'badge-gray'}">${p.status}</span></td>
+      <td style="color:#666;font-size:0.85rem;">${p.assigned_team || '—'}</td>
+      <td>
+        <div class="table-actions">
+          <button class="action-btn action-delete" onclick="handleDelete('${p.id}')" title="Delete">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  tbody.querySelectorAll('.action-delete').forEach(button => {
+    button.addEventListener('click', event => event.stopPropagation());
+  });
+}
+
+function openProjectDetail(id) {
+  window.location.href = `project-detail.html?id=${encodeURIComponent(id)}`;
+}
+
+function filterProjects() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+  const filtered = projects.filter(p =>
+    (!search || (p.name||'').toLowerCase().includes(search) || (p.client_name||'').toLowerCase().includes(search)) &&
+    (!status || p.status === status)
+  );
+  renderTable(filtered);
+}
+document.getElementById('searchInput').addEventListener('input', filterProjects);
+document.getElementById('filterStatus').addEventListener('change', filterProjects);
+
+function openAddModal() {
+  if (!ensureDataAccess()) return;
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'New Project';
+  ['fName','fClientName','fStart','fDeadline','fTeam','fScope','fDeliverables'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fStatus').value = 'Planning';
+  document.getElementById('fProgress').value = '0';
+  document.getElementById('projectModal').classList.add('active');
+}
+function openEditModal(id) {
+  if (!ensureDataAccess()) return;
+  const p = projects.find(x => x.id === id);
+  if (!p) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Project';
+  document.getElementById('fName').value = p.name || '';
+  document.getElementById('fClientName').value = p.client_name || '';
+  document.getElementById('fStatus').value = p.status || 'Planning';
+  document.getElementById('fStart').value = p.start_date || '';
+  document.getElementById('fDeadline').value = p.deadline || '';
+  document.getElementById('fTeam').value = p.assigned_team || '';
+  document.getElementById('fProgress').value = p.progress || 0;
+  document.getElementById('fScope').value = p.scope_of_work || '';
+  document.getElementById('fDeliverables').value = p.deliverables || '';
+  document.getElementById('projectModal').classList.add('active');
+}
+function closeModal() { document.getElementById('projectModal').classList.remove('active'); }
+
+async function saveProject() {
+  if (!ensureDataAccess()) return;
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { showToast('Project name is required', 'error'); return; }
+  const start    = document.getElementById('fStart').value;
+  const deadline = document.getElementById('fDeadline').value;
+  if (start && !isValidDate(start))    { markDateError('fStart', 'Invalid start date'); showToast('Enter a valid start date', 'error'); return; }
+  if (deadline && !isValidDate(deadline)) { markDateError('fDeadline', 'Invalid deadline'); showToast('Enter a valid deadline', 'error'); return; }
+  if (start && deadline && !isDateSameOrAfter(start, deadline)) { markDateError('fDeadline', 'Deadline must be on or after start date'); showToast('Deadline must be on or after the start date', 'error'); return; }
+  clearDateError('fStart'); clearDateError('fDeadline');
+  const data = {
+    name,
+    client_name: document.getElementById('fClientName').value.trim(),
+    status: document.getElementById('fStatus').value,
+    start_date: start || null,
+    deadline: deadline || null,
+    assigned_team: document.getElementById('fTeam').value.trim(),
+    progress: Number(document.getElementById('fProgress').value) || 0,
+    scope_of_work: document.getElementById('fScope').value.trim(),
+    deliverables: document.getElementById('fDeliverables').value.trim()
+  };
+  try {
+    if (editingId) {
+      const upd = await updateProject(editingId, data);
+      const idx = projects.findIndex(p => p.id === editingId);
+      if (idx > -1) projects[idx] = upd;
+      showToast('Project updated!', 'success');
+    } else {
+      const created = await addProject(data);
+      projects.unshift(created);
+      showToast('Project created!', 'success');
+    }
+    closeModal(); renderStats(); filterProjects();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function handleDelete(id) {
+  if (!ensureDataAccess()) return;
+  if (!confirm('Delete this project and all its tasks?')) return;
+  try {
+    await deleteProject(id);
+    projects = projects.filter(p => p.id !== id);
+    renderStats(); filterProjects();
+    showToast('Project deleted.', 'info');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+document.getElementById('projectModal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+attachDateValidation('fStart',    { label: 'Start Date' });
+attachDateValidation('fDeadline', { label: 'Deadline' });
+init();
+window.setInterval(renderTrialBanner, 1000);
+
+// Listen for template project updates
+window.addEventListener('nexlance-project-updated', init);
+window.addEventListener('nexlance-project-completed', init);
+window.addEventListener('nexlance-data-changed', init);
+</script>
+</body>
+</html>
+
+

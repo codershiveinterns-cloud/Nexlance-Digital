@@ -1,0 +1,50 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #251b22; background: radial-gradient(circle at top left, rgba(244, 183, 198, 0.25), transparent 28%), linear-gradient(180deg, #fff9fb 0%, #fff2f5 100%); }
+.wg-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 5vw; background: rgba(255, 249, 251, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(132, 92, 108, 0.14); }
+.wg-brand { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #8b5e6f; }
+.wg-nav { display: flex; gap: 24px; }
+.wg-nav a, .wg-cta, .wg-btn { text-decoration: none; font-family: "Segoe UI", sans-serif; }
+.wg-nav a { color: #6f5c64; }
+.wg-cta, .wg-btn { border-radius: 999px; font-weight: 700; }
+.wg-cta { padding: 12px 18px; background: #251b22; color: #fff6f8; }
+.wg-hero, .wg-section { padding-left: 5vw; padding-right: 5vw; }
+.wg-hero { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 46px; align-items: center; padding-top: 64px; padding-bottom: 56px; }
+.wg-kicker { margin: 0 0 14px; color: #b46b85; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.wg-copy h1, .wg-heading h2, .portfolio-panel h2, .contact-panel h2 { margin: 0 0 18px; line-height: 1.04; letter-spacing: -0.04em; }
+.wg-copy h1 { font-size: clamp(3rem, 5vw, 5.6rem); }
+.wg-text, .story-card p, .portfolio-panel p, .quote-meta span, .experience-card p, .contact-panel p { color: #6f5c64; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.wg-actions { display: flex; gap: 14px; flex-wrap: wrap; margin: 28px 0 34px; }
+.wg-btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 20px; }
+.wg-primary { background: linear-gradient(135deg, #d48aa4, #b46b85); color: #fff; }
+.wg-secondary { background: rgba(212, 138, 164, 0.14); color: #a45872; }
+.wg-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.wg-metrics div, .story-card, .portfolio-panel, .quote-panel, .experience-card, .contact-panel, .wg-floating { background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(180, 107, 133, 0.16); box-shadow: 0 18px 45px rgba(75, 33, 48, 0.08); }
+.wg-metrics div { padding: 20px; border-radius: 24px; }
+.wg-metrics strong { display: block; font-size: 2rem; margin-bottom: 6px; color: #251b22; font-family: "Segoe UI", sans-serif; }
+.wg-metrics span { color: #7c6a72; font-size: 0.92rem; font-family: "Segoe UI", sans-serif; }
+.wg-visual { position: relative; }
+.wg-visual img { width: 100%; min-height: 540px; object-fit: cover; display: block; border-radius: 32px; box-shadow: 0 24px 60px rgba(75, 33, 48, 0.14); }
+.wg-floating { position: absolute; left: -18px; bottom: 24px; max-width: 280px; padding: 22px; border-radius: 26px; }
+.wg-floating span { display: block; margin-bottom: 8px; color: #b46b85; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.wg-floating strong { display: block; margin-bottom: 10px; font-size: 1.3rem; }
+.wg-floating p { margin: 0; color: #6f5c64; line-height: 1.7; font-family: "Segoe UI", sans-serif; }
+.wg-section { padding-top: 54px; padding-bottom: 34px; }
+.wg-heading { max-width: 740px; margin-bottom: 28px; }
+.wg-heading h2, .portfolio-panel h2, .contact-panel h2 { font-size: clamp(2.1rem, 4vw, 3.5rem); }
+.story-grid, .experience-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.story-card, .portfolio-panel, .quote-panel, .experience-card { border-radius: 28px; padding: 24px; }
+.story-card h3, .experience-card h3 { margin: 0 0 10px; font-size: 1.3rem; }
+.split-layout { display: grid; grid-template-columns: 1fr 0.92fr; gap: 24px; align-items: stretch; }
+.portfolio-panel ul { margin: 18px 0 0; padding-left: 18px; color: #6f5c64; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.quote { margin: 0 0 18px; font-size: clamp(1.4rem, 2.5vw, 2.05rem); line-height: 1.5; }
+.quote-meta strong { display: block; margin-bottom: 4px; }
+.experience-card span { display: inline-flex; margin-bottom: 12px; color: #b46b85; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.contact-panel { display: grid; grid-template-columns: 1fr 0.95fr; gap: 28px; padding: 30px; border-radius: 32px; }
+.wg-form { display: grid; gap: 12px; }
+.wg-form input, .wg-form textarea { width: 100%; padding: 14px 16px; border-radius: 18px; border: 1px solid rgba(180, 107, 133, 0.24); background: #fff; font: inherit; font-family: "Segoe UI", sans-serif; }
+.wg-form button { padding: 15px 20px; border: none; border-radius: 18px; background: linear-gradient(135deg, #251b22, #b46b85); color: #fff7fa; font: inherit; font-weight: 700; cursor: pointer; font-family: "Segoe UI", sans-serif; }
+#wgFormMessage { margin: 4px 0 0; color: #8b5e6f; font-weight: 600; font-family: "Segoe UI", sans-serif; }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+@media (max-width: 1100px) { .wg-hero, .split-layout, .contact-panel { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .wg-header { flex-wrap: wrap; justify-content: center; } .wg-nav { width: 100%; justify-content: center; flex-wrap: wrap; } .wg-metrics, .story-grid, .experience-grid { grid-template-columns: 1fr; } .wg-floating { position: static; max-width: none; margin-top: 18px; } }

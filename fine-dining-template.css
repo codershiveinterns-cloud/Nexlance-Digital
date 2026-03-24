@@ -1,0 +1,50 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #f5eee6; background: radial-gradient(circle at top left, rgba(180, 83, 9, 0.18), transparent 24%), linear-gradient(180deg, #120d0a 0%, #1d1511 100%); }
+.fd-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 5vw; background: rgba(18, 13, 10, 0.88); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(245, 158, 11, 0.12); }
+.fd-brand { font-size: 1.45rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #f4b15d; }
+.fd-nav { display: flex; gap: 24px; }
+.fd-nav a, .fd-cta, .fd-btn { text-decoration: none; font-family: "Segoe UI", sans-serif; }
+.fd-nav a { color: #d7c6b4; }
+.fd-cta, .fd-btn { border-radius: 999px; font-weight: 700; }
+.fd-cta { padding: 12px 18px; background: #f4b15d; color: #1d1511; }
+.fd-hero, .fd-section { padding-left: 5vw; padding-right: 5vw; }
+.fd-hero { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 46px; align-items: center; padding-top: 64px; padding-bottom: 56px; }
+.fd-kicker { margin: 0 0 14px; color: #f4b15d; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.fd-copy h1, .fd-heading h2, .experience-panel h2, .reserve-panel h2 { margin: 0 0 18px; line-height: 1.04; letter-spacing: -0.04em; }
+.fd-copy h1 { font-size: clamp(3rem, 5vw, 5.4rem); }
+.fd-text, .menu-card p, .experience-panel p, .quote-meta span, .chef-card p, .reserve-panel p { color: #d7c6b4; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.fd-actions { display: flex; gap: 14px; flex-wrap: wrap; margin: 28px 0 34px; }
+.fd-btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 20px; }
+.fd-primary { background: linear-gradient(135deg, #f4b15d, #b45309); color: #1d1511; }
+.fd-secondary { background: rgba(244, 177, 93, 0.12); color: #f4b15d; }
+.fd-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.fd-metrics div, .menu-card, .experience-panel, .quote-panel, .chef-card, .reserve-panel, .fd-floating { background: rgba(37, 28, 22, 0.88); border: 1px solid rgba(244, 177, 93, 0.14); box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24); }
+.fd-metrics div { padding: 20px; border-radius: 24px; }
+.fd-metrics strong { display: block; font-size: 2rem; margin-bottom: 6px; color: #fff5ea; font-family: "Segoe UI", sans-serif; }
+.fd-metrics span { color: #d7c6b4; font-size: 0.92rem; font-family: "Segoe UI", sans-serif; }
+.fd-visual { position: relative; }
+.fd-visual img { width: 100%; min-height: 540px; object-fit: cover; display: block; border-radius: 32px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28); }
+.fd-floating { position: absolute; right: -18px; bottom: 24px; max-width: 280px; padding: 22px; border-radius: 26px; }
+.fd-floating span { display: block; margin-bottom: 8px; color: #f4b15d; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.fd-floating strong { display: block; margin-bottom: 10px; font-size: 1.3rem; }
+.fd-floating p { margin: 0; color: #d7c6b4; line-height: 1.7; font-family: "Segoe UI", sans-serif; }
+.fd-section { padding-top: 54px; padding-bottom: 34px; }
+.fd-heading { max-width: 740px; margin-bottom: 28px; }
+.fd-heading h2, .experience-panel h2, .reserve-panel h2 { font-size: clamp(2.1rem, 4vw, 3.5rem); }
+.menu-grid, .chef-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.menu-card, .experience-panel, .quote-panel, .chef-card { border-radius: 28px; padding: 24px; }
+.menu-card h3, .chef-card h3 { margin: 0 0 10px; font-size: 1.3rem; }
+.split-layout { display: grid; grid-template-columns: 1fr 0.92fr; gap: 24px; align-items: stretch; }
+.experience-panel ul { margin: 18px 0 0; padding-left: 18px; color: #d7c6b4; line-height: 1.8; font-family: "Segoe UI", sans-serif; }
+.quote { margin: 0 0 18px; font-size: clamp(1.4rem, 2.5vw, 2.05rem); line-height: 1.5; }
+.quote-meta strong { display: block; margin-bottom: 4px; }
+.chef-card span { display: inline-flex; margin-bottom: 12px; color: #f4b15d; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; }
+.reserve-panel { display: grid; grid-template-columns: 1fr 0.95fr; gap: 28px; padding: 30px; border-radius: 32px; }
+.fd-form { display: grid; gap: 12px; }
+.fd-form input, .fd-form textarea { width: 100%; padding: 14px 16px; border-radius: 18px; border: 1px solid rgba(244, 177, 93, 0.18); background: #231913; color: #fff5ea; font: inherit; font-family: "Segoe UI", sans-serif; }
+.fd-form button { padding: 15px 20px; border: none; border-radius: 18px; background: linear-gradient(135deg, #f4b15d, #b45309); color: #1d1511; font: inherit; font-weight: 700; cursor: pointer; font-family: "Segoe UI", sans-serif; }
+#fdFormMessage { margin: 4px 0 0; color: #f4b15d; font-weight: 600; font-family: "Segoe UI", sans-serif; }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+@media (max-width: 1100px) { .fd-hero, .split-layout, .reserve-panel { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .fd-header { flex-wrap: wrap; justify-content: center; } .fd-nav { width: 100%; justify-content: center; flex-wrap: wrap; } .fd-metrics, .menu-grid, .chef-grid { grid-template-columns: 1fr; } .fd-floating { position: static; max-width: none; margin-top: 18px; } }

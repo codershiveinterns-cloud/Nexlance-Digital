@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en"> 
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoices — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2> 
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li class="active"><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search invoices...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Invoices</h1>
+        <p>Track all payments and billing</p>
+      </div>
+      <div class="page-header-actions">
+        <a href="invoice-create.html" class="btn btn-primary">+ Create Invoice</a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-label">Total Paid</div>
+        <div class="stat-value" id="sPaid">₹0</div>
+        <div class="stat-sub" id="sPaidCount">0 invoices</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value" id="sPending">₹0</div>
+        <div class="stat-sub" id="sPendingCount">0 invoices</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Overdue</div>
+        <div class="stat-value" id="sOverdue">₹0</div>
+        <div class="stat-sub" id="sOverdueCount">0 invoices</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Recurring / Month</div>
+        <div class="stat-value" id="sRecurring">₹0</div>
+        <div class="stat-sub" id="sRecurringCount">0 active</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="filterByStatus('')">All Invoices</div>
+      <div class="tab" onclick="filterByStatus('paid')">✅ Paid</div>
+      <div class="tab" onclick="filterByStatus('pending')">🕐 Pending</div>
+      <div class="tab" onclick="filterByStatus('overdue')">🔴 Overdue</div>
+      <div class="tab" onclick="filterByStatus('recurring')">🔄 Recurring</div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input type="search" class="search-input" id="searchInput" placeholder="🔍  Search by client or invoice #...">
+      <div class="spacer"></div>
+      <span id="invCount" style="font-size:0.82rem;color:#aaa;"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3 id="tableTitle">All Invoices</h3>
+        <span id="tableCount"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Client</th>
+            <th>Project</th>
+            <th>Amount</th>
+            <th>GST (18%)</th>
+            <th>Total</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="invoicesBody">
+          <tr><td colspan="9"><div class="empty-state"><div class="e-icon">⏳</div><h3>Loading invoices...</h3></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+let invoices = [];
+let currentFilter = '';
+function ensureDataAccess() {
+  if (!isUpgradeRequiredForData()) return true;
+  showToast(getUpgradeRequiredMessage(), 'error');
+  return false;
+}
+
+const statusBadges = { paid:'badge-green', pending:'badge-orange', overdue:'badge-red', recurring:'badge-blue' };
+const statusLabels = { paid:'Paid ✓', pending:'Pending', overdue:'Overdue ⚠', recurring:'Recurring 🔄' };
+
+async function init() {
+  invoices = await fetchInvoices();
+  renderStats();
+  renderTable(invoices);
+}
+
+function renderStats() {
+  const paid = invoices.filter(i => i.status === 'paid');
+  const pending = invoices.filter(i => i.status === 'pending');
+  const overdue = invoices.filter(i => i.status === 'overdue');
+  const recurring = invoices.filter(i => i.status === 'recurring');
+
+  const sum = arr => arr.reduce((s,i) => s + (i.total_amount || 0), 0);
+
+  document.getElementById('sPaid').textContent = formatCurrency(sum(paid));
+  document.getElementById('sPaidCount').textContent = paid.length + ' invoices';
+  document.getElementById('sPending').textContent = formatCurrency(sum(pending));
+  document.getElementById('sPendingCount').textContent = pending.length + ' invoices';
+  document.getElementById('sOverdue').textContent = formatCurrency(sum(overdue));
+  document.getElementById('sOverdueCount').textContent = overdue.length + ' invoices';
+  document.getElementById('sRecurring').textContent = formatCurrency(sum(recurring));
+  document.getElementById('sRecurringCount').textContent = recurring.length + ' active';
+}
+
+function getFiltered() {
+  const search = (document.getElementById('searchInput').value || '').toLowerCase();
+  return invoices.filter(i => {
+    const matchStatus = !currentFilter || i.status === currentFilter;
+    const matchSearch = !search ||
+      (i.invoice_number || '').toLowerCase().includes(search) ||
+      (i.client_name || '').toLowerCase().includes(search);
+    return matchStatus && matchSearch;
+  });
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('invoicesBody');
+  document.getElementById('tableCount').textContent = data.length + ' invoices';
+  document.getElementById('invCount').textContent = data.length + ' shown';
+  if (isUpgradeRequiredForData()) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></td></tr>`;
+    return;
+  }
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="e-icon">🧾</div><h3>No invoices found</h3></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(inv => `<tr>
+    <td><strong style="color:#4b3fbf;">${inv.invoice_number || '—'}</strong></td>
+    <td><div style="font-weight:500;">${inv.client_name || '—'}</div></td>
+    <td style="color:#666;font-size:0.85rem;">${inv.project_name || '—'}</td>
+    <td>${formatCurrency(inv.amount)}</td>
+    <td style="color:#888;font-size:0.85rem;">+${formatCurrency((inv.amount * (inv.gst_percent||18)) / 100)}</td>
+    <td><strong style="color:#4b3fbf;">${formatCurrency(inv.total_amount)}</strong></td>
+    <td style="color:${inv.status==='overdue'?'#d63031':'#555'};font-size:0.85rem;">${formatDate(inv.due_date)}</td>
+    <td><span class="badge ${statusBadges[inv.status] || 'badge-gray'}">${statusLabels[inv.status] || inv.status}</span></td>
+    <td>
+      <div class="table-actions">
+        ${inv.status !== 'paid' ? `<button class="action-btn action-pay" onclick="markPaid('${inv.id}')" title="Mark as Paid">✓</button>` : ''}
+        ${inv.payment_link ? `<a href="${inv.payment_link}" target="_blank" class="action-btn action-view" title="Payment Link">🔗</a>` : ''}
+        <button class="action-btn action-delete" onclick="handleDelete('${inv.id}')" title="Delete">🗑</button>
+      </div>
+    </td>
+  </tr>`).join('');
+}
+
+function filterByStatus(status) {
+  currentFilter = status;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  const titles = { '': 'All Invoices', paid: 'Paid Invoices', pending: 'Pending Invoices', overdue: 'Overdue Invoices', recurring: 'Recurring Invoices' };
+  document.getElementById('tableTitle').textContent = titles[status] || 'Invoices';
+  renderTable(getFiltered());
+}
+
+document.getElementById('searchInput').addEventListener('input', () => renderTable(getFiltered()));
+
+async function markPaid(id) {
+  if (!ensureDataAccess()) return;
+  if (!confirm('Mark this invoice as Paid?')) return;
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    await updateInvoiceStatus(id, 'paid', today);
+    const inv = invoices.find(i => i.id === id);
+    if (inv) { inv.status = 'paid'; inv.paid_date = today; }
+    renderStats(); renderTable(getFiltered());
+    showToast('Invoice marked as paid!', 'success');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function handleDelete(id) {
+  if (!ensureDataAccess()) return;
+  if (!confirm('Delete this invoice permanently?')) return;
+  try {
+    await deleteInvoice(id);
+    invoices = invoices.filter(i => i.id !== id);
+    renderStats(); renderTable(getFiltered());
+    showToast('Invoice deleted.', 'info');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+init();
+</script>
+</body>
+</html>

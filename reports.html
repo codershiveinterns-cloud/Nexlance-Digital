@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Revenue Reports</h1>
+        <p>Financial overview and performance analytics</p>
+      </div>
+      <div class="page-header-actions">
+        <select id="yearFilter" style="padding:9px 14px;border-radius:10px;border:1px solid #e0d6ff;background:#fff;font-family:Segoe UI,sans-serif;color:#333;cursor:pointer;" onchange="renderCharts()">
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+        </select>
+        <button class="btn btn-secondary" onclick="window.print()">🖨 Export</button>
+      </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Revenue (YTD)</div>
+        <div class="stat-value" id="sTotalRev">₹0</div>
+        <div class="stat-sub" id="sTotalSub">Paid invoices</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">This Month</div>
+        <div class="stat-value" id="sThisMonth">₹0</div>
+        <div class="stat-sub" id="sMonthSub">Current month</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Avg Per Project</div>
+        <div class="stat-value" id="sAvgProj">₹0</div>
+        <div class="stat-sub">Contract average</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="stat-label">Recurring Revenue</div>
+        <div class="stat-value" id="sRecurring">₹0</div>
+        <div class="stat-sub">Monthly maintenance</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Outstanding</div>
+        <div class="stat-value" id="sOutstanding">₹0</div>
+        <div class="stat-sub">Pending + overdue</div>
+      </div>
+    </div>
+
+    <!-- Main Charts Row -->
+    <div class="reports-grid">
+      <!-- Monthly Revenue Bar Chart -->
+      <div class="chart-card">
+        <h3>📊 Monthly Revenue</h3>
+        <canvas id="monthlyRevenueChart" height="140"></canvas>
+      </div>
+      <!-- Website Type Pie Chart -->
+      <div class="chart-card">
+        <h3>🥧 Revenue by Type</h3>
+        <canvas id="typeRevenueChart" height="200"></canvas>
+        <div id="typeLegend" style="margin-top:14px;display:flex;flex-direction:column;gap:7px;"></div>
+      </div>
+    </div>
+
+    <!-- Second Row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:22px;">
+      <!-- Maintenance Recurring -->
+      <div class="chart-card">
+        <h3>🔄 Maintenance Revenue Trend</h3>
+        <canvas id="maintenanceChart" height="160"></canvas>
+      </div>
+      <!-- Project Status Distribution -->
+      <div class="chart-card">
+        <h3>📋 Projects by Status</h3>
+        <canvas id="projectStatusChart" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Top Clients Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>🏆 Top Clients by Revenue</h3>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Rank</th><th>Client</th><th>Company</th><th>Contract Value</th><th>Paid</th><th>Balance</th><th>Plan</th></tr>
+        </thead>
+        <tbody id="topClientsBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Services Revenue Table -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>🛠 Revenue by Service</h3>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Service</th><th>Projects</th><th>Total Revenue</th><th>Avg Price</th><th>Share</th></tr>
+        </thead>
+        <tbody id="serviceRevenueBody"></tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+let clients = [], invoices = [], projects = [], services = [];
+let monthlyChart, typeChart, mainChart, statusChart;
+
+const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const typeColors = ['#6c5ce7','#00b894','#e17055','#0984e3','#00cec9','#d63031','#fdcb6e'];
+
+async function init() {
+  [clients, invoices, projects, services] = await Promise.all([
+    fetchClients(), fetchInvoices(), fetchProjects(), fetchServices()
+  ]);
+  renderStats();
+  renderCharts();
+  renderTopClients();
+  renderServiceRevenue();
+}
+
+function renderStats() {
+  const totalPaid = invoices.filter(i => i.status === 'paid').reduce((s,i) => s + (i.total_amount||0), 0);
+  const outstanding = invoices.filter(i => ['pending','overdue'].includes(i.status)).reduce((s,i) => s + (i.total_amount||0), 0);
+  const recurring = invoices.filter(i => i.status === 'recurring').reduce((s,i) => s + (i.total_amount||0), 0);
+  const avgProj = clients.length ? clients.reduce((s,c) => s + (c.total_contract_value||0), 0) / clients.length : 0;
+
+  const now = new Date();
+  const thisMonthPaid = invoices.filter(i => {
+    if (i.status !== 'paid' || !i.paid_date) return false;
+    const d = new Date(i.paid_date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).reduce((s,i) => s + (i.total_amount||0), 0);
+
+  document.getElementById('sTotalRev').textContent = formatCurrency(totalPaid);
+  document.getElementById('sTotalSub').textContent = invoices.filter(i=>i.status==='paid').length + ' paid invoices';
+  document.getElementById('sThisMonth').textContent = formatCurrency(thisMonthPaid);
+  document.getElementById('sMonthSub').textContent = months[now.getMonth()] + ' ' + now.getFullYear();
+  document.getElementById('sAvgProj').textContent = formatCurrency(Math.round(avgProj));
+  document.getElementById('sRecurring').textContent = formatCurrency(recurring) + '/mo';
+  document.getElementById('sOutstanding').textContent = formatCurrency(outstanding);
+}
+
+function renderCharts() {
+  if (isUpgradeRequiredForData()) {
+    ['monthlyRevenueChart','typeRevenueChart','maintenanceChart','projectStatusChart'].forEach(id => {
+      const canvas = document.getElementById(id);
+      const parent = canvas && canvas.parentElement;
+      if (parent) {
+        parent.innerHTML = `<h3>${parent.querySelector('h3') ? parent.querySelector('h3').textContent : 'Report'}</h3><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div>`;
+      }
+    });
+    return;
+  }
+  // Monthly Revenue (simulated data based on real invoices + fill)
+  const monthlyData = months.map((_, i) => {
+    const paid = invoices.filter(inv => {
+      if (!inv.paid_date) return false;
+      return new Date(inv.paid_date).getMonth() === i;
+    }).reduce((s,inv) => s + (inv.total_amount||0), 0);
+    return paid;
+  });
+
+  if (monthlyChart) monthlyChart.destroy();
+  monthlyChart = new Chart(document.getElementById('monthlyRevenueChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Revenue (₹)',
+        data: monthlyData,
+        backgroundColor: 'rgba(108,92,231,0.7)',
+        borderColor: '#6c5ce7',
+        borderWidth: 1,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => '₹' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f5f3ff' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Revenue by Website Type
+  const typeData = [
+    { label: 'Business Website', value: clients.filter(c=>c.project_type==='Business Website').reduce((s,c)=>s+(c.total_contract_value||0),0) },
+    { label: 'Ecommerce Website', value: clients.filter(c=>c.project_type==='Ecommerce Website').reduce((s,c)=>s+(c.total_contract_value||0),0) },
+    { label: 'Landing Page', value: clients.filter(c=>c.project_type==='Landing Page').reduce((s,c)=>s+(c.total_contract_value||0),0) },
+    { label: 'Maintenance', value: invoices.filter(i=>i.status==='recurring').reduce((s,i)=>s+(i.total_amount||0),0) },
+    { label: 'SEO Add-on', value: services.filter(s=>s.name==='SEO Add-on').reduce((s,sv)=>s+(sv.revenue_generated||0),0) }
+  ].filter(d => d.value > 0);
+
+  if (typeChart) typeChart.destroy();
+  typeChart = new Chart(document.getElementById('typeRevenueChart'), {
+    type: 'doughnut',
+    data: {
+      labels: typeData.map(d => d.label),
+      datasets: [{ data: typeData.map(d => d.value), backgroundColor: typeColors, borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      cutout: '60%'
+    }
+  });
+  const totalType = typeData.reduce((s,d) => s+d.value, 0);
+  document.getElementById('typeLegend').innerHTML = typeData.map((d,i) => `
+    <div style="display:flex;align-items:center;gap:8px;font-size:0.8rem;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${typeColors[i]};flex-shrink:0;"></span>
+      <span style="color:#555;flex:1;">${d.label}</span>
+      <span style="font-weight:600;color:#4b3fbf;">${Math.round(d.value/totalType*100)}%</span>
+    </div>
+  `).join('');
+
+  // Maintenance Recurring Trend
+  const maintData = months.map((_, i) => {
+    const recurring = invoices.filter(inv => inv.status === 'recurring').reduce((s,inv) => s + (inv.amount||0), 0);
+    return recurring;
+  });
+
+  if (mainChart) mainChart.destroy();
+  mainChart = new Chart(document.getElementById('maintenanceChart'), {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Recurring Revenue',
+        data: maintData,
+        borderColor: '#00b894',
+        backgroundColor: 'rgba(0,184,148,0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#00b894'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => '₹' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f5f3ff' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Project Status Chart
+  const statusCounts = {
+    'Planning': projects.filter(p=>p.status==='Planning').length,
+    'Design': projects.filter(p=>p.status==='Design').length,
+    'Development': projects.filter(p=>p.status==='Development').length,
+    'Testing': projects.filter(p=>p.status==='Testing').length,
+    'Live': projects.filter(p=>p.status==='Live').length,
+    'On Hold': projects.filter(p=>p.status==='On Hold').length
+  };
+
+  if (statusChart) statusChart.destroy();
+  statusChart = new Chart(document.getElementById('projectStatusChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(statusCounts),
+      datasets: [{
+        data: Object.values(statusCounts),
+        backgroundColor: ['#b2bec3','#a29bfe','#74b9ff','#55efc4','#00b894','#e17055'],
+        borderRadius: 6,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#f5f3ff' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderTopClients() {
+  if (isUpgradeRequiredForData()) {
+    document.getElementById('topClientsBody').innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></td></tr>`;
+    return;
+  }
+  const sorted = [...clients].sort((a,b) => (b.total_contract_value||0) - (a.total_contract_value||0));
+  const planBadges = { 'Premium':'badge-purple','Basic':'badge-blue','Custom':'badge-orange' };
+  document.getElementById('topClientsBody').innerHTML = sorted.slice(0,8).map((c,i) => {
+    const bal = (c.total_contract_value||0) - (c.paid_amount||0);
+    return `<tr>
+      <td><span class="badge badge-${i<3?'purple':'gray'}">#${i+1}</span></td>
+      <td><strong>${c.name}</strong></td>
+      <td style="color:#666;">${c.company||'—'}</td>
+      <td><strong style="color:#4b3fbf;">${formatCurrency(c.total_contract_value||0)}</strong></td>
+      <td style="color:#00b894;">${formatCurrency(c.paid_amount||0)}</td>
+      <td><span class="badge ${bal>0?'badge-red':'badge-green'}">${bal>0?formatCurrency(bal):'Paid ✓'}</span></td>
+      <td><span class="badge ${planBadges[c.plan_type]||'badge-gray'}">${c.plan_type||'—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderServiceRevenue() {
+  if (isUpgradeRequiredForData()) {
+    document.getElementById('serviceRevenueBody').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></td></tr>`;
+    return;
+  }
+  const totalRev = services.reduce((s,sv) => s + (sv.revenue_generated||0), 0);
+  document.getElementById('serviceRevenueBody').innerHTML = [...services]
+    .sort((a,b) => (b.revenue_generated||0) - (a.revenue_generated||0))
+    .map(sv => {
+      const share = totalRev > 0 ? Math.round((sv.revenue_generated||0) / totalRev * 100) : 0;
+      return `<tr>
+        <td><span style="margin-right:8px;">${sv.icon||'🌐'}</span><strong>${sv.name}</strong></td>
+        <td style="color:#666;">${sv.active_clients||0}</td>
+        <td><strong style="color:#4b3fbf;">${formatCurrency(sv.revenue_generated||0)}</strong></td>
+        <td style="color:#666;">${formatCurrency(sv.pricing||0)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="progress-bar" style="width:80px;"><div class="progress-fill" style="width:${share}%"></div></div>
+            <span style="font-size:0.82rem;color:#888;">${share}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+}
+
+init();
+</script>
+</body>
+</html>

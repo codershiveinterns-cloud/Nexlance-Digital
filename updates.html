@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Updates — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .page-hero { padding:140px 0 60px; background:linear-gradient(135deg,#f8fafc 0%,#e0e7ff 50%,#f8fafc 100%); text-align:center; position:relative; overflow:hidden; }
+        .page-hero::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(79,70,229,.07); top:-150px; right:-150px; }
+        .page-hero::after  { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,.07); bottom:-80px; left:-80px; }
+        .page-hero .container { position:relative; z-index:1; }
+        .page-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
+        .page-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+        .page-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:600px; margin:0 auto 2rem; line-height:1.7; }
+
+        /* Subscribe bar */
+        .subscribe-bar { display:flex; justify-content:center; gap:0; max-width:460px; margin:0 auto; border:1.5px solid var(--color-border); border-radius:var(--radius-full); overflow:hidden; background:#fff; }
+        .subscribe-bar input { flex:1; padding:.85rem 1.25rem; border:none; font-family:var(--font-family); font-size:var(--font-size-sm); color:var(--color-text); background:transparent; outline:none; }
+        .subscribe-bar button { padding:.85rem 1.5rem; background:var(--color-secondary); color:#fff; border:none; font-weight:700; font-size:var(--font-size-sm); cursor:pointer; transition:background .2s; white-space:nowrap; }
+        .subscribe-bar button:hover { background:var(--color-accent); }
+
+        /* Filter row */
+        .filter-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:2.5rem; flex-wrap:wrap; gap:1rem; }
+        .tag-filters { display:flex; flex-wrap:wrap; gap:.5rem; }
+        .tag-btn { padding:.45rem 1rem; font-size:var(--font-size-sm); font-weight:600; border:1.5px solid var(--color-border); border-radius:var(--radius-full); background:#fff; cursor:pointer; transition:all .2s; }
+        .tag-btn:hover, .tag-btn.active { border-color:var(--color-secondary); color:var(--color-secondary); background:rgba(79,70,229,.05); }
+        .tag-btn[data-tag="new-feature"].active { background:#10b981; color:#fff; border-color:#10b981; }
+        .tag-btn[data-tag="improvement"].active { background:#f59e0b; color:#fff; border-color:#f59e0b; }
+        .tag-btn[data-tag="fix"].active { background:#ef4444; color:#fff; border-color:#ef4444; }
+
+        /* Timeline layout */
+        .changelog { display:flex; flex-direction:column; gap:0; }
+        .month-group { margin-bottom:3rem; }
+        .month-label { font-size:var(--font-size-sm); font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--color-text-lighter); margin-bottom:1.5rem; padding-bottom:.75rem; border-bottom:1px solid var(--color-border); }
+        .update-item { display:grid; grid-template-columns:200px 1fr; gap:2rem; padding:1.75rem 0; border-bottom:1px solid var(--color-border); }
+        .update-item:last-child { border-bottom:none; }
+        .update-meta { }
+        .update-version { font-size:var(--font-size-base); font-weight:800; color:var(--color-text); margin-bottom:.35rem; }
+        .update-date { font-size:var(--font-size-sm); color:var(--color-text-lighter); }
+        .update-tags { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.75rem; }
+        .tag { display:inline-flex; align-items:center; gap:.3rem; padding:.25rem .65rem; border-radius:var(--radius-full); font-size:var(--font-size-xs); font-weight:700; }
+        .tag-new  { background:#dcfce7; color:#15803d; }
+        .tag-impr { background:#fef9c3; color:#854d0e; }
+        .tag-fix  { background:#fee2e2; color:#991b1b; }
+        .tag-sec  { background:#ede9fe; color:#5b21b6; }
+        .update-content h3 { font-size:var(--font-size-lg); font-weight:700; margin-bottom:.5rem; }
+        .update-content p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.7; margin-bottom:1rem; }
+        .update-details { display:flex; flex-direction:column; gap:.4rem; }
+        .update-detail { display:flex; align-items:flex-start; gap:.6rem; font-size:var(--font-size-sm); color:var(--color-text); }
+        .update-detail::before { content:'•'; color:var(--color-secondary); font-weight:700; flex-shrink:0; }
+        .update-read-more { font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); margin-top:.75rem; display:inline-block; }
+        .update-read-more:hover { color:var(--color-accent); }
+
+        @media(max-width:768px){ .update-item{grid-template-columns:1fr;} .page-hero h1{font-size:var(--font-size-4xl);} }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item has-dropdown">
+                <a href="#">Products <span class="arrow">▾</span></a>
+                <div class="dropdown"><div class="dropdown-grid">
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                </div></div>
+            </li>
+            <li class="nav-item has-dropdown">
+                <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                <div class="dropdown dropdown-templates">
+                    <div class="dropdown-grid templates-grid">
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                    </div>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                </div>
+            </li>
+            <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+            <li class="nav-item"><a href="features.html">Features</a></li>
+            <li class="nav-item"><a href="#">Resources</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text">Log In</a>
+            <a href="login.html" class="btn-primary">Get Started</a>
+        </div>
+        <button class="mobile-toggle" id="mobile-toggle"><span></span><span></span><span></span></button>
+    </div>
+</nav>
+
+<section class="page-hero">
+    <div class="container">
+        <span class="page-hero-label">Product Updates</span>
+        <h1>What's new at <span class="gradient-text">Nexlance</span></h1>
+        <p>We ship improvements every week. Here's a full changelog of everything we've launched — new features, improvements, and fixes.</p>
+        <div class="subscribe-bar">
+            <input type="email" id="subEmail" placeholder="Get updates by email…">
+            <button onclick="subscribeUpdates()">Subscribe</button>
+        </div>
+    </div>
+</section>
+
+<section style="background:#fff;">
+    <div class="container">
+        <!-- Filters -->
+        <div class="filter-row">
+            <div class="tag-filters" id="tagFilters">
+                <button class="tag-btn active" data-tag="all">All Updates</button>
+                <button class="tag-btn" data-tag="new-feature">🟢 New Feature</button>
+                <button class="tag-btn" data-tag="improvement">🟡 Improvement</button>
+                <button class="tag-btn" data-tag="fix">🔴 Bug Fix</button>
+                <button class="tag-btn" data-tag="sec">🟣 Security</button>
+            </div>
+        </div>
+
+        <!-- Changelog -->
+        <div class="changelog" id="changelog">
+
+            <!-- February 2026 -->
+            <div class="month-group">
+                <div class="month-label">February 2026</div>
+
+                <div class="update-item" data-tags="new-feature improvement">
+                    <div class="update-meta">
+                        <div class="update-version">v3.8.0</div>
+                        <div class="update-date">Feb 18, 2026</div>
+                        <div class="update-tags">
+                            <span class="tag tag-new">🟢 New Feature</span>
+                            <span class="tag tag-impr">🟡 Improvement</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>AI Site Builder — Now with industry templates</h3>
+                        <p>The AI Site Builder now offers 50+ industry-specific prompts. Just select your industry, describe your brand, and get a complete site in under 30 seconds.</p>
+                        <div class="update-details">
+                            <div class="update-detail">AI now generates custom color palettes based on your brand name</div>
+                            <div class="update-detail">Added 50 new industry-specific prompt templates</div>
+                            <div class="update-detail">AI copywriter now supports 12 languages</div>
+                            <div class="update-detail">3x faster site generation speed</div>
+                        </div>
+                        <a href="#" class="update-read-more">Read full announcement →</a>
+                    </div>
+                </div>
+
+                <div class="update-item" data-tags="improvement fix">
+                    <div class="update-meta">
+                        <div class="update-version">v3.7.4</div>
+                        <div class="update-date">Feb 5, 2026</div>
+                        <div class="update-tags">
+                            <span class="tag tag-impr">🟡 Improvement</span>
+                            <span class="tag tag-fix">🔴 Bug Fix</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>Editor performance improvements & mobile fixes</h3>
+                        <p>Major editor speed improvements, especially on large pages with 50+ sections. Fixed several mobile-specific layout bugs.</p>
+                        <div class="update-details">
+                            <div class="update-detail">Editor loads 40% faster on pages with many elements</div>
+                            <div class="update-detail">Fixed sticky header not working on iOS Safari</div>
+                            <div class="update-detail">Resolved image alignment issues in mobile preview mode</div>
+                            <div class="update-detail">Undo/redo now works reliably across all browsers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- January 2026 -->
+            <div class="month-group">
+                <div class="month-label">January 2026</div>
+
+                <div class="update-item" data-tags="new-feature">
+                    <div class="update-meta">
+                        <div class="update-version">v3.7.0</div>
+                        <div class="update-date">Jan 22, 2026</div>
+                        <div class="update-tags">
+                            <span class="tag tag-new">🟢 New Feature</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>Membership & Subscription sites</h3>
+                        <p>Build gated content, online courses, or community sites with the new Memberships feature. Accept recurring payments and control who sees what.</p>
+                        <div class="update-details">
+                            <div class="update-detail">Create unlimited membership tiers with different access levels</div>
+                            <div class="update-detail">Accept recurring payments via Stripe and Razorpay</div>
+                            <div class="update-detail">Drip content to members over time</div>
+                            <div class="update-detail">Built-in member portal with profile and billing management</div>
+                        </div>
+                        <a href="#" class="update-read-more">Read full announcement →</a>
+                    </div>
+                </div>
+
+                <div class="update-item" data-tags="improvement sec">
+                    <div class="update-meta">
+                        <div class="update-version">v3.6.2</div>
+                        <div class="update-date">Jan 8, 2026</div>
+                        <div class="update-tags">
+                            <span class="tag tag-impr">🟡 Improvement</span>
+                            <span class="tag tag-sec">🟣 Security</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>Security hardening & 2FA improvements</h3>
+                        <p>Strengthened account security with improved two-factor authentication options and automatic suspicious login alerts.</p>
+                        <div class="update-details">
+                            <div class="update-detail">Added passkey / biometric login support (WebAuthn)</div>
+                            <div class="update-detail">Real-time alerts for logins from new devices or countries</div>
+                            <div class="update-detail">Session management — view and revoke active sessions</div>
+                            <div class="update-detail">Upgraded encryption for all stored credentials</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- December 2025 -->
+            <div class="month-group">
+                <div class="month-label">December 2025</div>
+
+                <div class="update-item" data-tags="new-feature">
+                    <div class="update-meta">
+                        <div class="update-version">v3.6.0</div>
+                        <div class="update-date">Dec 12, 2025</div>
+                        <div class="update-tags">
+                            <span class="tag tag-new">🟢 New Feature</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>Advanced Analytics Dashboard v2</h3>
+                        <p>Completely rebuilt analytics with heatmaps, conversion funnels, and custom event tracking. Now with real-time data and shareable reports.</p>
+                        <div class="update-details">
+                            <div class="update-detail">Click heatmaps and scroll depth tracking</div>
+                            <div class="update-detail">Multi-step conversion funnel builder</div>
+                            <div class="update-detail">Custom events via no-code event picker or JS API</div>
+                            <div class="update-detail">Shareable, password-protected analytics reports</div>
+                        </div>
+                        <a href="#" class="update-read-more">Read full announcement →</a>
+                    </div>
+                </div>
+
+                <div class="update-item" data-tags="improvement fix">
+                    <div class="update-meta">
+                        <div class="update-version">v3.5.3</div>
+                        <div class="update-date">Dec 3, 2025</div>
+                        <div class="update-tags">
+                            <span class="tag tag-impr">🟡 Improvement</span>
+                            <span class="tag tag-fix">🔴 Bug Fix</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>E-commerce: inventory & shipping improvements</h3>
+                        <p>Smarter inventory management, better shipping rate calculation, and fixes for edge cases in the checkout flow.</p>
+                        <div class="update-details">
+                            <div class="update-detail">Bulk inventory editing via CSV import/export</div>
+                            <div class="update-detail">Real-time shipping rates from DHL, FedEx, India Post</div>
+                            <div class="update-detail">Fixed issue with discount codes not applying in guest checkout</div>
+                            <div class="update-detail">Tax calculation now supports GST composite scheme</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- November 2025 -->
+            <div class="month-group">
+                <div class="month-label">November 2025</div>
+
+                <div class="update-item" data-tags="new-feature">
+                    <div class="update-meta">
+                        <div class="update-version">v3.5.0</div>
+                        <div class="update-date">Nov 8, 2025</div>
+                        <div class="update-tags">
+                            <span class="tag tag-new">🟢 New Feature</span>
+                        </div>
+                    </div>
+                    <div class="update-content">
+                        <h3>AI Design Assistant — General Availability</h3>
+                        <p>After a 3-month beta, our AI Design Assistant is now available to all users. Generate complete websites, write copy, and create custom images with a single prompt.</p>
+                        <div class="update-details">
+                            <div class="update-detail">Full GA launch after successful 50,000-user beta</div>
+                            <div class="update-detail">AI image generation now powered by latest diffusion model</div>
+                            <div class="update-detail">One-click SEO suggestions for every page</div>
+                            <div class="update-detail">Available on all plans (limits apply)</div>
+                        </div>
+                        <a href="#" class="update-read-more">Read full announcement →</a>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- end changelog -->
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Ready to try the latest features?</h2>
+            <p>Start your free trial and experience Nexlance today.</p>
+            <a href="login.html" class="btn-primary btn-large">Get Started Free</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer"><div class="container">
+    <div class="footer-grid">
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">𝕏</a><a href="#">in</a></div></div>
+        <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
+        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div>
+        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
+</div></footer>
+<button class="back-to-top" id="back-to-top">↑</button>
+<script src="main.js"></script>
+<script>
+    document.querySelectorAll('.tag-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const tag = btn.dataset.tag;
+            document.querySelectorAll('.update-item').forEach(item => {
+                item.style.display = (tag === 'all' || item.dataset.tags.includes(tag)) ? '' : 'none';
+            });
+        });
+    });
+    function subscribeUpdates() {
+        const email = document.getElementById('subEmail').value.trim();
+        if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+        alert('✅ Subscribed! You\'ll receive product updates at ' + email);
+        document.getElementById('subEmail').value = '';
+    }
+</script>
+</body>
+</html>

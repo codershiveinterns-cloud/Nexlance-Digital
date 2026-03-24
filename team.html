@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li class="active"><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search team members...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Team Members</h1>
+        <p>Manage your agency team and their access</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-primary" onclick="openAddModal()">+ Add Member</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Members</div><div class="stat-value" id="sTotal">0</div></div>
+      <div class="stat-card blue"><div class="stat-label">Developers</div><div class="stat-value" id="sDev">0</div></div>
+      <div class="stat-card purple" style="--c:#6c5ce7"><div class="stat-label">Designers</div><div class="stat-value" id="sDes">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Project Managers</div><div class="stat-value" id="sPM">0</div></div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <input type="search" class="search-input" id="searchInput" placeholder="🔍  Search by name or email...">
+      <select id="filterRole">
+        <option value="">All Roles</option>
+        <option>Admin</option>
+        <option>Project Manager</option>
+        <option>Developer</option>
+        <option>Designer</option>
+        <option>Client</option>
+      </select>
+    </div>
+
+    <!-- Team Cards Grid -->
+    <div class="team-grid" id="teamGrid">
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:#aaa;">Loading team...</div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add / Edit Member Modal -->
+<div class="modal-overlay" id="memberModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">Add Team Member</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-grid single">
+      <div class="form-group"><label>Full Name *</label><input type="text" id="fName" placeholder="Arjun Kapoor"></div>
+      <div class="form-group"><label>Email Address *</label><input type="email" id="fEmail" placeholder="arjun@nexlance.com"></div>
+      <div class="form-group"><label>Role</label>
+        <select id="fRole">
+          <option>Admin</option><option>Project Manager</option>
+          <option>Developer</option><option>Designer</option><option>Client</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Permissions</h4>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+          Can Edit Tasks
+          <label class="toggle"><input type="checkbox" id="pTasks"><span class="toggle-slider"></span></label>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+          Can See Revenue & Financial Data
+          <label class="toggle"><input type="checkbox" id="pRevenue"><span class="toggle-slider"></span></label>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+          Can Create Invoices
+          <label class="toggle"><input type="checkbox" id="pInvoice"><span class="toggle-slider"></span></label>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+          Can Upload Files
+          <label class="toggle"><input type="checkbox" id="pUpload"><span class="toggle-slider"></span></label>
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveMember()">Save Member</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+let members = [];
+let editingId = null;
+function ensureDataAccess() {
+  if (!isUpgradeRequiredForData()) return true;
+  showToast(getUpgradeRequiredMessage(), 'error');
+  return false;
+}
+
+const roleColors = {
+  'Admin': 'badge-red', 'Project Manager': 'badge-blue',
+  'Developer': 'badge-purple', 'Designer': 'badge-teal', 'Client': 'badge-gray'
+};
+const roleGradients = {
+  'Admin': 'linear-gradient(135deg,#d63031,#e17055)',
+  'Project Manager': 'linear-gradient(135deg,#0984e3,#74b9ff)',
+  'Developer': 'linear-gradient(135deg,#6c5ce7,#a29bfe)',
+  'Designer': 'linear-gradient(135deg,#00cec9,#55efc4)',
+  'Client': 'linear-gradient(135deg,#b2bec3,#dfe6e9)'
+};
+
+async function init() {
+  members = await fetchTeamMembers();
+  renderStats();
+  renderGrid(members);
+}
+
+function renderStats() {
+  document.getElementById('sTotal').textContent = members.length;
+  document.getElementById('sDev').textContent = members.filter(m => m.role === 'Developer').length;
+  document.getElementById('sDes').textContent = members.filter(m => m.role === 'Designer').length;
+  document.getElementById('sPM').textContent = members.filter(m => m.role === 'Project Manager').length;
+}
+
+function renderGrid(data) {
+  const grid = document.getElementById('teamGrid');
+  if (isUpgradeRequiredForData()) {
+    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></div>`;
+    return;
+  }
+  if (!data.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">🧑‍💼</div><h3>No team members found</h3><p>Add team members to get started</p></div></div>`;
+    return;
+  }
+  grid.innerHTML = data.map(m => {
+    const initials = getInitials(m.name);
+    const perms = [];
+    if (m.can_edit_tasks)     perms.push('Edit Tasks');
+    if (m.can_see_revenue)    perms.push('Revenue');
+    if (m.can_create_invoices) perms.push('Invoices');
+    if (m.can_upload_files)   perms.push('Uploads');
+    return `<div class="team-card">
+      <div class="team-avatar" style="background:${roleGradients[m.role] || 'linear-gradient(135deg,#6c5ce7,#a29bfe)'}">${initials}</div>
+      <h3>${m.name}</h3>
+      <div class="team-email">${m.email}</div>
+      <span class="badge ${roleColors[m.role] || 'badge-gray'}">${m.role}</span>
+      ${perms.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${perms.map(p=>`<span style="background:#f9f7ff;color:#6c5ce7;border-radius:6px;padding:2px 7px;font-size:0.7rem;font-weight:600;">${p}</span>`).join('')}</div>` : ''}
+      <div class="team-card-actions">
+        <button class="action-btn action-edit" onclick="openEditModal('${m.id}')" title="Edit">✏️</button>
+        <button class="action-btn action-delete" onclick="handleDelete('${m.id}')" title="Remove">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterMembers() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const role = document.getElementById('filterRole').value;
+  renderGrid(members.filter(m =>
+    (!search || m.name.toLowerCase().includes(search) || m.email.toLowerCase().includes(search)) &&
+    (!role || m.role === role)
+  ));
+}
+document.getElementById('searchInput').addEventListener('input', filterMembers);
+document.getElementById('filterRole').addEventListener('change', filterMembers);
+
+function openAddModal() {
+  if (!ensureDataAccess()) return;
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add Team Member';
+  document.getElementById('fName').value = '';
+  document.getElementById('fEmail').value = '';
+  document.getElementById('fRole').value = 'Developer';
+  ['pTasks','pRevenue','pInvoice','pUpload'].forEach(id => document.getElementById(id).checked = false);
+  document.getElementById('memberModal').classList.add('active');
+}
+
+function openEditModal(id) {
+  if (!ensureDataAccess()) return;
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Member';
+  document.getElementById('fName').value = m.name;
+  document.getElementById('fEmail').value = m.email;
+  document.getElementById('fRole').value = m.role;
+  document.getElementById('pTasks').checked = m.can_edit_tasks;
+  document.getElementById('pRevenue').checked = m.can_see_revenue;
+  document.getElementById('pInvoice').checked = m.can_create_invoices;
+  document.getElementById('pUpload').checked = m.can_upload_files;
+  document.getElementById('memberModal').classList.add('active');
+}
+function closeModal() { document.getElementById('memberModal').classList.remove('active'); }
+
+async function saveMember() {
+  if (!ensureDataAccess()) return;
+  const name = document.getElementById('fName').value.trim();
+  const email = document.getElementById('fEmail').value.trim();
+  if (!name || !email) { showToast('Name and email are required', 'error'); return; }
+  const data = {
+    name, email,
+    role: document.getElementById('fRole').value,
+    can_edit_tasks: document.getElementById('pTasks').checked,
+    can_see_revenue: document.getElementById('pRevenue').checked,
+    can_create_invoices: document.getElementById('pInvoice').checked,
+    can_upload_files: document.getElementById('pUpload').checked
+  };
+  try {
+    if (editingId) {
+      const upd = await updateTeamMember(editingId, data);
+      const idx = members.findIndex(m => m.id === editingId);
+      if (idx > -1) members[idx] = upd;
+      showToast('Member updated!', 'success');
+    } else {
+      const created = await addTeamMember(data);
+      members.push(created);
+      showToast('Member added!', 'success');
+    }
+    closeModal(); renderStats(); filterMembers();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function handleDelete(id) {
+  if (!ensureDataAccess()) return;
+  if (!confirm('Remove this team member?')) return;
+  try {
+    await deleteTeamMember(id);
+    members = members.filter(m => m.id !== id);
+    renderStats(); filterMembers();
+    showToast('Member removed.', 'info');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+document.getElementById('memberModal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+
+// Auto-set permissions based on role
+document.getElementById('fRole').addEventListener('change', function() {
+  const presets = {
+    'Admin':           { t:true,  r:true,  i:true,  u:true  },
+    'Project Manager': { t:true,  r:true,  i:true,  u:true  },
+    'Developer':       { t:true,  r:false, i:false, u:true  },
+    'Designer':        { t:true,  r:false, i:false, u:true  },
+    'Client':          { t:false, r:false, i:false, u:false }
+  };
+  const p = presets[this.value] || {};
+  document.getElementById('pTasks').checked   = p.t || false;
+  document.getElementById('pRevenue').checked = p.r || false;
+  document.getElementById('pInvoice').checked = p.i || false;
+  document.getElementById('pUpload').checked  = p.u || false;
+});
+
+init();
+</script>
+</body>
+</html>

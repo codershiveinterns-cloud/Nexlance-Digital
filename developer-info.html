@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support Info — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  /* Page layout */
+  .dev-page { max-width:960px; }
+
+  /* Profile hero card */
+  .dev-hero {
+    background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+    border-radius: 16px;
+    padding: 36px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin-bottom: 28px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .dev-hero::before {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.07);
+    top: -100px; right: -80px;
+  }
+  .dev-avatar {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.8rem;
+    border: 3px solid rgba(255,255,255,.4);
+    flex-shrink: 0;
+    position: relative; z-index: 1;
+  }
+  .dev-hero-info { position: relative; z-index: 1; }
+  .dev-hero-info h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
+  .dev-hero-info .dev-role { font-size: .95rem; opacity: .85; margin-bottom: 12px; }
+  .dev-hero-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+  .dev-badge {
+    background: rgba(255,255,255,.2);
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: .75rem;
+    font-weight: 600;
+  }
+
+  /* Grid layout */
+  .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .dev-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+  /* Cards */
+  .dev-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(108,92,231,.08);
+  }
+  .dev-card h3 {
+    font-size: .85rem;
+    font-weight: 700;
+    color: #6c5ce7;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Contact list */
+  .contact-list { display: flex; flex-direction: column; gap: 14px; }
+  .contact-item { display: flex; align-items: center; gap: 14px; }
+  .contact-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: #f0ecff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .contact-item-text { flex: 1; }
+  .contact-item-label { font-size: .72rem; color: #aaa; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .contact-item-val { font-size: .9rem; font-weight: 600; color: #333; word-break: break-all; }
+  .contact-item-val a { color: #6c5ce7; text-decoration: none; }
+  .contact-item-val a:hover { text-decoration: underline; }
+
+  /* Skills */
+  .skills-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .skill-tag {
+    background: #f0ecff;
+    color: #6c5ce7;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: .8rem;
+    font-weight: 600;
+  }
+  .skill-tag.green { background: #e8faf0; color: #0b875b; }
+  .skill-tag.blue  { background: #e8f0ff; color: #3b5bdb; }
+  .skill-tag.orange { background: #fff4e8; color: #d96a00; }
+
+  /* About text */
+  .about-text { font-size: .9rem; color: #555; line-height: 1.8; }
+
+  /* Stats row */
+  .dev-stats { display: flex; gap: 16px; margin-bottom: 20px; }
+  .dev-stat {
+    flex: 1;
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(108,92,231,.08);
+  }
+  .dev-stat-num { font-size: 1.8rem; font-weight: 800; color: #6c5ce7; }
+  .dev-stat-lbl { font-size: .75rem; color: #aaa; margin-top: 4px; }
+
+  /* Contact form */
+  .dev-form { display: flex; flex-direction: column; gap: 14px; }
+  .dev-form label { font-size: .78rem; font-weight: 700; color: #555; margin-bottom: 4px; display: block; }
+  .dev-form input,
+  .dev-form textarea,
+  .dev-form select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #e0d8ff;
+    border-radius: 10px;
+    font-size: .88rem;
+    font-family: inherit;
+    color: #333;
+    background: #fafafa;
+    outline: none;
+    transition: border .2s;
+  }
+  .dev-form input:focus,
+  .dev-form textarea:focus {
+    border-color: #6c5ce7;
+    background: #fff;
+  }
+  .dev-form textarea { resize: vertical; min-height: 100px; }
+  .dev-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .btn-send {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .2s, transform .15s;
+    align-self: flex-start;
+  }
+  .btn-send:hover { opacity: .9; transform: translateY(-1px); }
+
+  /* Social links */
+  .social-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .social-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: #f0ecff;
+    border: none; border-radius: 10px;
+    padding: 10px 16px;
+    font-size: .82rem; font-weight: 700; color: #6c5ce7;
+    text-decoration: none; cursor: pointer;
+    transition: background .2s;
+  }
+  .social-btn:hover { background: #e0d8ff; }
+
+  /* Success message */
+  .msg-success {
+    display: none;
+    background: #e8faf0;
+    border: 1.5px solid #0b875b;
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: #0b875b;
+    font-size: .88rem;
+    font-weight: 600;
+  }
+
+  /* Separator in sidebar */
+  .nav-sep {
+    border: none;
+    border-top: 1px solid #c9bfff;
+    margin: 12px 0 8px;
+  }
+
+  @media(max-width:768px) {
+    .dev-grid, .dev-grid-3 { grid-template-columns: 1fr; }
+    .dev-stats { flex-wrap: wrap; }
+    .dev-hero { flex-direction: column; text-align: center; }
+    .dev-form-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr class="nav-sep">
+      <li class="active"><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <div class="topbar">
+      <input type="text" placeholder="Search...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="dev-page">
+
+      <!-- Profile Hero -->
+      <div class="dev-hero">
+        <div class="dev-avatar">👨‍💻</div>
+        <div class="dev-hero-info">
+          <h1>Nexlance Digital</h1>
+          <div class="dev-role">Full-Stack Web Developer &amp; Digital Agency</div>
+          <div class="dev-hero-badges">
+            <span class="dev-badge">Available for Projects</span>
+            <span class="dev-badge">India</span>
+            <span class="dev-badge">Remote</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="dev-stats">
+        <div class="dev-stat">
+          <div class="dev-stat-num">50+</div>
+          <div class="dev-stat-lbl">Projects Delivered</div>
+        </div>
+        <div class="dev-stat">
+          <div class="dev-stat-num">30+</div>
+          <div class="dev-stat-lbl">Happy Clients</div>
+        </div>
+        <div class="dev-stat">
+          <div class="dev-stat-num">3+</div>
+          <div class="dev-stat-lbl">Years Experience</div>
+        </div>
+        <div class="dev-stat">
+          <div class="dev-stat-num">100%</div>
+          <div class="dev-stat-lbl">Client Satisfaction</div>
+        </div>
+      </div>
+
+      <div class="dev-grid">
+
+        <!-- About -->
+        <div class="dev-card">
+          <h3>👤 About</h3>
+          <p class="about-text">
+            Nexlance Digital is a professional full-stack web development agency specialising in building modern, high-performance websites, web apps, and digital platforms.<br><br>
+            From crafting stunning landing pages to building complete agency management systems like this one, every product is designed with performance, scalability, and a great user experience in mind.<br><br>
+            Passionate about clean code, thoughtful UI/UX, and delivering real business value through technology.
+          </p>
+        </div>
+
+        <!-- Contact -->
+        <div class="dev-card">
+          <h3>📬 Contact Details</h3>
+          <div class="contact-list">
+            <div class="contact-item">
+              <div class="contact-icon">📧</div>
+              <div class="contact-item-text">
+                <div class="contact-item-label">Email</div>
+                <div class="contact-item-val"><a href="mailto:vijaypratap@nexlancedigital.com">vijaypratap@nexlancedigital.com</a></div>
+              </div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">🔗</div>
+              <div class="contact-item-text">
+                <div class="contact-item-label">LinkedIn</div>
+                <div class="contact-item-val"><a href="https://www.linkedin.com/in/nexlance-digital-8175293b1" target="_blank">nexlance-digital</a></div>
+              </div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">🌐</div>
+              <div class="contact-item-text">
+                <div class="contact-item-label">Website</div>
+                <div class="contact-item-val"><a href="index.html">nexlance.com</a></div>
+              </div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">📍</div>
+              <div class="contact-item-text">
+                <div class="contact-item-label">Location</div>
+                <div class="contact-item-val">India · Available Remotely</div>
+              </div>
+            </div>
+            <div class="contact-item">
+              <div class="contact-icon">⏰</div>
+              <div class="contact-item-text">
+                <div class="contact-item-label">Response Time</div>
+                <div class="contact-item-val">Usually within 24 hours</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tech Stack -->
+      <div class="dev-card" style="margin-bottom:20px;">
+        <h3>🛠 Tech Stack &amp; Skills</h3>
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Frontend</div>
+            <div class="skills-list">
+              <span class="skill-tag">HTML5</span>
+              <span class="skill-tag">CSS3</span>
+              <span class="skill-tag">JavaScript (ES6+)</span>
+              <span class="skill-tag blue">React.js</span>
+              <span class="skill-tag blue">Next.js</span>
+              <span class="skill-tag">Tailwind CSS</span>
+              <span class="skill-tag">Bootstrap</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Backend &amp; Database</div>
+            <div class="skills-list">
+              <span class="skill-tag green">Node.js</span>
+              <span class="skill-tag green">Supabase</span>
+              <span class="skill-tag green">PostgreSQL</span>
+              <span class="skill-tag green">Firebase</span>
+              <span class="skill-tag orange">REST APIs</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Tools &amp; Platforms</div>
+            <div class="skills-list">
+              <span class="skill-tag orange">Git &amp; GitHub</span>
+              <span class="skill-tag orange">VS Code</span>
+              <span class="skill-tag orange">Figma</span>
+              <span class="skill-tag blue">Vercel</span>
+              <span class="skill-tag blue">Netlify</span>
+              <span class="skill-tag">Cloudflare</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dev-grid">
+
+        <!-- Services Offered -->
+        <div class="dev-card">
+          <h3>💼 Services Offered</h3>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> Custom Website Development
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> Agency Management Platforms
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> E-commerce Stores
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> Landing Page Design
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> Dashboard &amp; CRM Systems
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> SEO Optimization
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> API Integration
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.88rem;">
+              <span style="color:#6c5ce7;">✓</span> Website Maintenance &amp; Support
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Links / Socials -->
+        <div class="dev-card">
+          <h3>🔗 Quick Links</h3>
+          <div class="social-row" style="margin-bottom:20px;">
+            <a href="https://www.linkedin.com/in/nexlance-digital-8175293b1" target="_blank" class="social-btn">🔗 LinkedIn</a>
+            <a href="mailto:vijaypratap@nexlancedigital.com" class="social-btn">📧 Email</a>
+            <a href="index.html" class="social-btn">🌐 Website</a>
+          </div>
+          <h3 style="margin-top:8px;">⏱ Availability</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:8px 0;border-bottom:1px solid #f0ecff;">
+              <span style="color:#555;">Mon – Fri</span>
+              <span style="font-weight:700;color:#0b875b;">Available</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:8px 0;border-bottom:1px solid #f0ecff;">
+              <span style="color:#555;">Saturday</span>
+              <span style="font-weight:700;color:#d96a00;">Limited</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:8px 0;">
+              <span style="color:#555;">Sunday</span>
+              <span style="font-weight:700;color:#aaa;">Off</span>
+            </div>
+            <div style="margin-top:6px;padding:10px 14px;background:#f0ecff;border-radius:10px;font-size:.82rem;color:#6c5ce7;font-weight:600;">
+              ⏰ IST (UTC +5:30) · Response within 24 hrs
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Contact Form -->
+      <div class="dev-card" style="margin-bottom:28px;">
+        <h3>✉️ Send a Message</h3>
+        <div id="contactSuccess" class="msg-success">✅ Message sent! I'll get back to you within 24 hours.</div>
+        <form class="dev-form" id="devContactForm">
+          <div class="dev-form-row">
+            <div>
+              <label>Your Name</label>
+              <input type="text" placeholder="e.g. Rahul Sharma" required>
+            </div>
+            <div>
+              <label>Your Email</label>
+              <input type="email" placeholder="you@example.com" required>
+            </div>
+          </div>
+          <div class="dev-form-row">
+            <div>
+              <label>Phone Number</label>
+              <input type="tel" placeholder="+91 98765 43210">
+            </div>
+            <div>
+              <label>Subject</label>
+              <input type="text" placeholder="e.g. New Website Project" required>
+            </div>
+          </div>
+          <div>
+            <label>Project Type</label>
+            <select>
+              <option value="">— Select a service —</option>
+              <option>Custom Website Development</option>
+              <option>Agency Management Platform</option>
+              <option>E-commerce Store</option>
+              <option>Landing Page Design</option>
+              <option>Dashboard / CRM System</option>
+              <option>API Integration</option>
+              <option>Website Maintenance</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div>
+            <label>Message</label>
+            <textarea placeholder="Describe your project, requirements, timeline, or any questions…"></textarea>
+          </div>
+          <button type="submit" class="btn-send">📨 Send Message</button>
+        </form>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+  document.getElementById('devContactForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const success = document.getElementById('contactSuccess');
+    success.style.display = 'block';
+    this.reset();
+    this.querySelector('.btn-send').textContent = '✅ Sent!';
+    this.querySelector('.btn-send').style.opacity = '.7';
+    setTimeout(() => {
+      success.style.display = 'none';
+      this.querySelector('.btn-send').textContent = '📨 Send Message';
+      this.querySelector('.btn-send').style.opacity = '1';
+    }, 5000);
+  });
+
+  function ensureAccountSidebarActions() {
+    const nav = document.querySelector('.sidebar .nav');
+    if (!nav || document.getElementById('logoutBtn') || document.getElementById('deleteAccountBtn')) return;
+
+    const separator = document.createElement('hr');
+    separator.className = 'nav-sep';
+    nav.appendChild(separator);
+
+    const deleteItem = document.createElement('li');
+    deleteItem.innerHTML = '<button id="deleteAccountBtn" style="background:none;border:none;color:#b42318;cursor:pointer;font-size:0.95rem;padding:8px 0;width:100%;text-align:left;font-weight:600;">Delete Account</button>';
+    nav.appendChild(deleteItem);
+
+    const logoutItem = document.createElement('li');
+    logoutItem.style.marginTop = 'auto';
+    logoutItem.innerHTML = '<button id="logoutBtn" style="background:none;border:none;color:#999;cursor:pointer;font-size:0.95rem;padding:8px 0;width:100%;text-align:left;">Logout</button>';
+    nav.appendChild(logoutItem);
+  }
+
+  async function logoutCurrentUser() {
+    try {
+      if (typeof firebase !== 'undefined' && firebase.auth) await firebase.auth().signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('nexlance_auth');
+      localStorage.removeItem('nexlance_user');
+      localStorage.removeItem('nexlance_trial');
+      localStorage.removeItem('nexlance_plan');
+      window.location.href = 'index.html';
+    }
+  }
+
+  async function deleteCurrentAccount() {
+    const currentUser = JSON.parse(localStorage.getItem('nexlance_user') || 'null');
+    const email = currentUser && currentUser.email ? String(currentUser.email).trim().toLowerCase() : '';
+    if (!email) {
+      showToast('No signed-in account found.', 'error');
+      return;
+    }
+
+    try {
+      if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser && typeof db !== 'undefined' && db) {
+        const authUser = firebase.auth().currentUser;
+        await db.collection('deleted_accounts').doc(email.replace(/[.#$/\[\]]/g, '_')).set({ email, deletedAt: new Date().toISOString(), trialUsed: true });
+        await db.collection('users').doc(authUser.uid).delete();
+        await authUser.delete();
+      } else {
+        const users = JSON.parse(localStorage.getItem('nexlance_users') || '[]').filter(user => String(user.email || '').trim().toLowerCase() !== email);
+        localStorage.setItem('nexlance_users', JSON.stringify(users));
+        const deletedAccounts = JSON.parse(localStorage.getItem('nexlance_deleted_accounts') || '{}');
+        deletedAccounts[email] = { email, deletedAt: new Date().toISOString(), trialUsed: true };
+        localStorage.setItem('nexlance_deleted_accounts', JSON.stringify(deletedAccounts));
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      showToast(error.code === 'auth/requires-recent-login' ? 'Please log in again, then delete the account.' : 'Could not delete the account. Please try again.', 'error');
+      return;
+    }
+
+    localStorage.removeItem('nexlance_auth');
+    localStorage.removeItem('nexlance_user');
+    localStorage.removeItem('nexlance_trial');
+    localStorage.removeItem('nexlance_plan');
+    window.location.href = 'login.html';
+  }
+
+  ensureAccountSidebarActions();
+  document.getElementById('logoutBtn')?.addEventListener('click', () => {
+    if (confirm('Do you want to log out?')) logoutCurrentUser();
+  });
+  document.getElementById('deleteAccountBtn')?.addEventListener('click', () => {
+    if (confirm('Do you want to delete your account? This cannot be undone.')) deleteCurrentAccount();
+  });
+</script>
+</body>
+</html>

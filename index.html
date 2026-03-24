@@ -1,0 +1,310 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+ 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexlance - Create Your Website</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css"> 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .toggle-label { transition: color .2s, font-weight .2s; color: var(--color-text-light); font-weight: 500; }
+        .active-label { color: var(--color-secondary) !important; font-weight: 700 !important; }
+        .billing-period-note { text-align: center; font-size: var(--font-size-sm); color: var(--color-text-lighter); margin: -.5rem 0 2rem; transition: color .2s; }
+        .billing-period-note.annual { color: #059669; font-weight: 600; }
+        .video-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+        .video-modal-overlay.open { display:flex; }
+        .video-modal { position:relative; width:90%; max-width:900px; background:#000; border-radius:16px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6); aspect-ratio:16 / 9; animation:modalIn .25s ease; }
+        @keyframes modalIn { from { transform:scale(.93); opacity:0; } to { transform:scale(1); opacity:1; } }
+        .video-modal iframe, .video-modal video { width:100%; height:100%; border:none; display:block; }
+        .video-modal-close { position:absolute; top:-44px; right:0; background:rgba(255,255,255,.15); border:none; color:#fff; width:36px; height:36px; border-radius:50%; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .2s; }
+        .video-modal-close:hover { background:rgba(255,255,255,.3); }
+        .template-access-section { padding: 5rem 0; background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); }
+        .template-access-shell { display:grid; grid-template-columns: 1.05fr .95fr; gap: 2rem; align-items: stretch; }
+        .template-access-intro { background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff; border-radius: 28px; padding: 2.25rem; position: relative; overflow: hidden; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18); }
+        .template-access-intro::before { content: ""; position: absolute; inset: auto -70px -110px auto; width: 220px; height: 220px; background: radial-gradient(circle, rgba(59, 130, 246, .45), transparent 68%); }
+        .template-access-intro .section-label { color: rgba(255,255,255,.78); }
+        .template-access-intro h2 { margin: .4rem 0 1rem; font-size: clamp(2rem, 3vw, 2.8rem); line-height: 1.1; }
+        .template-access-intro p { color: rgba(255,255,255,.78); line-height: 1.7; }
+        .template-access-points { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: .9rem; }
+        .template-access-points li { display:flex; gap:.75rem; align-items:flex-start; color: rgba(255,255,255,.92); }
+        .template-access-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: .45rem; flex: 0 0 auto; background: linear-gradient(135deg, #38bdf8, #22c55e); }
+        .template-access-card { background: #fff; border: 1px solid rgba(148, 163, 184, .18); border-radius: 28px; padding: 2rem; box-shadow: 0 22px 50px rgba(15, 23, 42, 0.08); }
+        .template-access-header { display:flex; justify-content:space-between; align-items:flex-start; gap: 1rem; margin-bottom: 1.5rem; }
+        .template-access-template { padding: .85rem 1rem; border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0; }
+        .template-access-template strong { display:block; color: #0f172a; margin-bottom: .25rem; }
+        .template-access-template span { color: #64748b; font-size: .95rem; }
+        .template-access-fields { display:grid; gap: 1rem; }
+        .template-access-fields label { display:grid; gap: .45rem; color: #0f172a; font-weight: 600; }
+        .template-access-fields input { width: 100%; padding: .9rem 1rem; border-radius: 14px; border: 1px solid #cbd5e1; font: inherit; transition: border-color .2s, box-shadow .2s; }
+        .template-access-fields input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, .12); }
+        .template-access-choice-group { display:grid; gap: .8rem; }
+        .template-access-choice { display:flex; align-items:center; gap: .8rem; border: 1px solid #dbe3ee; padding: .95rem 1rem; border-radius: 16px; cursor: pointer; }
+        .template-access-choice input { width: auto; margin: 0; }
+        .template-access-separator { position: relative; text-align: center; margin: .25rem 0; color: #64748b; font-size: .9rem; }
+        .template-access-separator::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid #e2e8f0; z-index: 0; }
+        .template-access-separator span { position: relative; z-index: 1; background: #fff; padding: 0 .9rem; }
+        .template-access-status { min-height: 24px; margin-top: 1rem; font-size: .95rem; }
+        .template-access-status.success { color: #059669; }
+        .template-access-status.error { color: #dc2626; }
+        .template-access-submit { width: 100%; margin-top: 1.1rem; }
+        .template-access-help { margin-top: 1rem; color: #64748b; font-size: .92rem; line-height: 1.6; }
+        @media (max-width: 960px) {
+            .template-access-shell { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo"><span class="logo-icon">&#9670;</span>Nexlance</a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="#products">Products <span class="arrow">&#9662;</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#127760;</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128722;</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128231;</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128197;</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="templates.html">Templates <span class="arrow">&#9662;</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Portfolio</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Business</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Blog</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="E-commerce Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Store</span></a>
+                        </div>
+                        <a href="templates.html" class="dropdown-view-all">View All Templates &rarr;</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+                <li class="nav-item"><a href="features.html">Features</a></li>
+                <li class="nav-item"><a href="help-center.html">Resources</a></li>
+            </ul>
+            <div class="nav-actions"><a href="login.html" class="btn-text">Log In</a><a href="login.html?mode=register" class="btn-primary">Get Started</a></div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+        </div>
+    </nav>
+
+    <section class="hero" id="hero">
+        <div class="hero-bg"><div class="hero-gradient"></div><div class="hero-shapes"><div class="shape shape-1"></div><div class="shape shape-2"></div><div class="shape shape-3"></div></div></div>
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="hero-badge"><span class="badge-dot"></span>New: AI-Powered Design Assistant</div>
+                <h1 class="hero-title">Build your brand.<br><span class="gradient-text">Build your future.</span></h1>
+                <p class="hero-subtitle">Create a professional website, online store, or portfolio. No coding required. Customize, publish, and grow your brand online.</p>
+                <div class="hero-cta"><a href="login.html?mode=register" class="btn-primary btn-large">Start Free Trial</a><button type="button" class="btn-secondary btn-large" id="watchDemoBtn"><span class="play-icon">&#9654;</span> Watch Demo</button></div>
+                <p class="hero-note">No credit card required &bull; Free 14-day trial</p>
+            </div>
+            <div class="hero-visual">
+                <div class="browser-mockup"><div class="browser-header"><div class="browser-dots"><span></span><span></span><span></span></div><div class="browser-address"></div></div><div class="browser-content"><img src="images/dash.jpeg" alt="Dashboard preview" style="width:100%; height:100%; object-fit:cover;"><div class="demo-site"><div class="demo-nav"></div><div class="demo-hero"></div></div></div></div>
+                <div class="floating-card card-1"><span class="card-icon">&#128200;</span><span class="card-text">Traffic +47%</span></div>
+                <div class="floating-card card-2"><span class="card-icon">&#128722;</span><span class="card-text">New Order!</span></div>
+            </div>
+        </div>
+        <div class="scroll-indicator"><div class="mouse"><div class="wheel"></div></div></div>
+    </section>
+
+    <section class="brands"><div class="container"><p class="brands-title">Trusted by millions of creators worldwide</p><div class="brands-grid"><div class="brand-item"><span class="brand-logo">&#9673; TECHCRUNCH</span></div><div class="brand-item"><span class="brand-logo">&#9670; FORBES</span></div><div class="brand-item"><span class="brand-logo">&#9675; WIRED</span></div><div class="brand-item"><span class="brand-logo">&#9670; FAST COMPANY</span></div><div class="brand-item"><span class="brand-logo">&#9679; THE VERGE</span></div></div></div></section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header"><span class="section-label">Features</span><h2 class="section-title">Everything you need to succeed online</h2><p class="section-subtitle">Powerful tools designed for creators, entrepreneurs, and businesses of all sizes.</p></div>
+            <div class="features-grid">
+                <div class="feature-card feature-large" style="display:none;"><div class="feature-visual"><img src="images/f3.png" alt="Feature Preview"></div><div class="feature-content"><span class="feature-icon">&#9997;</span><h3>Visual Website Builder</h3><p>Create and refine your pages with an intuitive editor that helps you shape content, sections, and layouts in real time.</p><a href="features.html" class="feature-link">Learn more &rarr;</a></div></div>
+                <div class="feature-card"><div class="feature-icon">&#127912;</div><h3>Professional Templates</h3><p>200+ award-winning templates designed by world-class designers.</p><a href="templates.html" class="feature-link">Browse templates &rarr;</a></div>
+                <div class="feature-card"><div class="feature-icon">&#128241;</div><h3>Mobile Responsive</h3><p>Every site looks perfect on any device automatically.</p><a href="mobile-responsive.html" class="feature-link">Learn more &rarr;</a></div>
+                <div class="feature-card"><div class="feature-icon">&#128269;</div><h3>SEO Tools</h3><p>Built-in optimization to help you rank higher on search engines.</p><a href="seo-tools.html" class="feature-link">Learn more &rarr;</a></div>
+                <div class="feature-card"><div class="feature-icon">&#128737;</div><h3>Reliable Performance</h3><p>Keep your website fast, polished, and ready for visitors with dependable site performance.</p><a href="reliable-performance.html" class="feature-link">Learn more &rarr;</a></div>
+                <div class="feature-card feature-large"><div class="feature-content"><span class="feature-icon">&#128202;</span><h3>Analytics Dashboard</h3><p>Track visitors, sales, and engagement with detailed analytics. Understand your audience and grow your business with data-driven insights.</p><a href="analytics-dashboard-feature.html" class="feature-link">Learn more &rarr;</a></div><div class="feature-visual"><img src="images/analytics.png" alt="Analytics Dashboard Preview"><div class="analytics-preview"><div class="analytics-chart"><div class="bar" style="height: 40%;"></div><div class="bar" style="height: 60%;"></div><div class="bar" style="height: 45%;"></div><div class="bar" style="height: 80%;"></div><div class="bar" style="height: 65%;"></div><div class="bar" style="height: 90%;"></div><div class="bar" style="height: 75%;"></div></div></div></div></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="templates" id="templates"><div class="container"><div class="section-header"><span class="section-label">Templates</span><h2 class="section-title">Start with a beautiful template</h2><p class="section-subtitle">Choose from hundreds of professionally designed templates. Customize everything to match your brand.</p></div><div class="templates-filter"><button class="filter-btn active" data-filter="all">All</button><button class="filter-btn" data-filter="portfolio">Portfolio</button><button class="filter-btn" data-filter="business">Business</button><button class="filter-btn" data-filter="ecommerce">E-commerce</button></div><div class="templates-grid"><div class="template-card" data-category="ecommerce"><div class="template-preview" style="background: linear-gradient(135deg, #ff6b6b, #feca57);"><img src="images/f4.avif" alt="Business Template" style="width:100%; height:100%; object-fit:cover;"><div class="template-overlay"><button class="btn-preview">Preview</button><a href="templates.html" class="btn-use">Go To Templates</a></div></div><div class="template-info"><h4>Fashion Store</h4><span>E-commerce</span></div></div><div class="template-card" data-category="portfolio"><div class="template-preview" style="background: linear-gradient(135deg, #00b894, #00cec9);"><img src="images/photogrPHER.avif" alt="Business Template" style="width:100%; height:100%; object-fit:cover;"><div class="template-overlay"><button class="btn-preview">Preview</button><a href="templates.html" class="btn-use">Go To Templates</a></div></div><div class="template-info"><h4>Photographer</h4><span>Portfolio</span></div></div><div class="template-card" data-category="business"><div class="template-preview" style="background: linear-gradient(135deg, #2d3436, #636e72);"><img src="images/startup.avif" alt="Business Template" style="width:100%; height:100%; object-fit:cover;"><div class="template-overlay"><button class="btn-preview">Preview</button><a href="templates.html" class="btn-use">Go To Templates</a></div></div><div class="template-info"><h4>Startup Landing</h4><span>Business</span></div></div></div><div class="templates-cta"><a href="templates.html" class="btn-secondary btn-large">Browse All Templates</a></div></div></section>
+
+    <section class="how-it-works"><div class="container"><div class="section-header"><span class="section-label">How It Works</span><h2 class="section-title">Launch your website in 4 easy steps</h2></div><div class="steps-grid"><div class="step-card"><div class="step-number">1</div><h3>Choose a Template</h3><p>Browse our collection and pick a template that fits your vision.</p></div><div class="step-card"><div class="step-number">2</div><h3>Customize Design</h3><p>Personalize the layout, content, and styling to match your brand.</p></div><div class="step-card"><div class="step-number">3</div><h3>Add Content</h3><p>Upload images, write text, and add your products or services.</p></div><div class="step-card"><div class="step-number">4</div><h3>Publish &amp; Grow</h3><p>Go live and start reaching your audience immediately.</p></div></div></div></section>
+
+    <section class="pricing" id="pricing">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Pricing</span>
+                <h2 class="section-title">Simple, transparent pricing</h2>
+                <p class="section-subtitle">Choose the plan that's right for you. All plans include a free 14-day trial.</p>
+            </div>
+            <div class="pricing-toggle">
+                <span class="toggle-label active-label" id="label-monthly">Monthly</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="billing-toggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label" id="label-annual">Annual <span class="save-badge">Save 20%</span></span>
+            </div>
+            <p class="billing-period-note" id="billing-note">Billed monthly - switch to annual and save 20%</p>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Plus</h3>
+                        <p>Full dashboard access for growing teams</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="currency">&euro;</span>
+                        <span class="amount" data-monthly="599" data-annual="5750.40">599</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><span class="check">&#10003;</span> Full access of dashboard</li>
+                        <li><span class="check">&#10003;</span> Project section access</li>
+                        <li><span class="check">&#10003;</span> Clients, team, invoices, services</li>
+                        <li><span class="check">&#10003;</span> Advanced analytics</li>
+                        <li><span class="check">&#10003;</span> Priority support</li>
+                        <li class="disabled"><span class="x">&#10007;</span> No admin panel access</li>
+                    </ul>
+                    <a href="pricing.html?checkout=plus" class="btn-outline btn-full" data-plan-action="plus">Choose Plus</a>
+                </div>
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Pro</h3>
+                        <p>One-time template plan with editing freedom</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="currency">&euro;</span>
+                        <span class="amount" data-monthly="1499" data-annual="1499">1499</span>
+                        <span class="period" data-fixed-period="one-time">one-time</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><span class="check">&#10003;</span> One time payment for templates</li>
+                        <li><span class="check">&#10003;</span> Access to all templates</li>
+                        <li><span class="check">&#10003;</span> Discount on all templates</li>
+                        <li><span class="check">&#10003;</span> Editing of templates allowed</li>
+                        <li><span class="check">&#10003;</span> Edit at your command</li>
+                        <li class="disabled"><span class="x">&#10007;</span> No ad, in panel access</li>
+                    </ul>
+                    <a href="pricing.html?checkout=pro" class="btn-outline btn-full" data-plan-action="pro">Choose Pro</a>
+                </div>
+                <div class="pricing-card popular">
+                    <div class="popular-badge">Most Popular</div>
+                    <div class="pricing-header">
+                        <h3>Business</h3>
+                        <p>Combo offer with complete Plus and Pro benefits</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="currency">&euro;</span>
+                        <span class="amount" data-monthly="1799" data-annual="17270.40">1799</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><span class="check">&#10003;</span> Combo offer</li>
+                        <li><span class="check">&#10003;</span> Benefits of Pro + Plus plans</li>
+                        <li><span class="check">&#10003;</span> Full access to dashboard services</li>
+                        <li><span class="check">&#10003;</span> Full access to all templates</li>
+                        <li><span class="check">&#10003;</span> Priority support</li>
+                        <li class="disabled"><span class="x">&#10007;</span> No access to admin panel</li>
+                    </ul>
+                    <a href="pricing.html?checkout=business" class="btn-primary btn-full" data-plan-action="business">Choose Business</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="template-access-section" id="template-access">
+        <div class="container">
+            <div class="template-access-shell">
+                <div class="template-access-intro">
+                    <span class="section-label">Template Access</span>
+                    <h2>Pay with Stripe or Polar, or unlock instantly with a license key.</h2>
+                    <p>This flow keeps template downloads protected until a payment succeeds or a valid license key is redeemed. The download link is short-lived and generated only after verification.</p>
+                    <ul class="template-access-points">
+                        <li><span class="template-access-dot"></span><span>Stripe checkout redirect for card payments.</span></li>
+                        <li><span class="template-access-dot"></span><span>Polar checkout redirect as the second gateway option.</span></li>
+                        <li><span class="template-access-dot"></span><span>License-key validation against <code>template_license_key.txt</code>.</span></li>
+                        <li><span class="template-access-dot"></span><span>Protected ZIP download created only after successful verification.</span></li>
+                    </ul>
+                </div>
+                <div class="template-access-card">
+                    <div class="template-access-header">
+                        <div>
+                            <span class="section-label">Secure Form</span>
+                            <h3 style="margin:.35rem 0 0;">Template payment or license access</h3>
+                        </div>
+                        <div class="template-access-template">
+                            <strong id="templateAccessTemplateName">Startup Landing</strong>
+                            <span>Current template target</span>
+                        </div>
+                    </div>
+                    <form id="templateAccessForm" data-managed-form="template-access">
+                        <input type="hidden" id="templateAccessTemplateId" value="startup-landing-template">
+                        <div class="template-access-fields">
+                            <label>
+                                Name
+                                <input id="templateAccessName" type="text" name="name" placeholder="Your full name" required>
+                            </label>
+                            <label>
+                                Email
+                                <input id="templateAccessEmail" type="email" name="email" placeholder="you@example.com" required>
+                            </label>
+                            <div class="template-access-choice-group">
+                                <span style="font-weight:600; color:#0f172a;">Payment method</span>
+                                <label class="template-access-choice">
+                                    <input type="radio" name="templatePaymentMethod" value="stripe">
+                                    <span>Stripe checkout</span>
+                                </label>
+                                <label class="template-access-choice">
+                                    <input type="radio" name="templatePaymentMethod" value="polar">
+                                    <span>Polar checkout</span>
+                                </label>
+                            </div>
+                            <div class="template-access-separator"><span>OR</span></div>
+                            <label>
+                                License Key
+                                <input id="templateAccessLicenseKey" type="text" name="licenseKey" placeholder="XXXXXX-XXXX-XXXX">
+                            </label>
+                        </div>
+                        <div id="templateAccessStatus" class="template-access-status" aria-live="polite"></div>
+                        <button id="templateAccessSubmit" class="btn-primary btn-large template-access-submit" type="submit">Continue</button>
+                        <p class="template-access-help">Leave the license key empty to pay with the selected gateway. If a license key is entered, the server validates it first and skips payment when it is valid.</p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="testimonials"><div class="container"><div class="section-header"><span class="section-label">Testimonials</span><h2 class="section-title">Loved by creators worldwide</h2></div><div class="testimonials-slider" id="testimonials-slider"><div class="testimonial-card active"><div class="testimonial-content"><div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div><p>"Nexlance transformed my small business. I had a professional website up and running in just one afternoon. The templates are gorgeous!"</p></div><div class="testimonial-author"><div class="author-avatar">SJ</div><div class="author-info"><h4>Sarah Johnson</h4><span>Founder, Artisan Coffee Co.</span></div></div></div><div class="testimonial-card"><div class="testimonial-content"><div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div><p>"As a photographer, I needed a portfolio that would showcase my work beautifully. Nexlance delivered beyond my expectations."</p></div><div class="testimonial-author"><div class="author-avatar">MC</div><div class="author-info"><h4>Michael Chen</h4><span>Professional Photographer</span></div></div></div><div class="testimonial-card"><div class="testimonial-content"><div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div><p>"The e-commerce features helped me launch my online store quickly. Sales have increased by 200% since switching to Nexlance."</p></div><div class="testimonial-author"><div class="author-avatar">ER</div><div class="author-info"><h4>Emily Rodriguez</h4><span>Owner, Style Boutique</span></div></div></div></div><div class="testimonial-dots"><span class="dot active" data-index="0"></span><span class="dot" data-index="1"></span><span class="dot" data-index="2"></span></div></div></section>
+
+    <section class="cta-section"><div class="container"><div class="cta-content"><h2>Ready to build your dream website?</h2><p>Start your free 14-day trial today. No credit card required.</p><a href="login.html?mode=register" class="btn-primary btn-large">Get Started Free</a></div></div></section>
+
+    <footer class="footer"><div class="container"><div class="footer-grid"><div class="footer-brand"><a href="#" class="logo"><span class="logo-icon">&#9670;</span>Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="https://x.com/nexlancedigital" aria-label="Twitter">X</a><a href="https://www.linkedin.com/in/nexlance-digital-8175293b1" aria-label="LinkedIn">in</a></div></div><div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div><div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div><div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div><div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div></div><div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><p>Location: 82a James Carter Road, Mildenhall, United Kingdom, IP28 7DE</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div></div></footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">&uarr;</button>
+
+    <div class="video-modal-overlay" id="videoModalOverlay" role="dialog" aria-modal="true" aria-label="Demo video"><div class="video-modal" id="videoModal"><button class="video-modal-close" id="videoModalClose" aria-label="Close video">&times;</button><iframe id="demoVideoFrame" src="" data-src="images/demo.mp4" title="Nexlance Demo Video" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div></div>
+
+    <script src="supabase-config.js"></script>
+    <script src="template-registry.js"></script>
+    <script src="payment.js"></script>
+    <script src="template-access.js"></script>
+    <script src="main.js"></script>
+    <script>
+        const overlay = document.getElementById('videoModalOverlay');
+        const closeBtn = document.getElementById('videoModalClose');
+        const frame = document.getElementById('demoVideoFrame');
+        const openBtn = document.getElementById('watchDemoBtn');
+        function openModal() { frame.src = frame.dataset.src; overlay.classList.add('open'); document.body.style.overflow = 'hidden'; }
+        function closeModal() { overlay.classList.remove('open'); frame.src = ''; document.body.style.overflow = ''; }
+        if (openBtn) openBtn.addEventListener('click', openModal);
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal(); });
+    </script>
+</body>
+
+</html>

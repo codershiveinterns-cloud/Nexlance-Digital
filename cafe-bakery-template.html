@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cafe & Bakery Template</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="cafe-bakery-template.css">
+</head>
+<body>
+    <header class="cb-header">
+        <div class="cb-brand">Golden Crumb</div>
+        <nav class="cb-nav">
+            <a href="#menu">Menu</a>
+            <a href="#fresh">Fresh Daily</a>
+            <a href="#space">Our Space</a>
+            <a href="#contact">Visit</a>
+        </nav>
+        <a class="cb-cta" href="#contact">Order for Pickup</a>
+    </header>
+
+    <main>
+        <section class="cb-hero">
+            <div class="cb-copy">
+                <p class="cb-kicker">Cafe & Bakery Template</p>
+                <h1>Warm mornings, artisan bakes, and coffee worth staying for.</h1>
+                <p class="cb-text">A polished cafe and bakery website template built for neighborhood brands, boutique coffee shops, and food businesses that want a strong, welcoming online presence.</p>
+                <div class="cb-actions">
+                    <a class="cb-btn cb-primary" href="#menu">View Menu</a>
+                    <a class="cb-btn cb-secondary" href="#space">See the Space</a>
+                </div>
+                <div class="cb-metrics">
+                    <div>
+                        <strong class="counter" data-target="28">0</strong>
+                        <span>Seasonal pastries</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="7">0</strong>
+                        <span>Days freshly baked</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="430">0</strong>
+                        <span>Weekly regular guests</span>
+                    </div>
+                </div>
+            </div>
+            <div class="cb-visual">
+                <img src="images/cafe.webp" alt="Cafe and bakery interior">
+                <div class="cb-floating">
+                    <span>House favorite</span>
+                    <strong>Honey Almond Croissant</strong>
+                    <p>Flaky layers, toasted almond glaze, and morning-roasted espresso on the side.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="cb-section" id="menu">
+            <div class="cb-heading">
+                <p class="cb-kicker">Signature Menu</p>
+                <h2>Design a food website that feels inviting at first glance.</h2>
+            </div>
+            <div class="menu-grid">
+                <article class="menu-card reveal">
+                    <h3>Pastries</h3>
+                    <p>Viennoiserie, tarts, danishes, and baked treats presented in a clean, appetizing layout.</p>
+                </article>
+                <article class="menu-card reveal">
+                    <h3>Specialty Coffee</h3>
+                    <p>Highlight espresso drinks, signature blends, and seasonal beverages with pricing space.</p>
+                </article>
+                <article class="menu-card reveal">
+                    <h3>Brunch Plates</h3>
+                    <p>Feature all-day favorites, bakery breakfasts, and sharing boards for dine-in guests.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="cb-section split-layout" id="fresh">
+            <div class="fresh-panel reveal">
+                <p class="cb-kicker">Fresh Daily</p>
+                <h2>Show quality, ingredients, and bakery personality.</h2>
+                <p>This section is ideal for telling the story behind your ingredients, baking process, seasonal menu, or cafe philosophy.</p>
+                <ul>
+                    <li>Locally roasted coffee beans</li>
+                    <li>Morning-baked breads and pastries</li>
+                    <li>Seasonal specials and custom cake orders</li>
+                </ul>
+            </div>
+            <div class="hours-panel reveal">
+                <div class="hours-row">
+                    <span>Weekdays</span>
+                    <strong>7:00 AM - 8:00 PM</strong>
+                </div>
+                <div class="hours-row">
+                    <span>Weekends</span>
+                    <strong>8:00 AM - 9:00 PM</strong>
+                </div>
+                <div class="hours-row">
+                    <span>Custom orders</span>
+                    <strong>48-hour notice</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="cb-section" id="space">
+            <div class="cb-heading">
+                <p class="cb-kicker">Atmosphere</p>
+                <h2>Make the space feel memorable before guests even arrive.</h2>
+            </div>
+            <div class="space-grid">
+                <article class="space-card reveal">
+                    <span>01</span>
+                    <h3>Cozy Corner Seating</h3>
+                    <p>Use this area for interior highlights, seating style, and cafe mood.</p>
+                </article>
+                <article class="space-card reveal">
+                    <span>02</span>
+                    <h3>Weekend Bakery Counter</h3>
+                    <p>Feature best-sellers, display moments, or signature in-store experiences.</p>
+                </article>
+                <article class="space-card reveal">
+                    <span>03</span>
+                    <h3>Community Events</h3>
+                    <p>Promote workshops, live music, or neighborhood gatherings with clean CTA support.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="cb-section testimonial-wrap">
+            <div class="testimonial-panel reveal">
+                <p class="quote">"This template already feels like a premium cafe brand. It is warm, editorial, and ready for real customers."</p>
+                <div class="quote-meta">
+                    <strong>Sophie Lane</strong>
+                    <span>Hospitality Brand Strategist</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="cb-section contact-wrap" id="contact">
+            <div class="contact-panel">
+                <div>
+                    <p class="cb-kicker">Visit or Order</p>
+                    <h2>End with a direct and easy action.</h2>
+                    <p>This section is ready for pre-orders, reservations, catering requests, or store visit details without changing the original website platform.</p>
+                </div>
+                <form class="cb-form">
+                    <input type="text" placeholder="Your name">
+                    <input type="email" placeholder="Email address">
+                    <input type="text" placeholder="Pickup date or occasion">
+                    <textarea rows="4" placeholder="Tell us what you would like to order or book"></textarea>
+                    <button type="button" id="cbFormButton">Send Request</button>
+                    <p id="cbFormMessage"></p>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="cafe-bakery-template.js"></script>
+    <script src="template-edit.js"></script>
+</body>
+</html>

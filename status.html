@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Status — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ---- Status Hero ---- */
+        .status-hero { padding:140px 0 50px; text-align:center; background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 50%,#f0fdf4 100%); position:relative; overflow:hidden; }
+        .status-hero.degraded { background:linear-gradient(135deg,#fffbeb 0%,#fef3c7 50%,#fffbeb 100%); }
+        .status-hero.incident { background:linear-gradient(135deg,#fff1f2 0%,#ffe4e6 50%,#fff1f2 100%); }
+        .status-hero::before { content:''; position:absolute; width:400px; height:400px; border-radius:50%; background:rgba(16,185,129,.07); top:-100px; right:-100px; }
+        .status-hero .container { position:relative; z-index:1; }
+        .status-badge { display:inline-flex; align-items:center; gap:.6rem; background:#fff; border:1.5px solid #bbf7d0; border-radius:var(--radius-full); padding:.6rem 1.25rem; margin-bottom:1.5rem; font-weight:700; font-size:var(--font-size-sm); color:#059669; box-shadow:0 4px 12px rgba(16,185,129,.15); }
+        .status-dot { width:10px; height:10px; border-radius:50%; background:#10b981; animation:pulse-green 2s infinite; flex-shrink:0; }
+        @keyframes pulse-green { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.4);} 50%{box-shadow:0 0 0 6px rgba(16,185,129,0);} }
+        .status-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+        .status-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:540px; margin:0 auto; }
+        .last-updated { font-size:var(--font-size-sm); color:var(--color-text-lighter); margin-top:1rem; }
+
+        /* Metrics bar */
+        .metrics-bar { display:flex; justify-content:center; gap:4rem; padding:2.5rem 0; background:var(--color-bg-alt); border-bottom:1px solid var(--color-border); }
+        .metric { text-align:center; }
+        .metric strong { display:block; font-size:var(--font-size-2xl); font-weight:800; color:var(--color-text); }
+        .metric span { font-size:var(--font-size-sm); color:var(--color-text-light); }
+        .metric .up { color:#10b981; }
+        .metric .warn { color:#f59e0b; }
+
+        /* Services */
+        .status-section { padding:60px 0; }
+        .status-group { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); margin-bottom:2rem; overflow:hidden; }
+        .status-group-header { padding:1.25rem 1.75rem; background:var(--color-bg-alt); border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between; }
+        .status-group-title { font-size:var(--font-size-base); font-weight:700; color:var(--color-text); }
+        .group-status { font-size:var(--font-size-sm); font-weight:600; color:#10b981; display:flex; align-items:center; gap:.4rem; }
+        .group-status::before { content:''; width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block; }
+        .group-status.warn { color:#f59e0b; }
+        .group-status.warn::before { background:#f59e0b; }
+        .group-status.down { color:#ef4444; }
+        .group-status.down::before { background:#ef4444; }
+
+        .service-row { display:flex; align-items:center; padding:1.1rem 1.75rem; border-bottom:1px solid var(--color-border); gap:1rem; }
+        .service-row:last-child { border-bottom:none; }
+        .service-name { flex:1; }
+        .service-name strong { display:block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-text); }
+        .service-name span { font-size:var(--font-size-xs); color:var(--color-text-light); }
+        .uptime-bars { display:flex; gap:2px; align-items:flex-end; }
+        .uptime-bar { width:6px; height:20px; border-radius:2px; background:#10b981; }
+        .uptime-bar.degraded { background:#f59e0b; height:12px; }
+        .uptime-bar.down { background:#ef4444; height:8px; }
+        .uptime-bar.empty { background:var(--color-border); }
+        .uptime-pct { font-size:var(--font-size-sm); font-weight:700; color:#10b981; min-width:52px; text-align:right; }
+        .uptime-pct.warn { color:#f59e0b; }
+        .service-indicator { width:10px; height:10px; border-radius:50%; background:#10b981; flex-shrink:0; }
+        .service-indicator.operational { background:#10b981; }
+        .service-indicator.degraded { background:#f59e0b; }
+        .service-indicator.outage { background:#ef4444; }
+        .service-status-label { font-size:var(--font-size-xs); font-weight:600; color:#10b981; min-width:100px; text-align:right; }
+        .service-status-label.warn { color:#f59e0b; }
+        .service-status-label.down { color:#ef4444; }
+
+        /* 90-day uptime */
+        .uptime-90 { display:flex; gap:2px; align-items:center; flex:1; max-width:320px; }
+        .uptime-day { flex:1; height:28px; border-radius:3px; background:#10b981; cursor:pointer; transition:opacity .15s; }
+        .uptime-day:hover { opacity:.75; }
+        .uptime-day.incident { background:#f59e0b; }
+        .uptime-day.outage { background:#ef4444; }
+        .uptime-day.empty { background:var(--color-border); }
+        .uptime-range { display:flex; justify-content:space-between; font-size:var(--font-size-xs); color:var(--color-text-lighter); margin-top:.25rem; }
+
+        /* Incidents */
+        .incidents-section { padding:0 0 60px; }
+        .incident-card { border:1px solid var(--color-border); border-radius:var(--radius-xl); overflow:hidden; margin-bottom:1.5rem; }
+        .incident-header { padding:1.25rem 1.75rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; background:var(--color-bg-alt); border-bottom:1px solid var(--color-border); }
+        .incident-title { font-size:var(--font-size-base); font-weight:700; color:var(--color-text); }
+        .incident-tag { font-size:var(--font-size-xs); font-weight:700; padding:.3rem .75rem; border-radius:var(--radius-full); }
+        .tag-resolved { background:#dcfce7; color:#059669; }
+        .tag-monitoring { background:#fef3c7; color:#d97706; }
+        .tag-investigating { background:#fee2e2; color:#dc2626; }
+        .incident-timeline { padding:1.5rem 1.75rem; display:flex; flex-direction:column; gap:1.25rem; }
+        .incident-event { display:flex; gap:1.25rem; }
+        .event-dot { width:10px; height:10px; border-radius:50%; background:var(--color-secondary); flex-shrink:0; margin-top:.3rem; }
+        .event-content strong { display:block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-text); margin-bottom:.2rem; }
+        .event-content p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.6; }
+        .event-time { font-size:var(--font-size-xs); color:var(--color-text-lighter); margin-top:.2rem; }
+
+        /* Subscribe */
+        .subscribe-box { background:linear-gradient(135deg,#1e1b4b,#4f46e5); border-radius:var(--radius-2xl); padding:3rem; text-align:center; color:#fff; margin:3rem 0; }
+        .subscribe-box h3 { font-size:var(--font-size-2xl); font-weight:800; margin-bottom:.75rem; }
+        .subscribe-box p { color:rgba(255,255,255,.75); font-size:var(--font-size-base); margin-bottom:2rem; }
+        .subscribe-form { display:flex; gap:0; max-width:440px; margin:0 auto; border-radius:var(--radius-full); overflow:hidden; background:rgba(255,255,255,.1); backdrop-filter:blur(4px); }
+        .subscribe-form input { flex:1; padding:.9rem 1.25rem; background:transparent; border:none; font-family:var(--font-family); font-size:var(--font-size-sm); color:#fff; outline:none; }
+        .subscribe-form input::placeholder { color:rgba(255,255,255,.55); }
+        .subscribe-form button { padding:.9rem 1.5rem; background:#fff; color:var(--color-secondary); border:none; font-weight:700; font-size:var(--font-size-sm); cursor:pointer; transition:all .2s; white-space:nowrap; border-radius:0 var(--radius-full) var(--radius-full) 0; }
+        .subscribe-form button:hover { background:#f0f4ff; }
+
+        /* History chart */
+        .history-section { padding:0 0 80px; }
+        .history-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; }
+        .history-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:1.5rem; }
+        .history-card h4 { font-size:var(--font-size-sm); font-weight:700; color:var(--color-text); margin-bottom:.3rem; }
+        .history-card .big-num { font-size:var(--font-size-3xl); font-weight:800; color:#10b981; }
+        .history-card .big-num.warn { color:#f59e0b; }
+        .history-card span { font-size:var(--font-size-xs); color:var(--color-text-light); }
+
+        @media(max-width:900px){ .history-grid{grid-template-columns:1fr 1fr;} .metrics-bar{flex-wrap:wrap;gap:2rem;} .uptime-90{max-width:200px;} }
+        @media(max-width:640px){ .history-grid{grid-template-columns:1fr;} .service-row{flex-wrap:wrap;} .uptime-90{max-width:100%;} }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar scrolled" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="#">Products <span class="arrow">▾</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                        </div>
+                        <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+                <li class="nav-item"><a href="features.html">Features</a></li>
+                <li class="nav-item"><a href="help-center.html">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="login.html" class="btn-text">Log In</a>
+                <a href="login.html" class="btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="status-hero" id="status-hero">
+        <div class="container">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                All Systems Operational
+            </div>
+            <h1>System Status</h1>
+            <p>Real-time and historical data on Nexlance system performance and availability.</p>
+            <p class="last-updated">Last updated: Feb 26, 2026 at 10:42 AM UTC</p>
+        </div>
+    </section>
+
+    <!-- Metrics Bar -->
+    <div class="metrics-bar">
+        <div class="metric"><strong class="up">99.98%</strong><span>30-Day Uptime</span></div>
+        <div class="metric"><strong>42ms</strong><span>Avg. Response Time</span></div>
+        <div class="metric"><strong>0</strong><span>Active Incidents</span></div>
+        <div class="metric"><strong>2</strong><span>Resolved (30 days)</span></div>
+    </div>
+
+    <!-- Services -->
+    <section class="status-section">
+        <div class="container">
+            <h2 style="font-size:var(--font-size-2xl);font-weight:800;margin-bottom:2rem;">Current Status</h2>
+
+            <!-- Core Platform -->
+            <div class="status-group">
+                <div class="status-group-header">
+                    <span class="status-group-title">Core Platform</span>
+                    <span class="group-status">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Website Builder</strong><span>Drag-and-drop editor, publish, preview</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-builder"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.99%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Dashboard</strong><span>User dashboard and account management</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-dashboard"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">100%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Template Library</strong><span>Browse and apply templates</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-templates"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.97%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Domain Management</strong><span>Custom domains, DNS settings</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-domains"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.95%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+            </div>
+
+            <!-- E-commerce -->
+            <div class="status-group">
+                <div class="status-group-header">
+                    <span class="status-group-title">E-commerce</span>
+                    <span class="group-status">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Online Store</strong><span>Product listings, cart, checkout</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-store"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.98%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Payment Processing</strong><span>Stripe, PayPal, and other gateways</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-payments"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.96%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Inventory Management</strong><span>Stock tracking, product variants</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-inventory"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">100%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+            </div>
+
+            <!-- Infrastructure -->
+            <div class="status-group">
+                <div class="status-group-header">
+                    <span class="status-group-title">Infrastructure</span>
+                    <span class="group-status">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>CDN & Hosting</strong><span>Content delivery across 200+ locations</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-cdn"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.99%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Database</strong><span>Data storage and retrieval</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-db"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.99%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>REST API</strong><span>Public and internal API endpoints</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-api"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.97%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>SSL Certificates</strong><span>HTTPS provisioning for all domains</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-ssl"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">100%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+            </div>
+
+            <!-- Communication -->
+            <div class="status-group">
+                <div class="status-group-header">
+                    <span class="status-group-title">Communication</span>
+                    <span class="group-status">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Email Marketing</strong><span>Campaign sending, automation</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-email"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.93%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Transactional Email</strong><span>Order confirmations, notifications</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-transac"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.98%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+                <div class="service-row">
+                    <span class="service-indicator operational"></span>
+                    <div class="service-name"><strong>Live Chat</strong><span>Customer support chat widget</span></div>
+                    <div>
+                        <div class="uptime-90" id="bars-chat"></div>
+                        <div class="uptime-range"><span>90 days ago</span><span>Today</span></div>
+                    </div>
+                    <span class="uptime-pct">99.91%</span>
+                    <span class="service-status-label">Operational</span>
+                </div>
+            </div>
+
+            <!-- Subscribe -->
+            <div class="subscribe-box">
+                <h3>Get Status Notifications</h3>
+                <p>Subscribe to receive email alerts whenever Nexlance creates, updates, or resolves an incident.</p>
+                <form class="subscribe-form" onsubmit="handleStatusSubscribe(event)">
+                    <input type="email" placeholder="Enter your email address" id="status-email">
+                    <button type="submit">Subscribe</button>
+                </form>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Incident History -->
+    <section class="incidents-section">
+        <div class="container">
+            <h2 style="font-size:var(--font-size-2xl);font-weight:800;margin-bottom:2rem;">Recent Incidents</h2>
+
+            <div class="incident-card">
+                <div class="incident-header">
+                    <span class="incident-title">Email Delivery Delays — Feb 14, 2026</span>
+                    <span class="incident-tag tag-resolved">Resolved</span>
+                </div>
+                <div class="incident-timeline">
+                    <div class="incident-event">
+                        <div class="event-dot"></div>
+                        <div class="event-content">
+                            <strong>Resolved</strong>
+                            <p>Email delivery has fully recovered. All queued messages have been delivered. We apologize for the disruption.</p>
+                            <span class="event-time">Feb 14, 2026 — 3:42 PM UTC</span>
+                        </div>
+                    </div>
+                    <div class="incident-event">
+                        <div class="event-dot"></div>
+                        <div class="event-content">
+                            <strong>Monitoring</strong>
+                            <p>A fix has been implemented. We are monitoring delivery rates to confirm full recovery.</p>
+                            <span class="event-time">Feb 14, 2026 — 2:15 PM UTC</span>
+                        </div>
+                    </div>
+                    <div class="incident-event">
+                        <div class="event-dot"></div>
+                        <div class="event-content">
+                            <strong>Investigating</strong>
+                            <p>We are investigating reports of email delivery delays affecting marketing campaigns. Transactional emails are not impacted.</p>
+                            <span class="event-time">Feb 14, 2026 — 1:08 PM UTC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="incident-card">
+                <div class="incident-header">
+                    <span class="incident-title">Elevated API Latency — Jan 29, 2026</span>
+                    <span class="incident-tag tag-resolved">Resolved</span>
+                </div>
+                <div class="incident-timeline">
+                    <div class="incident-event">
+                        <div class="event-dot"></div>
+                        <div class="event-content">
+                            <strong>Resolved</strong>
+                            <p>API response times have returned to normal levels. Root cause was a misconfigured load balancer rule following a routine deployment.</p>
+                            <span class="event-time">Jan 29, 2026 — 8:55 AM UTC</span>
+                        </div>
+                    </div>
+                    <div class="incident-event">
+                        <div class="event-dot"></div>
+                        <div class="event-content">
+                            <strong>Identified</strong>
+                            <p>We have identified the issue as a load balancer misconfiguration and are rolling back the change.</p>
+                            <span class="event-time">Jan 29, 2026 — 8:22 AM UTC</span>
+                        </div>
+                    </div>
+                    <div class="incident-event">
+                        <div class="event-dot"></div>
+                        <div class="event-content">
+                            <strong>Investigating</strong>
+                            <p>We are aware of elevated response times on our API endpoints. Our engineering team is investigating.</p>
+                            <span class="event-time">Jan 29, 2026 — 7:45 AM UTC</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Uptime History -->
+    <section class="history-section">
+        <div class="container">
+            <h2 style="font-size:var(--font-size-2xl);font-weight:800;margin-bottom:2rem;">Uptime History</h2>
+            <div class="history-grid">
+                <div class="history-card">
+                    <h4>Last 30 Days</h4>
+                    <div class="big-num">99.98%</div>
+                    <span>Overall platform uptime</span>
+                </div>
+                <div class="history-card">
+                    <h4>Last 90 Days</h4>
+                    <div class="big-num">99.96%</div>
+                    <span>Overall platform uptime</span>
+                </div>
+                <div class="history-card">
+                    <h4>Last 365 Days</h4>
+                    <div class="big-num">99.94%</div>
+                    <span>Overall platform uptime</span>
+                </div>
+                <div class="history-card">
+                    <h4>Avg. Response Time</h4>
+                    <div class="big-num" style="color:var(--color-secondary);">42ms</div>
+                    <span>Global average (30 days)</span>
+                </div>
+                <div class="history-card">
+                    <h4>Incidents (30 days)</h4>
+                    <div class="big-num warn">2</div>
+                    <span>All resolved within SLA</span>
+                </div>
+                <div class="history-card">
+                    <h4>MTTR</h4>
+                    <div class="big-num" style="color:var(--color-secondary);">47 min</div>
+                    <span>Mean time to resolution</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">𝕏</a>
+                        <a href="#" aria-label="LinkedIn">in</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                                            </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms &amp; Services</a>
+                    <a href="sitemap.html">Sitemap</a>
+                    <a href="status.html">Status</a>
+                    <a href="security.html">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <script src="main.js"></script>
+    <script>
+        // Build uptime bars for each service
+        function buildBars(id, incidentDays) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            for (let i = 0; i < 90; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'uptime-day';
+                if (incidentDays && incidentDays.includes(i)) bar.className += ' incident';
+                el.appendChild(bar);
+            }
+        }
+        buildBars('bars-builder', [72]);
+        buildBars('bars-dashboard', []);
+        buildBars('bars-templates', [45]);
+        buildBars('bars-domains', [12, 13]);
+        buildBars('bars-store', [72]);
+        buildBars('bars-payments', [11, 12]);
+        buildBars('bars-inventory', []);
+        buildBars('bars-cdn', [72]);
+        buildBars('bars-db', []);
+        buildBars('bars-api', [11, 45]);
+        buildBars('bars-ssl', []);
+        buildBars('bars-email', [12, 72, 73]);
+        buildBars('bars-transac', [12]);
+        buildBars('bars-chat', [45, 72]);
+
+        function handleStatusSubscribe(e) {
+            e.preventDefault();
+            const email = document.getElementById('status-email').value.trim();
+            if (!email || !email.includes('@')) {
+                alert('Please enter a valid email address.');
+                return;
+            }
+            const btn = e.target.querySelector('button');
+            btn.textContent = 'Subscribed!';
+            btn.style.background = '#10b981';
+            btn.style.color = '#fff';
+        }
+    </script>
+</body>
+</html>

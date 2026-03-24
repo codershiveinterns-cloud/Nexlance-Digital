@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Access & Roles — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+/* ---- Role detail modal ---- */
+.role-detail-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; align-items:center; justify-content:center; }
+.role-detail-overlay.active { display:flex; }
+.role-detail-box { background:#fff; border-radius:18px; padding:32px 28px; max-width:480px; width:90%; box-shadow:0 20px 60px rgba(108,92,231,.2); animation:modalIn .2s ease; }
+@keyframes modalIn { from { transform:scale(.94); opacity:0; } to { transform:scale(1); opacity:1; } }
+.role-detail-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.role-detail-header h3 { font-size:1.1rem; color:#333; }
+.role-perm-list { list-style:none; padding:0; display:flex; flex-direction:column; gap:8px; max-height:380px; overflow-y:auto; }
+.role-perm-list li { display:flex; align-items:center; gap:12px; font-size:0.875rem; color:#333; padding:10px 14px; border-radius:10px; background:#f0ecff; border:1px solid #e0d6ff; font-weight:500; transition:transform .15s; }
+.role-perm-list li:hover { transform:translateX(3px); }
+.role-perm-list li .tick { color:#fff; background:#00b894; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:800; flex-shrink:0; }
+.role-detail-empty { text-align:center; padding:24px; color:#aaa; font-size:0.875rem; }
+
+/* ---- Invite / Pending ---- */
+.pending-section { margin-top:28px; }
+.pending-table-wrap { background:#fff; border-radius:14px; border:1px solid #f0ecff; overflow:hidden; }
+.pending-row { display:grid; grid-template-columns:1fr 1fr auto auto auto; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid #f8f5ff; font-size:0.875rem; }
+.pending-row:last-child { border-bottom:none; }
+.pending-header { background:#f8f5ff; font-weight:600; font-size:0.78rem; color:#6c5ce7; text-transform:uppercase; letter-spacing:.5px; }
+.invite-code-chip { font-family:monospace; background:#f0ecff; color:#6c5ce7; padding:3px 10px; border-radius:6px; font-size:0.82rem; letter-spacing:1px; }
+.invite-status-chip { padding:3px 10px; border-radius:20px; font-size:0.78rem; font-weight:600; }
+.invite-status-chip.pending { background:#fff3e0; color:#f39c12; }
+.invite-status-chip.accepted { background:#e0fff0; color:#00b894; }
+
+/* ---- Badge buttons ---- */
+.role-card .badge { cursor:pointer; transition:transform .15s, box-shadow .15s; }
+.role-card .badge:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(108,92,231,.25); }
+
+/* ---- Verify code modal ---- */
+#verifyModal input[type=text] { width:100%; padding:11px 14px; border-radius:10px; border:1.5px solid #e0d6ff; font-size:1rem; letter-spacing:3px; text-align:center; font-family:monospace; margin:14px 0; outline:none; }
+#verifyModal input:focus { border-color:#6c5ce7; box-shadow:0 0 0 3px rgba(108,92,231,.12); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li class="active"><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Access &amp; Roles</h1>
+        <p>Control what each role can see and do</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-primary btn-sm" onclick="openInviteModal()">+ Invite Member</button>
+      </div>
+    </div>
+
+    <!-- Role Overview (badges are now clickable) -->
+    <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;">Role Overview <span style="font-size:0.78rem;font-weight:400;color:#aaa;">— click a badge to view permissions</span></h3>
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="role-icon">👑</div>
+        <h3>Admin</h3>
+        <p>Full access to all features, data, and settings. Can manage team and billing.</p>
+        <div style="margin-top:10px;"><span class="badge badge-red" onclick="showRoleDetail('Admin')">Full Access</span></div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">🗂</div>
+        <h3>Project Manager</h3>
+        <p>Manages projects, tasks, team assignments, and client communication.</p>
+        <div style="margin-top:10px;"><span class="badge badge-blue" onclick="showRoleDetail('Project Manager')">High Access</span></div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">💻</div>
+        <h3>Developer</h3>
+        <p>Works on assigned tasks. Can update task status and upload files.</p>
+        <div style="margin-top:10px;"><span class="badge badge-purple" onclick="showRoleDetail('Developer')">Task Access</span></div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">🎨</div>
+        <h3>Designer</h3>
+        <p>Manages design tasks, uploads assets, and updates design progress.</p>
+        <div style="margin-top:10px;"><span class="badge badge-teal" onclick="showRoleDetail('Designer')">Design Access</span></div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">👤</div>
+        <h3>Client</h3>
+        <p>Limited view of their own project progress and invoice status only.</p>
+        <div style="margin-top:10px;"><span class="badge badge-gray" onclick="showRoleDetail('Client')">Limited</span></div>
+      </div>
+    </div>
+
+    <!-- Permissions Matrix -->
+    <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;margin-top:28px;">Permissions Matrix</h3>
+    <div class="permissions-matrix">
+      <table class="permissions-table">
+        <thead>
+          <tr>
+            <th style="min-width:200px;">Permission</th>
+            <th>👑 Admin</th><th>🗂 PM</th><th>💻 Developer</th><th>🎨 Designer</th><th>👤 Client</th>
+          </tr>
+        </thead>
+        <tbody id="permissionsBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Team Members with Roles -->
+    <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;margin-top:28px;">Team Members &amp; Assigned Roles</h3>
+    <div class="table-card">
+      <div class="table-header">
+        <h3>Current Team</h3>
+        <a href="team.html" class="btn btn-sm btn-secondary">Manage Team →</a>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Member</th><th>Email</th><th>Role</th><th>Edit Tasks</th><th>See Revenue</th><th>Create Invoices</th><th>Upload Files</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="teamRolesBody">
+          <tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">⏳</div><h3>Loading...</h3></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pending Invitations -->
+    <div class="pending-section" id="pendingSection" style="display:none;">
+      <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;">⏳ Pending Invitations</h3>
+      <div class="pending-table-wrap">
+        <div class="pending-row pending-header">
+          <span>Name</span><span>Email</span><span>Role</span><span>Code</span><span>Actions</span>
+        </div>
+        <div id="pendingList"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     EDIT ROLE MODAL
+============================================================ -->
+<div class="modal-overlay" id="editRoleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Permissions — <span id="editRoleName"></span></h2>
+      <button class="modal-close" onclick="closeModal('editRoleModal')">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:10px;">
+      <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+        Role
+        <select id="erRole" style="padding:8px 12px;border-radius:9px;border:1px solid #e0d6ff;font-family:Segoe UI,sans-serif;">
+          <option>Admin</option><option>Project Manager</option>
+          <option>Developer</option><option>Designer</option><option>Client</option>
+        </select>
+      </label>
+      <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+        Can Edit Tasks
+        <label class="toggle"><input type="checkbox" id="erTasks"><span class="toggle-slider"></span></label>
+      </label>
+      <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+        Can See Revenue
+        <label class="toggle"><input type="checkbox" id="erRevenue"><span class="toggle-slider"></span></label>
+      </label>
+      <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+        Can Create Invoices
+        <label class="toggle"><input type="checkbox" id="erInvoice"><span class="toggle-slider"></span></label>
+      </label>
+      <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
+        Can Upload Files
+        <label class="toggle"><input type="checkbox" id="erUpload"><span class="toggle-slider"></span></label>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editRoleModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRole()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ROLE DETAIL MODAL
+============================================================ -->
+<div class="role-detail-overlay" id="roleDetailOverlay">
+  <div class="role-detail-box">
+    <div class="role-detail-header">
+      <h3 id="roleDetailTitle">Role Permissions</h3>
+      <button class="modal-close" onclick="closeModal('roleDetailOverlay')" style="border:none;background:#f0ecff;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+    </div>
+    <p id="roleDetailSubtitle" style="font-size:0.8rem;color:#aaa;margin:-8px 0 14px;"></p>
+    <ul class="role-perm-list" id="rolePermList"></ul>
+    <div style="margin-top:18px;text-align:right;">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('roleDetailOverlay')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     INVITE MEMBER MODAL
+============================================================ -->
+<div class="modal-overlay" id="inviteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Invite Team Member</h2>
+      <button class="modal-close" onclick="closeModal('inviteModal')">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:10px;">
+      <div class="form-group">
+        <label>Full Name *</label>
+        <input type="text" id="invName" placeholder="Rahul Sharma">
+      </div>
+      <div class="form-group">
+        <label>Email Address *</label>
+        <input type="email" id="invEmail" placeholder="rahul@company.com">
+      </div>
+      <div class="form-group">
+        <label>Assign Role</label>
+        <select id="invRole" style="padding:10px 12px;border-radius:9px;border:1px solid #e0d6ff;font-family:Segoe UI,sans-serif;font-size:0.875rem;width:100%;">
+          <option>Admin</option><option selected>Developer</option>
+          <option>Project Manager</option><option>Designer</option><option>Client</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('inviteModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="sendInvite()">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     INVITE SENT MODAL (shows confirmation code)
+============================================================ -->
+<div class="modal-overlay" id="inviteSentModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>✅ Invite Sent!</h2>
+      <button class="modal-close" onclick="closeModal('inviteSentModal')">✕</button>
+    </div>
+    <div style="text-align:center;padding:10px 0 20px;">
+      <p style="color:#555;font-size:0.9rem;margin-bottom:18px;">Share this <strong>6-digit confirmation code</strong> with <span id="invitedName" style="color:#6c5ce7;font-weight:600;"></span>.</p>
+      <div style="font-size:2.4rem;font-weight:800;letter-spacing:10px;color:#6c5ce7;font-family:monospace;background:#f0ecff;padding:16px 24px;border-radius:14px;display:inline-block;" id="displayCode">------</div>
+      <p style="color:#aaa;font-size:0.8rem;margin-top:14px;">The member must enter this code on the Access & Roles page to activate their account.</p>
+      <div style="margin-top:16px;">
+        <a id="mailtoLink" href="#" class="btn btn-secondary btn-sm" style="margin-right:8px;">📧 Open Email</a>
+        <button class="btn btn-sm" style="background:#e0d6ff;color:#6c5ce7;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;" onclick="copyCode()">📋 Copy Code</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('inviteSentModal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VERIFY CODE MODAL
+============================================================ -->
+<div class="modal-overlay" id="verifyModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <h2>🔑 Enter Confirmation Code</h2>
+      <button class="modal-close" onclick="closeModal('verifyModal')">✕</button>
+    </div>
+    <p style="font-size:0.875rem;color:#555;">Enter the 6-digit code sent to <strong id="verifyEmail"></strong> to activate this member.</p>
+    <input type="text" id="verifyCodeInput" maxlength="6" placeholder="e.g. 482917" oninput="this.value=this.value.replace(/\D/g,'')">
+    <div id="verifyError" style="color:#d63031;font-size:0.82rem;min-height:20px;text-align:center;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('verifyModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="verifyCode()">Activate Member</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+let members = [];
+let editingMemberId = null;
+let verifyingInviteId = null;
+let lastGeneratedCode = '';
+
+/* ============================================================
+   PERMISSIONS DATA
+============================================================ */
+const permissions = [
+  { key:'view_dashboard',   label:'📊 View Dashboard',        roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:false}},
+  { key:'view_clients',     label:'👥 View Clients',           roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
+  { key:'edit_clients',     label:'✏️ Edit Client Info',       roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
+  { key:'view_projects',    label:'📁 View All Projects',      roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:true}},
+  { key:'manage_projects',  label:'⚙️ Manage Projects',        roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
+  { key:'edit_tasks',       label:'✅ Edit Tasks',              roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:false}},
+  { key:'delete_tasks',     label:'🗑 Delete Tasks',            roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
+  { key:'see_revenue',      label:'💰 View Revenue Data',      roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
+  { key:'create_invoices',  label:'🧾 Create Invoices',        roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
+  { key:'manage_invoices',  label:'💳 Manage Payments',        roles:{Admin:true, 'Project Manager':false,Developer:false,Designer:false,Client:false}},
+  { key:'upload_files',     label:'📤 Upload Files',           roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:false}},
+  { key:'manage_team',      label:'👥 Manage Team Members',    roles:{Admin:true, 'Project Manager':false,Developer:false,Designer:false,Client:false}},
+  { key:'system_settings',  label:'⚙️ System Settings',        roles:{Admin:true, 'Project Manager':false,Developer:false,Designer:false,Client:false}},
+];
+const roleOrder = ['Admin','Project Manager','Developer','Designer','Client'];
+
+/* ============================================================
+   ROLE DETAIL MODAL
+============================================================ */
+const roleIcons = { Admin:'👑', 'Project Manager':'🗂', Developer:'💻', Designer:'🎨', Client:'👤' };
+const roleBadgeLabel = { Admin:'Full Access', 'Project Manager':'High Access', Developer:'Task Access', Designer:'Design Access', Client:'Limited' };
+
+function showRoleDetail(role) {
+  const badgeColors = { Admin:'#d63031', 'Project Manager':'#0984e3', Developer:'#6c5ce7', Designer:'#00b894', Client:'#888' };
+  document.getElementById('roleDetailTitle').innerHTML =
+    `${roleIcons[role]||''} ${role}
+     <span style="font-size:0.78rem;font-weight:600;background:${badgeColors[role]||'#888'};color:#fff;padding:2px 10px;border-radius:20px;margin-left:8px;">${roleBadgeLabel[role]||role}</span>`;
+
+  // Only show permissions this role CAN access
+  const accessible = permissions.filter(p => p.roles[role]);
+
+  if (!accessible.length) {
+    document.getElementById('rolePermList').innerHTML =
+      '<li class="role-detail-empty">No permissions assigned to this role.</li>';
+  } else {
+    document.getElementById('rolePermList').innerHTML = accessible.map(p => `
+      <li>
+        <span class="tick">✓</span>
+        <span>${p.label}</span>
+      </li>`).join('');
+  }
+
+  // Update subtitle with count
+  document.getElementById('roleDetailSubtitle').textContent =
+    `${accessible.length} of ${permissions.length} permissions granted`;
+
+  document.getElementById('roleDetailOverlay').classList.add('active');
+}
+
+/* ============================================================
+   PERMISSIONS MATRIX
+============================================================ */
+function renderPermissionsMatrix() {
+  document.getElementById('permissionsBody').innerHTML = permissions.map(p => `
+    <tr>
+      <td>${p.label}</td>
+      ${roleOrder.map(r => `<td>${p.roles[r]
+        ? '<span style="color:#00b894;font-size:1.1rem;">✓</span>'
+        : '<span style="color:#e0d6ff;font-size:1.1rem;">✗</span>'}</td>`).join('')}
+    </tr>`).join('');
+}
+
+/* ============================================================
+   TEAM ROLES TABLE
+============================================================ */
+function renderTeamRoles() {
+  const tbody = document.getElementById('teamRolesBody');
+  if (!members.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">🧑‍💼</div><h3>No team members</h3><p><a href="team.html" style="color:#6c5ce7;">Add team members</a></p></div></td></tr>`;
+    return;
+  }
+  const roleColors = {Admin:'badge-red','Project Manager':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
+  const check = v => v ? '<span style="color:#00b894;">✓</span>' : '<span style="color:#ddd;">✗</span>';
+  tbody.innerHTML = members.map(m => `<tr>
+    <td><strong>${m.name}</strong></td>
+    <td style="color:#888;font-size:0.85rem;">${m.email}</td>
+    <td><span class="badge ${roleColors[m.role]||'badge-gray'}">${m.role}</span></td>
+    <td style="text-align:center;">${check(m.can_edit_tasks)}</td>
+    <td style="text-align:center;">${check(m.can_see_revenue)}</td>
+    <td style="text-align:center;">${check(m.can_create_invoices)}</td>
+    <td style="text-align:center;">${check(m.can_upload_files)}</td>
+    <td><button class="action-btn action-edit" onclick="openEditRole('${m.id}')" title="Edit role">✏️</button></td>
+  </tr>`).join('');
+}
+
+/* ============================================================
+   EDIT ROLE MODAL
+============================================================ */
+function openEditRole(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  editingMemberId = id;
+  document.getElementById('editRoleName').textContent = m.name;
+  document.getElementById('erRole').value = m.role;
+  document.getElementById('erTasks').checked = m.can_edit_tasks;
+  document.getElementById('erRevenue').checked = m.can_see_revenue;
+  document.getElementById('erInvoice').checked = m.can_create_invoices;
+  document.getElementById('erUpload').checked = m.can_upload_files;
+  document.getElementById('editRoleModal').classList.add('active');
+}
+
+async function saveRole() {
+  const data = {
+    role: document.getElementById('erRole').value,
+    can_edit_tasks:     document.getElementById('erTasks').checked,
+    can_see_revenue:    document.getElementById('erRevenue').checked,
+    can_create_invoices:document.getElementById('erInvoice').checked,
+    can_upload_files:   document.getElementById('erUpload').checked
+  };
+  try {
+    const upd = await updateTeamMember(editingMemberId, data);
+    const idx = members.findIndex(m => m.id === editingMemberId);
+    if (idx > -1) members[idx] = { ...members[idx], ...upd };
+    closeModal('editRoleModal'); renderTeamRoles();
+    showToast('Permissions updated!', 'success');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// Auto-fill permissions on role select change
+document.getElementById('erRole').addEventListener('change', function() {
+  const presets = {
+    Admin:           {t:true,  r:true,  i:true,  u:true},
+    'Project Manager':{t:true, r:true,  i:true,  u:true},
+    Developer:       {t:true,  r:false, i:false, u:true},
+    Designer:        {t:true,  r:false, i:false, u:true},
+    Client:          {t:false, r:false, i:false, u:false}
+  };
+  const p = presets[this.value] || {};
+  document.getElementById('erTasks').checked   = p.t;
+  document.getElementById('erRevenue').checked = p.r;
+  document.getElementById('erInvoice').checked = p.i;
+  document.getElementById('erUpload').checked  = p.u;
+});
+
+/* ============================================================
+   INVITE SYSTEM (localStorage-based with email code)
+============================================================ */
+function getInvites() {
+  try { return JSON.parse(localStorage.getItem('nexlance_invites') || '[]'); } catch(e) { return []; }
+}
+function saveInvites(arr) {
+  localStorage.setItem('nexlance_invites', JSON.stringify(arr));
+}
+function genCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function openInviteModal() {
+  document.getElementById('invName').value = '';
+  document.getElementById('invEmail').value = '';
+  document.getElementById('invRole').value = 'Developer';
+  document.getElementById('inviteModal').classList.add('active');
+}
+
+function sendInvite() {
+  const name  = document.getElementById('invName').value.trim();
+  const email = document.getElementById('invEmail').value.trim();
+  const role  = document.getElementById('invRole').value;
+  if (!name)  { showToast('Name is required', 'error'); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Enter a valid email', 'error'); return; }
+
+  const invites = getInvites();
+  if (invites.find(i => i.email.toLowerCase() === email.toLowerCase() && i.status === 'pending')) {
+    showToast('An invite is already pending for this email', 'error'); return;
+  }
+
+  const code = genCode();
+  lastGeneratedCode = code;
+  const invite = { id: 'inv_' + Date.now(), name, email, role, code, status: 'pending', created_at: new Date().toISOString() };
+  invites.push(invite);
+  saveInvites(invites);
+
+  closeModal('inviteModal');
+
+  // Show the code to the admin
+  document.getElementById('invitedName').textContent = name;
+  document.getElementById('displayCode').textContent = code;
+  const subject = encodeURIComponent('You have been invited to Nexlance Dashboard');
+  const body    = encodeURIComponent(`Hi ${name},\n\nYou have been invited to join the Nexlance dashboard as a ${role}.\n\nYour confirmation code is: ${code}\n\nPlease visit the Access & Roles page and enter this code to activate your account.\n\nBest regards,\nNexlance Admin`);
+  document.getElementById('mailtoLink').href = `mailto:${email}?subject=${subject}&body=${body}`;
+
+  document.getElementById('inviteSentModal').classList.add('active');
+  renderPendingInvites();
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(lastGeneratedCode).then(() => showToast('Code copied!', 'success'));
+}
+
+/* ============================================================
+   PENDING INVITATIONS TABLE
+============================================================ */
+function renderPendingInvites() {
+  const invites = getInvites().filter(i => i.status === 'pending');
+  const section = document.getElementById('pendingSection');
+  const list    = document.getElementById('pendingList');
+  if (!invites.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  const roleColors = {Admin:'badge-red','Project Manager':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
+  list.innerHTML = invites.map(inv => `
+    <div class="pending-row">
+      <span style="font-weight:600;color:#333;">${inv.name}</span>
+      <span style="color:#888;font-size:0.82rem;">${inv.email}</span>
+      <span><span class="badge ${roleColors[inv.role]||'badge-gray'}" style="font-size:0.75rem;">${inv.role}</span></span>
+      <span><span class="invite-code-chip">${inv.code}</span></span>
+      <span style="display:flex;gap:6px;">
+        <button class="action-btn action-edit" title="Verify code" onclick="openVerify('${inv.id}')">🔑 Verify</button>
+        <button class="action-btn action-delete" title="Cancel invite" onclick="cancelInvite('${inv.id}')">✕</button>
+      </span>
+    </div>`).join('');
+}
+
+function openVerify(inviteId) {
+  verifyingInviteId = inviteId;
+  const inv = getInvites().find(i => i.id === inviteId);
+  if (!inv) return;
+  document.getElementById('verifyEmail').textContent = inv.email;
+  document.getElementById('verifyCodeInput').value = '';
+  document.getElementById('verifyError').textContent = '';
+  document.getElementById('verifyModal').classList.add('active');
+}
+
+async function verifyCode() {
+  const entered = document.getElementById('verifyCodeInput').value.trim();
+  const invites = getInvites();
+  const inv     = invites.find(i => i.id === verifyingInviteId);
+  if (!inv) return;
+
+  if (entered !== inv.code) {
+    document.getElementById('verifyError').textContent = '✗ Incorrect code. Please try again.';
+    return;
+  }
+
+  // Mark invite as accepted
+  inv.status = 'accepted';
+  saveInvites(invites);
+
+  // Add member to team
+  const presets = {
+    Admin:           {t:true,  r:true,  i:true,  u:true},
+    'Project Manager':{t:true, r:true,  i:true,  u:true},
+    Developer:       {t:true,  r:false, i:false, u:true},
+    Designer:        {t:true,  r:false, i:false, u:true},
+    Client:          {t:false, r:false, i:false, u:false}
+  };
+  const p = presets[inv.role] || {};
+  try {
+    const newMember = await addTeamMember({
+      name: inv.name,
+      email: inv.email,
+      role: inv.role,
+      can_edit_tasks:      p.t,
+      can_see_revenue:     p.r,
+      can_create_invoices: p.i,
+      can_upload_files:    p.u
+    });
+    members.push(newMember);
+    closeModal('verifyModal');
+    renderTeamRoles();
+    renderPendingInvites();
+    showToast(`${inv.name} has been added to the team! 🎉`, 'success');
+  } catch(e) { showToast('Error adding member: ' + e.message, 'error'); }
+}
+
+function cancelInvite(inviteId) {
+  if (!confirm('Cancel this invite?')) return;
+  const invites = getInvites().filter(i => i.id !== inviteId);
+  saveInvites(invites);
+  renderPendingInvites();
+  showToast('Invite cancelled.', 'info');
+}
+
+/* ============================================================
+   GENERIC CLOSE MODAL
+============================================================ */
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+/* ============================================================
+   BACKDROP CLICKS
+============================================================ */
+['editRoleModal','inviteModal','inviteSentModal','verifyModal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) { if(e.target===this) closeModal(id); });
+});
+document.getElementById('roleDetailOverlay').addEventListener('click', function(e) {
+  if(e.target===this) closeModal('roleDetailOverlay');
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+async function init() {
+  members = await fetchTeamMembers();
+  renderPermissionsMatrix();
+  renderTeamRoles();
+  renderPendingInvites();
+}
+init();
+</script>
+</body>
+</html>

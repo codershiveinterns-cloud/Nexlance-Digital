@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Profile — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li class="active"><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search...">
+      <div class="profile">Account</div>
+    </div>
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a href="clients.html">Clients</a>
+      <span>›</span>
+      <span id="bcName">Loading...</span>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1 id="clientName">Loading...</h1>
+        <p id="clientCompany" style="color:#888;"></p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-secondary" onclick="history.back()">← Back</button>
+        <button class="btn btn-primary" onclick="openEditModal()">✏️ Edit Client</button>
+      </div>
+    </div>
+
+    <!-- Top Stats -->
+    <div class="stats-grid" id="clientStats" style="grid-template-columns:repeat(4,1fr);">
+      <div class="stat-card"><div class="stat-label">Contract Value</div><div class="stat-value" id="sContract">—</div></div>
+      <div class="stat-card green"><div class="stat-label">Paid Amount</div><div class="stat-value" id="sPaid">—</div></div>
+      <div class="stat-card orange"><div class="stat-label">Pending Amount</div><div class="stat-value" id="sPending">—</div></div>
+      <div class="stat-card blue"><div class="stat-label">Total Projects</div><div class="stat-value" id="sProjects">—</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this,'overview')">Overview</div>
+      <div class="tab" onclick="switchTab(this,'projects')">Projects</div>
+      <div class="tab" onclick="switchTab(this,'invoices')">Invoice History</div>
+    </div>
+
+    <!-- OVERVIEW TAB -->
+    <div class="tab-content active" id="tab-overview">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;">
+
+        <!-- Basic Info -->
+        <div class="white-card">
+          <h3>📝 Basic Information</h3>
+          <div class="info-grid">
+            <div class="info-item"><div class="info-label">Full Name</div><div class="info-value" id="iName">—</div></div>
+            <div class="info-item"><div class="info-label">Email</div><div class="info-value" id="iEmail">—</div></div>
+            <div class="info-item"><div class="info-label">Phone</div><div class="info-value" id="iPhone">—</div></div>
+            <div class="info-item"><div class="info-label">Company</div><div class="info-value" id="iCompany">—</div></div>
+            <div class="info-item"><div class="info-label">Domain Name</div><div class="info-value" id="iDomain">—</div></div>
+            <div class="info-item"><div class="info-label">Hosting Provider</div><div class="info-value" id="iHostingProvider">—</div></div>
+          </div>
+        </div>
+
+        <!-- Website Details -->
+        <div class="white-card">
+          <h3>🌐 Website Details</h3>
+          <div class="info-grid">
+            <div class="info-item"><div class="info-label">Project Type</div><div class="info-value" id="iProjectType">—</div></div>
+            <div class="info-item"><div class="info-label">Platform</div><div class="info-value" id="iPlatform">—</div></div>
+            <div class="info-item"><div class="info-label">Hosting Expiry</div><div class="info-value" id="iHostingExpiry">—</div></div>
+            <div class="info-item"><div class="info-label">SSL Expiry</div><div class="info-value" id="iSslExpiry">—</div></div>
+            <div class="info-item"><div class="info-label">Maintenance Plan</div><div class="info-value" id="iMaintenance">—</div></div>
+            <div class="info-item"><div class="info-label">Plan Type</div><div class="info-value" id="iPlanType">—</div></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Billing Section -->
+      <div class="white-card">
+        <h3>💰 Billing Overview</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;">
+          <div style="text-align:center;padding:18px;background:#f9f7ff;border-radius:12px;">
+            <div style="font-size:0.78rem;color:#aaa;margin-bottom:6px;">TOTAL CONTRACT</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#4b3fbf;" id="bContract">—</div>
+          </div>
+          <div style="text-align:center;padding:18px;background:#e0fff0;border-radius:12px;">
+            <div style="font-size:0.78rem;color:#aaa;margin-bottom:6px;">PAID</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#00b894;" id="bPaid">—</div>
+          </div>
+          <div style="text-align:center;padding:18px;background:#fff4d6;border-radius:12px;">
+            <div style="font-size:0.78rem;color:#aaa;margin-bottom:6px;">PENDING</div>
+            <div style="font-size:1.5rem;font-weight:700;color:#e17055;" id="bPending">—</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <div style="font-size:0.8rem;color:#aaa;margin-bottom:6px;">Payment Progress</div>
+          <div class="progress-bar" style="height:12px;">
+            <div class="progress-fill" id="paymentProgress" style="width:0%"></div>
+          </div>
+          <div class="progress-text" id="paymentPercent">0% paid</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROJECTS TAB -->
+    <div class="tab-content" id="tab-projects">
+      <div class="table-card">
+        <div class="table-header">
+          <h3>Projects</h3>
+          <a href="projects.html" class="btn btn-sm btn-primary">+ New Project</a>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Project Name</th><th>Status</th><th>Start Date</th><th>Deadline</th><th>Progress</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="clientProjectsBody">
+            <tr><td colspan="6"><div class="empty-state"><div class="e-icon">📁</div><h3>No projects yet</h3></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INVOICES TAB -->
+    <div class="tab-content" id="tab-invoices">
+      <div class="table-card">
+        <div class="table-header">
+          <h3>Invoice History</h3>
+          <a href="invoice-create.html" class="btn btn-sm btn-primary">+ Create Invoice</a>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Invoice #</th><th>Project</th><th>Amount</th><th>GST</th><th>Total</th><th>Due Date</th><th>Status</th></tr>
+          </thead>
+          <tbody id="clientInvoicesBody">
+            <tr><td colspan="7"><div class="empty-state"><div class="e-icon">🧾</div><h3>No invoices yet</h3></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Edit Modal (simplified) -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>Edit Client</h2>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Full Name *</label><input type="text" id="eName"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="eEmail"></div>
+      <div class="form-group"><label>Phone</label><input type="tel" id="ePhone"></div>
+      <div class="form-group"><label>Company</label><input type="text" id="eCompany"></div>
+      <div class="form-group"><label>Domain Name</label><input type="text" id="eDomain"></div>
+      <div class="form-group"><label>Hosting Provider</label><input type="text" id="eHostingProvider"></div>
+      <div class="form-group"><label>Project Type</label>
+        <select id="eProjectType"><option value="">Select</option><option>Business Website</option><option>Ecommerce Website</option><option>Landing Page</option><option>Website Redesign</option></select>
+      </div>
+      <div class="form-group"><label>Platform</label>
+        <select id="ePlatform"><option value="">Select</option><option>WordPress</option><option>Shopify</option><option>WooCommerce</option><option>Custom</option></select>
+      </div>
+      <div class="form-group"><label>Hosting Expiry</label><input type="date" id="eHostingExpiry"></div>
+      <div class="form-group"><label>SSL Expiry</label><input type="date" id="eSslExpiry"></div>
+      <div class="form-group"><label>Maintenance Plan</label>
+        <select id="eMaintenance"><option>None</option><option>Monthly</option><option>Quarterly</option><option>Annual</option></select>
+      </div>
+      <div class="form-group"><label>Plan Type</label>
+        <select id="ePlanType"><option>Basic</option><option>Premium</option><option>Custom</option></select>
+      </div>
+      <div class="form-group"><label>Total Contract Value (₹)</label><input type="number" id="eContract"></div>
+      <div class="form-group"><label>Paid Amount (₹)</label><input type="number" id="ePaid"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const clientId = params.get('id');
+let client = null;
+
+async function init() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); window.location.href = 'clients.html'; return; }
+  if (!clientId) { window.location.href = 'clients.html'; return; }
+  const clients = await fetchClients();
+  client = clients.find(c => c.id === clientId);
+  if (!client) { window.location.href = 'clients.html'; return; }
+  populatePage();
+  loadProjects();
+  loadInvoices();
+}
+
+function populatePage() {
+  document.title = client.name + ' — Nexlance';
+  document.getElementById('bcName').textContent = client.name;
+  document.getElementById('clientName').textContent = client.name;
+  document.getElementById('clientCompany').textContent = client.company || '';
+
+  const balance = (client.total_contract_value || 0) - (client.paid_amount || 0);
+  document.getElementById('sContract').textContent = formatCurrency(client.total_contract_value || 0);
+  document.getElementById('sPaid').textContent = formatCurrency(client.paid_amount || 0);
+  document.getElementById('sPending').textContent = formatCurrency(balance);
+
+  // Basic info
+  document.getElementById('iName').textContent = client.name;
+  document.getElementById('iEmail').textContent = client.email || '—';
+  document.getElementById('iPhone').textContent = client.phone || '—';
+  document.getElementById('iCompany').textContent = client.company || '—';
+  document.getElementById('iDomain').innerHTML = client.domain_name ? `<a href="https://${client.domain_name}" target="_blank" style="color:#6c5ce7;">${client.domain_name} ↗</a>` : '—';
+  document.getElementById('iHostingProvider').textContent = client.hosting_provider || '—';
+
+  // Website details
+  document.getElementById('iProjectType').textContent = client.project_type || '—';
+  document.getElementById('iPlatform').textContent = client.platform || '—';
+
+  const hostExp = client.hosting_expiry ? new Date(client.hosting_expiry) : null;
+  const sslExp = client.ssl_expiry ? new Date(client.ssl_expiry) : null;
+  const today = new Date();
+  const daysToHosting = hostExp ? Math.ceil((hostExp - today) / 86400000) : null;
+  const daysToSsl = sslExp ? Math.ceil((sslExp - today) / 86400000) : null;
+
+  document.getElementById('iHostingExpiry').innerHTML = hostExp
+    ? `${formatDate(client.hosting_expiry)} ${daysToHosting < 30 ? '<span class="badge badge-red">Expiring soon</span>' : ''}`
+    : '—';
+  document.getElementById('iSslExpiry').innerHTML = sslExp
+    ? `${formatDate(client.ssl_expiry)} ${daysToSsl < 30 ? '<span class="badge badge-red">Expiring soon</span>' : ''}`
+    : '—';
+  document.getElementById('iMaintenance').textContent = client.maintenance_plan || '—';
+  document.getElementById('iPlanType').textContent = client.plan_type || '—';
+
+  // Billing
+  document.getElementById('bContract').textContent = formatCurrency(client.total_contract_value || 0);
+  document.getElementById('bPaid').textContent = formatCurrency(client.paid_amount || 0);
+  document.getElementById('bPending').textContent = formatCurrency(balance);
+  const pct = client.total_contract_value > 0 ? Math.round((client.paid_amount / client.total_contract_value) * 100) : 0;
+  document.getElementById('paymentProgress').style.width = pct + '%';
+  document.getElementById('paymentPercent').textContent = pct + '% paid';
+}
+
+async function loadProjects() {
+  const projects = await fetchProjects(clientId);
+  document.getElementById('sProjects').textContent = projects.length;
+  const tbody = document.getElementById('clientProjectsBody');
+  if (!projects.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="e-icon">📁</div><h3>No projects for this client</h3></div></td></tr>`;
+    return;
+  }
+  const statusBadges = { 'Live':'badge-green','Development':'badge-blue','Design':'badge-purple','Testing':'badge-teal','Planning':'badge-gray','On Hold':'badge-orange' };
+  tbody.innerHTML = projects.map(p => `<tr>
+    <td><strong>${p.name}</strong></td>
+    <td><span class="badge ${statusBadges[p.status] || 'badge-gray'}">${p.status}</span></td>
+    <td>${formatDate(p.start_date)}</td>
+    <td>${formatDate(p.deadline)}</td>
+    <td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:${p.progress || 0}%"></div></div><div class="progress-text">${p.progress || 0}%</div></div></td>
+    <td><a href="project-detail.html?id=${p.id}" class="action-btn action-view">👁</a></td>
+  </tr>`).join('');
+}
+
+async function loadInvoices() {
+  const all = await fetchInvoices();
+  const invoices = all.filter(i => i.client_id === clientId);
+  const tbody = document.getElementById('clientInvoicesBody');
+  if (!invoices.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">🧾</div><h3>No invoices yet</h3></div></td></tr>`;
+    return;
+  }
+  const statusBadges = { 'paid':'badge-green','pending':'badge-orange','overdue':'badge-red','recurring':'badge-blue' };
+  tbody.innerHTML = invoices.map(i => `<tr>
+    <td><strong>${i.invoice_number || '—'}</strong></td>
+    <td>${i.project_name || '—'}</td>
+    <td>${formatCurrency(i.amount)}</td>
+    <td>${i.gst_percent || 18}%</td>
+    <td><strong style="color:#4b3fbf;">${formatCurrency(i.total_amount)}</strong></td>
+    <td>${formatDate(i.due_date)}</td>
+    <td><span class="badge ${statusBadges[i.status] || 'badge-gray'}">${i.status}</span></td>
+  </tr>`).join('');
+}
+
+function switchTab(el, name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function openEditModal() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  if (!client) return;
+  ['eName','eEmail','ePhone','eCompany','eDomain','eHostingProvider','eProjectType','ePlatform','eHostingExpiry','eSslExpiry','eMaintenance','ePlanType'].forEach(id => {
+    const map = { eName:'name',eEmail:'email',ePhone:'phone',eCompany:'company',eDomain:'domain_name',eHostingProvider:'hosting_provider',eProjectType:'project_type',ePlatform:'platform',eHostingExpiry:'hosting_expiry',eSslExpiry:'ssl_expiry',eMaintenance:'maintenance_plan',ePlanType:'plan_type' };
+    document.getElementById(id).value = client[map[id]] || '';
+  });
+  document.getElementById('eContract').value = client.total_contract_value || '';
+  document.getElementById('ePaid').value = client.paid_amount || '';
+  document.getElementById('editModal').classList.add('active');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+
+async function saveEdit() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  const data = {
+    name: document.getElementById('eName').value.trim(),
+    email: document.getElementById('eEmail').value.trim(),
+    phone: document.getElementById('ePhone').value.trim(),
+    company: document.getElementById('eCompany').value.trim(),
+    domain_name: document.getElementById('eDomain').value.trim(),
+    hosting_provider: document.getElementById('eHostingProvider').value.trim(),
+    project_type: document.getElementById('eProjectType').value,
+    platform: document.getElementById('ePlatform').value,
+    hosting_expiry: document.getElementById('eHostingExpiry').value || null,
+    ssl_expiry: document.getElementById('eSslExpiry').value || null,
+    maintenance_plan: document.getElementById('eMaintenance').value,
+    plan_type: document.getElementById('ePlanType').value,
+    total_contract_value: Number(document.getElementById('eContract').value) || 0,
+    paid_amount: Number(document.getElementById('ePaid').value) || 0
+  };
+  if (!data.name) { showToast('Name is required', 'error'); return; }
+  try {
+    client = await updateClient(clientId, data);
+    closeEditModal(); populatePage();
+    showToast('Client updated!', 'success');
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+document.getElementById('editModal').addEventListener('click', function(e){ if(e.target===this) closeEditModal(); });
+
+init();
+</script>
+</body>
+</html>

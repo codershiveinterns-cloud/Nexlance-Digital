@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Press & Media — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ---- Page Hero ---- */
+        .page-hero {
+            padding: 160px 0 80px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .page-hero::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.08);
+            top: -150px; right: -150px;
+        }
+        .page-hero::after {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            border-radius: 50%;
+            background: rgba(124, 58, 237, 0.08);
+            bottom: -100px; left: -100px;
+        }
+        .page-hero .container { position: relative; z-index: 1; }
+        .page-hero-label {
+            display: inline-block;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--color-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+        .page-hero h1 {
+            font-size: var(--font-size-5xl);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+        }
+        .page-hero p {
+            font-size: var(--font-size-lg);
+            color: var(--color-text-light);
+            max-width: 640px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ---- Media logos ---- */
+        .media-logos {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        .media-logo-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem 2rem;
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            color: var(--color-text-lighter);
+            transition: all var(--transition-fast);
+        }
+        .media-logo-card:hover {
+            color: var(--color-secondary);
+            border-color: var(--color-secondary);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* ---- Press releases ---- */
+        .press-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+        .press-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            transition: all var(--transition-base);
+        }
+        .press-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+        .press-card-img {
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+        }
+        .press-card-body { padding: 1.5rem; }
+        .press-date {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-lighter);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.5rem;
+        }
+        .press-card-body h3 {
+            font-size: var(--font-size-base);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            line-height: 1.4;
+        }
+        .press-card-body p {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+            line-height: 1.6;
+            margin-bottom: 1.25rem;
+        }
+        .press-link {
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--color-secondary);
+        }
+        .press-link:hover { color: var(--color-accent); }
+
+        /* ---- In the news ---- */
+        .news-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+        }
+        .news-item {
+            background: #fff;
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            transition: background var(--transition-fast);
+        }
+        .news-item:hover { background: var(--color-bg-alt); }
+        .news-outlet {
+            flex-shrink: 0;
+            width: 140px;
+            font-size: var(--font-size-base);
+            font-weight: 700;
+            color: var(--color-text-lighter);
+        }
+        .news-content { flex: 1; }
+        .news-content h4 {
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .news-content p {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-light);
+        }
+        .news-date {
+            flex-shrink: 0;
+            font-size: var(--font-size-sm);
+            color: var(--color-text-lighter);
+        }
+
+        /* ---- Stats ---- */
+        .press-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        .press-stat {
+            text-align: center;
+            background: #fff;
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .press-stat-num {
+            font-size: 2.75rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--color-secondary), var(--color-accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+        .press-stat-label { font-size: var(--font-size-sm); color: var(--color-text-light); }
+
+        /* ---- Press kit ---- */
+        .press-kit-card {
+            background: linear-gradient(135deg, #1e1b4b, #4f46e5);
+            border-radius: var(--radius-2xl);
+            padding: 3rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            color: #fff;
+        }
+        .kit-icon { font-size: 5rem; flex-shrink: 0; }
+        .kit-content h2 { font-size: var(--font-size-3xl); font-weight: 800; margin-bottom: 1rem; }
+        .kit-content p { font-size: var(--font-size-base); opacity: 0.85; margin-bottom: 1.5rem; line-height: 1.7; }
+        .kit-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .btn-kit {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.75rem;
+            border-radius: var(--radius-full);
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            transition: all var(--transition-fast);
+        }
+        .btn-kit-white { background: #fff; color: #1e1b4b; }
+        .btn-kit-white:hover { background: #e0e7ff; }
+        .btn-kit-outline { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.4); }
+        .btn-kit-outline:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
+
+        /* ---- Media contact ---- */
+        .contact-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: start;
+        }
+        .contact-info-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+        }
+        .contact-info-card h3 { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: 0.5rem; }
+        .contact-info-card p { font-size: var(--font-size-sm); color: var(--color-text-light); margin-bottom: 1.5rem; line-height: 1.6; }
+        .contact-detail {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .contact-detail-icon {
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            background: rgba(79, 70, 229, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        .contact-detail-text strong { display: block; font-size: var(--font-size-sm); font-weight: 600; }
+        .contact-detail-text span { font-size: var(--font-size-sm); color: var(--color-secondary); }
+        .press-form { background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 2rem; }
+        .press-form h3 { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: 0.5rem; }
+        .press-form p { font-size: var(--font-size-sm); color: var(--color-text-light); margin-bottom: 1.5rem; }
+        .form-field { margin-bottom: 1rem; }
+        .form-field label { display: block; font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text); margin-bottom: 0.4rem; }
+        .form-field input, .form-field select, .form-field textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1.5px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-family: var(--font-family);
+            font-size: var(--font-size-sm);
+            color: var(--color-text);
+            background: var(--color-bg-alt);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+            outline: none;
+        }
+        .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+            border-color: var(--color-secondary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+            background: #fff;
+        }
+        .form-field textarea { resize: vertical; min-height: 100px; }
+        .form-submit { width: 100%; padding: 0.875rem; font-size: var(--font-size-base); font-weight: 600; }
+        .form-success { display: none; text-align: center; padding: 2rem; color: var(--color-success); font-weight: 600; }
+
+        @media (max-width: 1024px) {
+            .press-grid { grid-template-columns: repeat(2, 1fr); }
+            .press-stats { grid-template-columns: repeat(2, 1fr); }
+            .press-kit-card { flex-direction: column; gap: 1.5rem; }
+            .contact-split { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .page-hero h1 { font-size: var(--font-size-4xl); }
+            .press-grid { grid-template-columns: 1fr; }
+            .news-item { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+            .news-outlet { width: auto; }
+        }
+        @media (max-width: 480px) {
+            .press-stats { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">◆</span>
+                Nexlance
+            </a>
+            <ul class="nav-menu" id="nav-menu">
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#products">Products <span class="arrow">▾</span></a>
+                    <div class="dropdown">
+                        <div class="dropdown-grid">
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🌐</span>
+                                <div><h4>Websites</h4><p>Professional site builder</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">🛒</span>
+                                <div><h4>E-commerce</h4><p>Online store solutions</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📧</span>
+                                <div><h4>Email Marketing</h4><p>Campaign tools</p></div>
+                            </a>
+                            <a href="#" class="dropdown-item">
+                                <span class="dropdown-icon">📅</span>
+                                <div><h4>Scheduling</h4><p>Appointment booking</p></div>
+                            </a>
+                        </div>
+                    </div>
+                </li>
+                <li class="nav-item has-dropdown">
+                    <a href="index.html#templates">Templates <span class="arrow">▾</span></a>
+                    <div class="dropdown dropdown-templates">
+                        <div class="dropdown-grid templates-grid">
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Portfolio</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Business</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Blog</span>
+                            </a>
+                            <a href="#" class="template-thumb">
+                                <div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div>
+                                <span>Store</span>
+                            </a>
+                        </div>
+                        <a href="index.html#templates" class="dropdown-view-all">View All Templates →</a>
+                    </div>
+                </li>
+                <li class="nav-item"><a href="index.html#pricing">Pricing</a></li>
+                <li class="nav-item"><a href="index.html#features">Features</a></li>
+                <li class="nav-item"><a href="index.html#resources">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="login.html" class="btn-text">Log In</a>
+                <a href="login.html" class="btn-primary">Get Started</a>
+            </div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Hero -->
+    <section class="page-hero">
+        <div class="container">
+            <span class="page-hero-label">Press & Media</span>
+            <h1>Nexlance in the <span class="gradient-text">news</span></h1>
+            <p>Find our latest press releases, media coverage, company facts, and downloadable assets. For all media inquiries, reach out to our PR team.</p>
+
+            <!-- As seen in -->
+            <div class="media-logos">
+                <div class="media-logo-card">◉ TechCrunch</div>
+                <div class="media-logo-card">◇ Forbes</div>
+                <div class="media-logo-card">○ Wired</div>
+                <div class="media-logo-card">◆ Inc. India</div>
+                <div class="media-logo-card">● YourStory</div>
+                <div class="media-logo-card">◈ Economic Times</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Company in numbers -->
+    <section style="background: #fff;">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">By the Numbers</span>
+                <h2 class="section-title">Nexlance at a glance</h2>
+                <p class="section-subtitle">Key facts and figures for journalists and analysts covering the web creation space.</p>
+            </div>
+            <div class="press-stats">
+                <div class="press-stat">
+                    <div class="press-stat-num">4M+</div>
+                    <div class="press-stat-label">Active Users Worldwide</div>
+                </div>
+                <div class="press-stat">
+                    <div class="press-stat-num">$42M</div>
+                    <div class="press-stat-label">Total Funding Raised</div>
+                </div>
+                <div class="press-stat">
+                    <div class="press-stat-num">180+</div>
+                    <div class="press-stat-label">Countries Served</div>
+                </div>
+                <div class="press-stat">
+                    <div class="press-stat-num">250+</div>
+                    <div class="press-stat-label">Team Members</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Latest Press Releases -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Press Releases</span>
+                <h2 class="section-title">Latest announcements</h2>
+            </div>
+            <div class="press-grid">
+                <div class="press-card">
+                    <div class="press-card-img" style="background: linear-gradient(135deg, #e0e7ff, #c4b5fd);"><img src="images/a1.png" alt="Press Image 1"></div>
+                    <div class="press-card-body">
+                        <div class="press-date">January 15, 2026</div>
+                        <h3>Nexlance raises $28M Series B to accelerate AI-powered web creation</h3>
+                        <p>The round was led by Tiger Global with participation from Sequoia India and Accel Partners, bringing total funding to $42M.</p>
+                        <a href="press-series-b.html" class="press-link">Read full release &rarr;</a>
+                    </div>
+                </div>
+                <div class="press-card">
+                    <div class="press-card-img" style="background: linear-gradient(135deg, #d1fae5, #6ee7b7);"><img src="images/a2.png" alt="Press Image 2"></div>
+                    <div class="press-card-body">
+                        <div class="press-date">November 8, 2025</div>
+                        <h3>Nexlance launches AI Design Assistant — build a complete website in under 5 minutes</h3>
+                        <p>The new AI assistant generates complete, customized websites from a plain-text description. Available on all plans starting today.</p>
+                        <a href="press-ai-design-assistant.html" class="press-link">Read full release &rarr;</a>
+                    </div>
+                </div>
+                <div class="press-card">
+                    <div class="press-card-img" style="background: linear-gradient(135deg, #fef3c7, #fcd34d);"><img src="images/a3.jpg" alt="Press Image 2"></div>
+                    <div class="press-card-body">
+                        <div class="press-date">September 3, 2025</div>
+                        <h3>Nexlance surpasses 4 million active users, announces Southeast Asia expansion</h3>
+                        <p>Company opens offices in Singapore and Kuala Lumpur to support growing demand across the Asia-Pacific region.</p>
+                        <a href="press-sea-expansion.html" class="press-link">Read full release &rarr;</a>
+                    </div>
+                </div>
+                <div class="press-card">
+                    <div class="press-card-img" style="background: linear-gradient(135deg, #fce7f3, #fbcfe8);"><img src="images/a4.png" alt="Press Image 4"></div>
+                    <div class="press-card-body">
+                        <div class="press-date">June 22, 2025</div>
+                        <h3>Nexlance Commerce 2.0: zero transaction fees and built-in POS system</h3>
+                        <p>Major platform update brings point-of-sale hardware support and eliminates all transaction fees on the Commerce plan.</p>
+                        <a href="press-commerce-2.html" class="press-link">Read full release &rarr;</a>
+                    </div>
+                </div>
+                <div class="press-card">
+                    <div class="press-card-img" style="background: linear-gradient(135deg, #ede9fe, #c4b5fd);"><img src="images/tech.jpg" alt="Press Image 5"></div>
+                    <div class="press-card-body">
+                        <div class="press-date">March 11, 2025</div>
+                        <h3>Nexlance wins "Best Website Builder" at India SaaS Awards 2025</h3>
+                        <p>Recognized for outstanding product innovation, user experience, and customer satisfaction across 50,000 survey respondents.</p>
+                        <a href="press-saas-award.html" class="press-link">Read full release &rarr;</a>
+                    </div>
+                </div>
+                <div class="press-card">
+                    <div class="press-card-img" style="background: linear-gradient(135deg, #e0f2fe, #bae6fd);"><img src="images/digital.jpg" alt="Press Image 6"></div>
+                    <div class="press-card-body">
+                        <div class="press-date">October 5, 2024</div>
+                        <h3>Nexlance closes $14M Series A, expands team to 150 employees</h3>
+                        <p>Series A led by Sequoia India funds aggressive engineering and go-to-market hiring as the platform crosses 1 million users.</p>
+                        <a href="press-series-a.html" class="press-link">Read full release &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- In the News -->
+    <section style="background: #fff;">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">In the News</span>
+                <h2 class="section-title">Media coverage</h2>
+            </div>
+            <div class="news-list">
+                <div class="news-item">
+                    <div class="news-outlet">◉ TechCrunch</div>
+                    <div class="news-content">
+                        <h4>"Nexlance is the Figma moment for website builders"</h4>
+                        <p>How a Bangalore startup is redefining the no-code web creation market with AI-first design tools.</p>
+                    </div>
+                    <div class="news-date">Jan 2026</div>
+                </div>
+                <div class="news-item">
+                    <div class="news-outlet">◇ Forbes India</div>
+                    <div class="news-content">
+                        <h4>30 Under 30: Arjun Kapoor & Priya Sharma of Nexlance</h4>
+                        <p>The co-founders of Nexlance make Forbes India's 30 Under 30 list for transforming how small businesses build online presence.</p>
+                    </div>
+                    <div class="news-date">Dec 2025</div>
+                </div>
+                <div class="news-item">
+                    <div class="news-outlet">○ YourStory</div>
+                    <div class="news-content">
+                        <h4>From Bangalore garage to 4 million users: The Nexlance story</h4>
+                        <p>An in-depth profile of the company's journey from bootstrapped startup to India's leading website builder platform.</p>
+                    </div>
+                    <div class="news-date">Nov 2025</div>
+                </div>
+                <div class="news-item">
+                    <div class="news-outlet">◆ Wired</div>
+                    <div class="news-content">
+                        <h4>The AI assistant that builds your website while you sleep</h4>
+                        <p>Nexlance's new AI feature generates complete, personalized websites from a single sentence — and it's surprisingly good.</p>
+                    </div>
+                    <div class="news-date">Nov 2025</div>
+                </div>
+                <div class="news-item">
+                    <div class="news-outlet">● Inc. India</div>
+                    <div class="news-content">
+                        <h4>How Nexlance is winning the SMB market across Tier-2 cities</h4>
+                        <p>Localization, vernacular support, and affordable pricing are helping Nexlance crack markets Wix and Squarespace never could.</p>
+                    </div>
+                    <div class="news-date">Sep 2025</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Press Kit -->
+    <section style="background: var(--color-bg-alt);">
+        <div class="container">
+            <div class="press-kit-card">
+                <div class="kit-icon">📦</div>
+                <div class="kit-content">
+                    <h2>Download Press Kit</h2>
+                    <p>Everything you need to write about Nexlance — logos, product screenshots, executive headshots, brand guidelines, and company boilerplate — all in one ZIP file.</p>
+                    <div class="kit-actions">
+                        <a href="#" class="btn-kit btn-kit-white">⬇ Download Full Press Kit</a>
+                        <a href="#" class="btn-kit btn-kit-outline">🖼 View Brand Guidelines</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Media Contact -->
+    <section style="background: #fff;" id="media-contact">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Media Contact</span>
+                <h2 class="section-title">Get in touch</h2>
+                <p class="section-subtitle">Our communications team responds to all media inquiries within one business day.</p>
+            </div>
+            <div class="contact-split">
+                <div>
+                    <div class="contact-info-card" style="margin-bottom: 1.5rem;">
+                        <h3>PR & Communications</h3>
+                        <p>For press inquiries, interview requests, fact-checking, or media partnerships, contact our communications team directly.</p>
+                        <div class="contact-detail">
+                            <div class="contact-detail-icon">📧</div>
+                            <div class="contact-detail-text">
+                                <strong>Press Email</strong>
+                                <span>vijaypratap@nexlancedigital.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-detail">
+                            <div class="contact-detail-icon">📱</div>
+                            <div class="contact-detail-text">
+                                <strong>Media Hotline</strong>
+                                <span>+91 98765 00000</span>
+                            </div>
+                        </div>
+                        <div class="contact-detail">
+                            <div class="contact-detail-icon">⏰</div>
+                            <div class="contact-detail-text">
+                                <strong>Response Time</strong>
+                                <span>Within 1 business day</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="contact-info-card">
+                        <h3>Spokesperson Availability</h3>
+                        <p>Our co-founders and executives are available for interviews, podcast appearances, and speaking engagements. Submit a request and we'll follow up within 48 hours.</p>
+                        <div class="contact-detail">
+                            <div class="contact-detail-icon">🎤</div>
+                            <div class="contact-detail-text">
+                                <strong>Speaking Requests</strong>
+                                <span>vijaypratap@nexlancedigital.com</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="press-form">
+                    <h3>Send a media inquiry</h3>
+                    <p>Use this form to request an interview, submit a fact-check, or ask about partnership opportunities.</p>
+                    <form id="pressForm" novalidate>
+                        <div class="form-field">
+                            <label for="pr-name">Your Name *</label>
+                            <input type="text" id="pr-name" placeholder="Jane Doe" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="pr-outlet">Media Outlet *</label>
+                            <input type="text" id="pr-outlet" placeholder="TechCrunch, Forbes, etc." required>
+                        </div>
+                        <div class="form-field">
+                            <label for="pr-email">Email Address *</label>
+                            <input type="email" id="pr-email" placeholder="jane@outlet.com" required>
+                        </div>
+                        <div class="form-field">
+                            <label for="pr-type">Inquiry Type</label>
+                            <select id="pr-type">
+                                <option>Interview Request</option>
+                                <option>Fact Check</option>
+                                <option>Press Release Query</option>
+                                <option>Speaking Engagement</option>
+                                <option>Media Partnership</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="pr-message">Message *</label>
+                            <textarea id="pr-message" placeholder="Tell us about your inquiry, deadline, and any specific information you need..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary form-submit">Send Inquiry</button>
+                    </form>
+                    <div class="form-success" id="pressFormSuccess">
+                        ✅ Inquiry received! We'll get back to you within one business day.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to try Nexlance yourself?</h2>
+                <p>Join 4 million creators and businesses building on Nexlance.</p>
+                <a href="login.html" class="btn-primary btn-large">Start Free Trial</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Twitter">𝕏</a>
+                        <a href="#" aria-label="LinkedIn">in</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                                            </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms &amp; Services</a>
+                    <a href="#">Sitemap</a>
+                    <a href="#">Status</a>
+                    <a href="#">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <script src="main.js"></script>
+    <script>
+        document.getElementById('pressForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('pr-name').value.trim();
+            const outlet = document.getElementById('pr-outlet').value.trim();
+            const email = document.getElementById('pr-email').value.trim();
+            const message = document.getElementById('pr-message').value.trim();
+            if (!name || !outlet || !email || !message) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            this.style.display = 'none';
+            document.getElementById('pressFormSuccess').style.display = 'block';
+        });
+    </script>
+</body>
+</html>

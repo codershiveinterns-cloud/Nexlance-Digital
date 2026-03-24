@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog — Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .page-hero { padding:140px 0 60px; background:linear-gradient(135deg,#f8fafc 0%,#e0e7ff 50%,#f8fafc 100%); text-align:center; position:relative; overflow:hidden; }
+        .page-hero::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(79,70,229,.07); top:-150px; right:-150px; }
+        .page-hero::after  { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,.07); bottom:-80px; left:-80px; }
+        .page-hero .container { position:relative; z-index:1; }
+        .page-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
+        .page-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
+        .page-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:580px; margin:0 auto; line-height:1.7; }
+
+        /* Featured post */
+        .featured-post { background:#fff; border-radius:var(--radius-2xl); overflow:hidden; display:grid; grid-template-columns:1fr 1fr; box-shadow:var(--shadow-xl); margin-bottom:4rem; border:1px solid var(--color-border); }
+        .featured-img { height:100%; min-height:400px; display:flex; align-items:center; justify-content:center; font-size:6rem; }
+        .featured-body { padding:3rem; display:flex; flex-direction:column; justify-content:center; }
+        .post-label { display:inline-block; font-size:var(--font-size-xs); font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--color-secondary); background:rgba(79,70,229,.08); padding:.3rem .85rem; border-radius:var(--radius-full); margin-bottom:1rem; }
+        .post-label.feat { background:linear-gradient(135deg,var(--color-secondary),var(--color-accent)); color:#fff; }
+        .featured-body h2 { font-size:var(--font-size-3xl); font-weight:800; margin-bottom:1rem; line-height:1.25; }
+        .featured-body p { font-size:var(--font-size-base); color:var(--color-text-light); line-height:1.8; margin-bottom:1.5rem; }
+        .post-meta { display:flex; align-items:center; gap:1rem; font-size:var(--font-size-sm); color:var(--color-text-lighter); margin-bottom:1.5rem; }
+        .post-meta .author-av { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--color-secondary),var(--color-accent)); display:inline-flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:var(--font-size-xs); }
+
+        /* Category filter */
+        .cat-filter { display:flex; justify-content:center; flex-wrap:wrap; gap:.5rem; margin-bottom:2.5rem; }
+        .cat-btn { padding:.55rem 1.1rem; font-size:var(--font-size-sm); font-weight:600; color:var(--color-text-light); background:#fff; border:1.5px solid var(--color-border); border-radius:var(--radius-full); cursor:pointer; transition:all .2s; }
+        .cat-btn:hover, .cat-btn.active { color:var(--color-secondary); border-color:var(--color-secondary); background:rgba(79,70,229,.05); }
+
+        /* Blog grid */
+        .blog-layout { display:grid; grid-template-columns:2fr 1fr; gap:3rem; align-items:start; }
+        .blog-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.75rem; }
+        .blog-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); overflow:hidden; transition:all .2s; }
+        .blog-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-lg); }
+        .blog-thumb { height:180px; display:flex; align-items:center; justify-content:center; font-size:3rem; }
+        .blog-body { padding:1.25rem; }
+        .blog-body h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:.5rem; line-height:1.4; }
+        .blog-body p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.6; margin-bottom:.85rem; }
+        .blog-footer { display:flex; justify-content:space-between; align-items:center; }
+        .read-more { font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); }
+        .read-more:hover { color:var(--color-accent); }
+        .read-time { font-size:var(--font-size-xs); color:var(--color-text-lighter); }
+
+        /* Sidebar */
+        .blog-sidebar { display:flex; flex-direction:column; gap:1.5rem; }
+        .sidebar-card { background:#fff; border:1px solid var(--color-border); border-radius:var(--radius-xl); padding:1.5rem; }
+        .sidebar-card h3 { font-size:var(--font-size-base); font-weight:700; margin-bottom:1.25rem; }
+        .newsletter-form { display:flex; flex-direction:column; gap:.75rem; }
+        .newsletter-form input { padding:.75rem 1rem; border:1.5px solid var(--color-border); border-radius:var(--radius-md); font-family:var(--font-family); font-size:var(--font-size-sm); outline:none; transition:border-color .2s; }
+        .newsletter-form input:focus { border-color:var(--color-secondary); }
+        .newsletter-form button { padding:.75rem; background:var(--color-secondary); color:#fff; border:none; border-radius:var(--radius-md); font-weight:700; font-size:var(--font-size-sm); cursor:pointer; transition:background .2s; }
+        .newsletter-form button:hover { background:var(--color-accent); }
+        .pop-post { display:flex; gap:.85rem; padding:.75rem 0; border-bottom:1px solid var(--color-border); }
+        .pop-post:last-child { border-bottom:none; }
+        .pop-num { font-size:2rem; font-weight:800; color:var(--color-border); line-height:1; width:36px; flex-shrink:0; }
+        .pop-post h4 { font-size:var(--font-size-sm); font-weight:600; line-height:1.4; margin-bottom:.25rem; }
+        .pop-post span { font-size:var(--font-size-xs); color:var(--color-text-lighter); }
+        .tag-cloud { display:flex; flex-wrap:wrap; gap:.5rem; }
+        .tag-pill { font-size:var(--font-size-xs); font-weight:600; padding:.35rem .85rem; border-radius:var(--radius-full); background:var(--color-bg-alt); color:var(--color-text-light); cursor:pointer; transition:all .2s; }
+        .tag-pill:hover { background:rgba(79,70,229,.1); color:var(--color-secondary); }
+
+        @media(max-width:1200px){ .blog-layout{grid-template-columns:1fr;} .featured-post{grid-template-columns:1fr;} .featured-img{min-height:250px;} }
+        @media(max-width:768px){ .blog-grid{grid-template-columns:1fr;} .page-hero h1{font-size:var(--font-size-4xl);} }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item has-dropdown">
+                <a href="#">Products <span class="arrow">▾</span></a>
+                <div class="dropdown"><div class="dropdown-grid">
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                </div></div>
+            </li>
+            <li class="nav-item has-dropdown">
+                <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                <div class="dropdown dropdown-templates">
+                    <div class="dropdown-grid templates-grid">
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#f093fb,#f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Business</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
+                        <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
+                    </div>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                </div>
+            </li>
+            <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+            <li class="nav-item"><a href="features.html">Features</a></li>
+            <li class="nav-item"><a href="#">Resources</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text">Log In</a>
+            <a href="login.html" class="btn-primary">Get Started</a>
+        </div>
+        <button class="mobile-toggle" id="mobile-toggle"><span></span><span></span><span></span></button>
+    </div>
+</nav>
+
+<section class="page-hero">
+    <div class="container">
+        <span class="page-hero-label">Blog</span>
+        <h1>Ideas, guides &amp; <span class="gradient-text">inspiration</span></h1>
+        <p>Tips, tutorials, and stories to help you build a better website and grow your business online.</p>
+    </div>
+</section>
+
+<section style="background:#fff;">
+    <div class="container">
+
+        <!-- Featured -->
+        <div class="featured-post">
+            <div class="featured-img" style="background:linear-gradient(135deg,#1e1b4b,#7c3aed);">
+                <img src="images/ai-tools.webp" alt="Featured Post Image" style="width:100%;height:100%;object-fit:cover;">
+            </div>
+            <div class="featured-body">
+                <span class="post-label feat">Featured</span>
+                <div class="post-meta">
+                    <div class="author-av">AK</div>
+                    <span>Arjun Kapoor</span>
+                    <span>·</span>
+                    <span>Feb 18, 2026</span>
+                    <span>·</span>
+                    <span>8 min read</span>
+                </div>
+                <h2>How AI is changing the way we build websites in 2026</h2>
+                <p>From generating complete designs in seconds to writing SEO-optimized content on the fly, AI is no longer a novelty in web design — it's become the default. Here's what that means for creators and businesses.</p>
+                <a href="#" class="btn-primary">Read Article →</a>
+            </div>
+        </div>
+
+        <!-- Category filter -->
+        <div class="cat-filter" id="catFilter">
+            <button class="cat-btn active" data-cat="all">All Posts</button>
+            <button class="cat-btn" data-cat="tips">Tips & Tutorials</button>
+            <button class="cat-btn" data-cat="ecommerce">E-commerce</button>
+            <button class="cat-btn" data-cat="design">Design</button>
+            <button class="cat-btn" data-cat="seo">SEO & Marketing</button>
+            <button class="cat-btn" data-cat="business">Business</button>
+        </div>
+
+        <!-- Layout: grid + sidebar -->
+        <div class="blog-layout">
+            <div>
+                <div class="blog-grid" id="blogGrid">
+
+                    <div class="blog-card" data-cat="ecommerce">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#ff6b6b,#feca57);">
+                            <img src="images/e-commerce.jpg" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">E-commerce</span>
+                            <h3>10 proven ways to reduce shopping cart abandonment</h3>
+                            <p>Most carts are abandoned at checkout. Here are the tactics that actually move the needle.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">6 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="design">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#a29bfe,#6c5ce7);">
+                            <img src="images/design.jpg" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">Design</span>
+                            <h3>The 7 design principles every website owner should know</h3>
+                            <p>You don't need to be a designer — you just need to know these fundamentals.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">5 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="seo">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#00b894,#00cec9);">
+                            <img src="images/seo.webp" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">SEO</span>
+                            <h3>Local SEO: How to rank your business on Google Maps</h3>
+                            <p>A step-by-step guide to dominating local search results for your city or region.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">9 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="tips">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);">
+                            <img src="images/tips.webp" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">Tips & Tutorials</span>
+                            <h3>How to speed up your website in under 30 minutes</h3>
+                            <p>Slow sites lose visitors. These quick wins will make your site load noticeably faster today.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">7 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="business">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#fdcb6e,#e17055);">
+                            <img src="images/business.jpg" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">Business</span>
+                            <h3>From freelancer to agency: scaling your web design business</h3>
+                            <p>The operational, financial, and mindset shifts you need to make the leap.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">11 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="ecommerce">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#0984e3,#74b9ff);">
+                            <img src="images/ecommerce1.webp" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">E-commerce</span>
+                            <h3>The complete guide to dropshipping with Nexlance in 2026</h3>
+                            <p>Everything you need to launch a dropshipping store — from product research to fulfilment.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">14 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="design">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#fd79a8,#e84393);">
+                            <img src="images/design1.avif" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">Design</span>
+                            <h3>How to choose the perfect color palette for your brand</h3>
+                            <p>Color psychology, contrast ratios, and tools to build a palette that converts.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">6 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="blog-card" data-cat="seo">
+                        <div class="blog-thumb" style="background:linear-gradient(135deg,#55efc4,#00b894);">
+                            <img src="images/seo1.avif" alt="Blog Post Image" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                        <div class="blog-body">
+                            <span class="post-label">SEO</span>
+                            <h3>Content strategy for small businesses: quality vs. quantity</h3>
+                            <p>How often should you publish? What should you write? Let data answer these questions.</p>
+                            <div class="blog-footer">
+                                <a href="#" class="read-more">Read more →</a>
+                                <span class="read-time">8 min</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div style="text-align:center;margin-top:2.5rem;">
+                    <button class="btn-secondary btn-large">Load More Articles</button>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="blog-sidebar">
+                <!-- Newsletter -->
+                <div class="sidebar-card">
+                    <h3>📬 Weekly Newsletter</h3>
+                    <p style="font-size:var(--font-size-sm);color:var(--color-text-light);margin-bottom:1rem;">Tips and tutorials, straight to your inbox every Tuesday.</p>
+                    <div class="newsletter-form">
+                        <input type="email" id="newsEmail" placeholder="your@email.com">
+                        <button onclick="subscribeNews()">Subscribe Free</button>
+                    </div>
+                    <p style="font-size:var(--font-size-xs);color:var(--color-text-lighter);margin-top:.5rem;">12,000+ subscribers. Unsubscribe anytime.</p>
+                </div>
+
+                <!-- Popular posts -->
+                <div class="sidebar-card">
+                    <h3>🔥 Popular Posts</h3>
+                    <div class="pop-post"><div class="pop-num">01</div><div><h4>How to build a website without a developer</h4><span>Feb 2026 · 5 min</span></div></div>
+                    <div class="pop-post"><div class="pop-num">02</div><div><h4>10 best Nexlance templates for restaurants</h4><span>Jan 2026 · 4 min</span></div></div>
+                    <div class="pop-post"><div class="pop-num">03</div><div><h4>Razorpay vs Stripe: which is better for India?</h4><span>Dec 2025 · 7 min</span></div></div>
+                    <div class="pop-post"><div class="pop-num">04</div><div><h4>How to get your first 1,000 website visitors</h4><span>Dec 2025 · 9 min</span></div></div>
+                </div>
+
+                <!-- Tags -->
+                <div class="sidebar-card">
+                    <h3>🏷️ Popular Tags</h3>
+                    <div class="tag-cloud">
+                        <span class="tag-pill">Website</span><span class="tag-pill">E-commerce</span>
+                        <span class="tag-pill">SEO</span><span class="tag-pill">Design</span>
+                        <span class="tag-pill">Startup</span><span class="tag-pill">AI</span>
+                        <span class="tag-pill">Marketing</span><span class="tag-pill">Freelance</span>
+                        <span class="tag-pill">Templates</span><span class="tag-pill">Shopify</span>
+                        <span class="tag-pill">India</span><span class="tag-pill">Growth</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>Ready to put these tips into practice?</h2>
+            <p>Start building your website for free — no credit card needed.</p>
+            <a href="login.html" class="btn-primary btn-large">Get Started Free</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer"><div class="container">
+    <div class="footer-grid">
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">𝕏</a><a href="#">in</a></div></div>
+        <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
+        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div>
+        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
+</div></footer>
+<button class="back-to-top" id="back-to-top">↑</button>
+<script src="main.js"></script>
+<script>
+    document.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const cat = btn.dataset.cat;
+            document.querySelectorAll('.blog-card').forEach(card => {
+                card.style.display = (cat === 'all' || card.dataset.cat === cat) ? '' : 'none';
+            });
+        });
+    });
+    function subscribeNews() {
+        const email = document.getElementById('newsEmail').value.trim();
+        if (!email || !email.includes('@')) { alert('Please enter a valid email.'); return; }
+        alert('✅ Subscribed! Welcome to the Nexlance newsletter.');
+        document.getElementById('newsEmail').value = '';
+    }
+</script>
+</body>
+</html>

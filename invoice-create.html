@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Invoice — Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">📊 Dashboard</a></li>
+      <li><a href="clients.html">👥 Clients</a></li>
+      <li><a href="team.html">🧑‍💼 Team</a></li>
+      <li><a href="projects.html">📁 Projects</a></li>
+      <li class="active"><a href="invoices.html">🧾 Invoices</a></li>
+      <li><a href="services.html">🛠 Services</a></li>
+      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
+      <li><a href="settings.html">⚙️ Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="breadcrumb">
+      <a href="invoices.html">Invoices</a>
+      <span>›</span>
+      <span>Create Invoice</span>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Create Invoice</h1>
+        <p>Fill in the details and review the live preview</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-secondary" onclick="history.back()">← Back</button>
+      </div>
+    </div>
+
+    <div class="invoice-layout">
+
+      <!-- Left: Form -->
+      <div>
+        <div class="white-card">
+          <h3>📋 Invoice Details</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Invoice Number</label>
+              <input type="text" id="fInvNum" placeholder="INV-2025-001" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+              <label>Invoice Date</label>
+              <input type="date" id="fInvDate" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+              <label>Client Name *</label>
+              <input type="text" id="fClient" placeholder="TechVision Pvt Ltd" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+              <label>Project Name</label>
+              <input type="text" id="fProject" placeholder="Corporate Website" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+              <label>Due Date *</label>
+              <input type="date" id="fDueDate" oninput="updatePreview()">
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="fStatus" oninput="updatePreview()">
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="recurring">Recurring</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Payment Link (UPI / Razorpay)</label>
+              <input type="url" id="fPayLink" placeholder="https://razorpay.me/..." oninput="updatePreview()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Line Items -->
+        <div class="white-card">
+          <h3>📦 Line Items</h3>
+          <div id="lineItems">
+            <!-- Items added here -->
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addLineItem()" style="margin-top:10px;">+ Add Item</button>
+
+          <!-- Totals -->
+          <div style="margin-top:22px;padding-top:16px;border-top:1px solid #f0ecff;">
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:280px;margin-left:auto;">
+              <div style="display:flex;justify-content:space-between;font-size:0.875rem;color:#555;">
+                <span>Subtotal</span>
+                <span id="subtotalDisplay">₹0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;color:#555;">
+                <span>GST <input type="number" id="fGst" value="18" min="0" max="28" style="width:48px;padding:3px 6px;border-radius:6px;border:1px solid #e0d6ff;font-size:0.82rem;" oninput="calcTotals()"> %</span>
+                <span id="gstDisplay">₹0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:700;color:#4b3fbf;border-top:2px solid #e0d6ff;padding-top:10px;">
+                <span>Total Amount</span>
+                <span id="totalDisplay">₹0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="white-card">
+          <h3>📝 Notes</h3>
+          <div class="form-group">
+            <label>Payment Instructions / Notes</label>
+            <textarea id="fNotes" placeholder="Thank you for your business! Payment via NEFT/UPI/Bank Transfer..." oninput="updatePreview()"></textarea>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:12px;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="history.back()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveInvoice()">💾 Save Invoice</button>
+        </div>
+      </div>
+
+      <!-- Right: Live Preview -->
+      <div>
+        <div style="font-size:0.82rem;color:#aaa;margin-bottom:10px;text-align:right;">Live Preview</div>
+        <div class="invoice-preview" id="invoicePreview">
+          <!-- Header -->
+          <div class="inv-header">
+            <div>
+              <div class="inv-logo">Nexlance</div>
+              <div style="font-size:0.8rem;color:#888;">Web Design Agency<br>vijaypratap@nexlancedigital.com</div>
+            </div>
+            <div class="inv-meta" style="text-align:right;">
+              <h2>INVOICE</h2>
+              <p id="pvInvNum" style="color:#6c5ce7;font-weight:600;">#INV-2025-001</p>
+              <p id="pvDate">Date: —</p>
+              <p id="pvDue">Due: —</p>
+            </div>
+          </div>
+
+          <!-- Parties -->
+          <div class="inv-parties">
+            <div class="inv-party">
+              <h4>From</h4>
+              <p><strong>Nexlance Agency</strong><br>Your Agency Name<br>City, State — 400001</p>
+            </div>
+            <div class="inv-party">
+              <h4>Bill To</h4>
+              <p id="pvClient"><em style="color:#ccc;">Client name...</em></p>
+            </div>
+          </div>
+
+          <!-- Line items table -->
+          <table class="inv-items">
+            <thead>
+              <tr><th>Description</th><th style="text-align:right;">Amount</th></tr>
+            </thead>
+            <tbody id="pvLineItems">
+              <tr><td colspan="2" style="text-align:center;color:#ccc;padding:16px;font-size:0.85rem;">Add line items...</td></tr>
+            </tbody>
+          </table>
+
+          <!-- Totals -->
+          <div class="inv-totals">
+            <div class="inv-total-row"><span>Subtotal</span><span id="pvSubtotal">₹0</span></div>
+            <div class="inv-total-row"><span id="pvGstLabel">GST (18%)</span><span id="pvGst">₹0</span></div>
+            <div class="inv-total-row grand"><span>Total</span><span id="pvTotal">₹0</span></div>
+          </div>
+
+          <!-- Notes -->
+          <div id="pvNotes" style="margin-top:16px;padding-top:14px;border-top:1px solid #f0ecff;font-size:0.82rem;color:#888;"></div>
+
+          <!-- Status badge -->
+          <div style="margin-top:14px;text-align:center;">
+            <span class="badge" id="pvStatus" style="font-size:0.8rem;padding:6px 16px;">Pending</span>
+          </div>
+        </div>
+
+        <!-- Print button -->
+        <div style="margin-top:12px;text-align:right;">
+          <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨 Print / Export PDF</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+<script>
+let lineItems = [{ desc: '', amount: 0 }];
+
+window.addEventListener('load', () => {
+  // Set today's date defaults
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('fInvDate').value = today;
+  // Auto-generate invoice number
+  const num = 'INV-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random() * 900) + 100);
+  document.getElementById('fInvNum').value = num;
+  renderLineItems();
+  updatePreview();
+});
+
+function renderLineItems() {
+  const container = document.getElementById('lineItems');
+  container.innerHTML = lineItems.map((item, i) => `
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:10px;">
+      <input type="text" placeholder="Description (e.g. Homepage Design)" value="${item.desc}"
+        style="padding:9px 12px;border-radius:9px;border:1px solid #e0d6ff;background:#faf9ff;font-size:0.875rem;font-family:Segoe UI,sans-serif;outline:none;"
+        oninput="updateItem(${i},'desc',this.value)">
+      <input type="number" placeholder="₹0" value="${item.amount || ''}"
+        style="width:110px;padding:9px 12px;border-radius:9px;border:1px solid #e0d6ff;background:#faf9ff;font-size:0.875rem;font-family:Segoe UI,sans-serif;outline:none;"
+        oninput="updateItem(${i},'amount',Number(this.value))">
+      ${lineItems.length > 1 ? `<button onclick="removeItem(${i})" style="background:#ffe5e5;color:#d63031;border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1rem;">×</button>` : '<div style="width:32px;"></div>'}
+    </div>
+  `).join('');
+  calcTotals();
+}
+
+function updateItem(i, field, val) {
+  lineItems[i][field] = val;
+  calcTotals();
+  updatePreview();
+}
+function addLineItem() { lineItems.push({ desc: '', amount: 0 }); renderLineItems(); }
+function removeItem(i) { lineItems.splice(i, 1); renderLineItems(); updatePreview(); }
+
+function calcTotals() {
+  const subtotal = lineItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  const gstPct = Number(document.getElementById('fGst').value) || 18;
+  const gst = (subtotal * gstPct) / 100;
+  const total = subtotal + gst;
+  document.getElementById('subtotalDisplay').textContent = formatCurrency(subtotal);
+  document.getElementById('gstDisplay').textContent = '+' + formatCurrency(gst);
+  document.getElementById('totalDisplay').textContent = formatCurrency(total);
+  return { subtotal, gst, total, gstPct };
+}
+
+function updatePreview() {
+  const { subtotal, gst, total, gstPct } = calcTotals();
+  const invNum = document.getElementById('fInvNum').value || '#—';
+  const invDate = document.getElementById('fInvDate').value;
+  const dueDate = document.getElementById('fDueDate').value;
+  const client = document.getElementById('fClient').value;
+  const project = document.getElementById('fProject').value;
+  const notes = document.getElementById('fNotes').value;
+  const status = document.getElementById('fStatus').value;
+
+  document.getElementById('pvInvNum').textContent = '#' + invNum;
+  document.getElementById('pvDate').textContent = 'Date: ' + (invDate ? formatDate(invDate) : '—');
+  document.getElementById('pvDue').textContent = 'Due: ' + (dueDate ? formatDate(dueDate) : '—');
+  document.getElementById('pvClient').innerHTML = client
+    ? `<strong>${client}</strong>${project ? '<br>' + project : ''}`
+    : '<em style="color:#ccc">Client name...</em>';
+
+  const pvItems = lineItems.filter(it => it.desc || it.amount);
+  document.getElementById('pvLineItems').innerHTML = pvItems.length
+    ? pvItems.map(it => `<tr><td>${it.desc || '—'}</td><td style="text-align:right;">${formatCurrency(it.amount || 0)}</td></tr>`).join('')
+    : `<tr><td colspan="2" style="text-align:center;color:#ccc;padding:14px;font-size:0.85rem;">Add line items...</td></tr>`;
+
+  document.getElementById('pvSubtotal').textContent = formatCurrency(subtotal);
+  document.getElementById('pvGstLabel').textContent = `GST (${gstPct}%)`;
+  document.getElementById('pvGst').textContent = formatCurrency(gst);
+  document.getElementById('pvTotal').textContent = formatCurrency(total);
+  document.getElementById('pvNotes').textContent = notes;
+
+  const statusMap = { paid:'badge-green', pending:'badge-orange', overdue:'badge-red', recurring:'badge-blue' };
+  const statusLabels = { paid:'✅ Paid', pending:'🕐 Pending', overdue:'🔴 Overdue', recurring:'🔄 Recurring' };
+  const pvSt = document.getElementById('pvStatus');
+  pvSt.className = 'badge ' + (statusMap[status] || 'badge-gray');
+  pvSt.textContent = statusLabels[status] || status;
+}
+
+async function saveInvoice() {
+  if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
+  const client  = document.getElementById('fClient').value.trim();
+  const invDate = document.getElementById('fInvDate').value;
+  const dueDate = document.getElementById('fDueDate').value;
+  if (!client) { showToast('Client name is required', 'error'); return; }
+  if (!dueDate) { showToast('Due date is required', 'error'); return; }
+  if (invDate && !isValidDate(invDate)) { markDateError('fInvDate', 'Invalid invoice date'); showToast('Enter a valid invoice date', 'error'); return; }
+  if (!isValidDate(dueDate)) { markDateError('fDueDate', 'Invalid due date'); showToast('Enter a valid due date', 'error'); return; }
+  if (invDate && !isDateSameOrAfter(invDate, dueDate)) { markDateError('fDueDate', 'Due date must be on or after the invoice date'); showToast('Due date must be on or after the invoice date', 'error'); return; }
+  clearDateError('fInvDate'); clearDateError('fDueDate');
+
+  const { subtotal, gst, total, gstPct } = calcTotals();
+  const descParts = lineItems.filter(it => it.desc).map(it => it.desc);
+
+  const data = {
+    invoice_number: document.getElementById('fInvNum').value.trim(),
+    client_name: client,
+    project_name: document.getElementById('fProject').value.trim(),
+    amount: subtotal,
+    gst_percent: gstPct,
+    total_amount: total,
+    payment_link: document.getElementById('fPayLink').value.trim() || null,
+    due_date: dueDate,
+    status: document.getElementById('fStatus').value,
+    notes: document.getElementById('fNotes').value.trim()
+  };
+
+  try {
+    await addInvoice(data);
+    showToast('Invoice created successfully!', 'success');
+    setTimeout(() => window.location.href = 'invoices.html', 1200);
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+attachDateValidation('fInvDate', { label: 'Invoice Date' });
+attachDateValidation('fDueDate', { label: 'Due Date', required: true });
+
+// Print styles
+const printStyle = document.createElement('style');
+printStyle.textContent = `@media print { .sidebar,.topbar,.breadcrumb,.page-header,.invoice-layout>div:first-child,.btn { display:none!important; } .invoice-layout { display:block; } .invoice-preview { box-shadow:none!important; border:none!important; position:static; } }`;
+document.head.appendChild(printStyle);
+</script>
+</body>
+</html>

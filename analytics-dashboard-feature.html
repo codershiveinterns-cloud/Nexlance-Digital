@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - Nexlance</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .page-hero { padding: 140px 0 70px; background: linear-gradient(135deg, #eef2ff 0%, #c7d2fe 50%, #f8fafc 100%); text-align: center; }
+        .page-hero h1 { font-size: var(--font-size-5xl); margin-bottom: 1rem; }
+        .page-hero p { max-width: 720px; margin: 0 auto; color: var(--color-text-light); line-height: 1.8; }
+        .dashboard-block { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center; padding: 80px 0; }
+        .dashboard-preview { min-height: 340px; border-radius: var(--radius-2xl); overflow: hidden; box-shadow: var(--shadow-2xl); background: #111827; display: flex; align-items: center; justify-content: center; }
+        .dashboard-preview img { width: 100%; height: 100%; object-fit: cover; }
+        .insight-list { list-style: none; display: grid; gap: 1rem; }
+        .insight-list li { background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem 1.1rem; box-shadow: var(--shadow-sm); }
+        @media (max-width: 900px) { .dashboard-block { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<nav class="navbar" id="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <ul class="nav-menu" id="nav-menu">
+            <li class="nav-item"><a href="templates.html">Templates</a></li>
+            <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+            <li class="nav-item"><a href="features.html">Features</a></li>
+            <li class="nav-item"><a href="dashboard.html">Dashboard</a></li>
+        </ul>
+        <div class="nav-actions">
+            <a href="login.html" class="btn-text">Log In</a>
+            <a href="login.html?mode=register" class="btn-primary">Get Started</a>
+        </div>
+    </div>
+</nav>
+<section class="page-hero">
+    <div class="container">
+        <span class="section-label">Feature Detail</span>
+        <h1>Analytics Dashboard</h1>
+        <p>Track performance, review website activity, and make better decisions with a dashboard built to keep the important numbers visible.</p>
+    </div>
+</section>
+<section>
+    <div class="container dashboard-block">
+        <div class="dashboard-preview">
+            <img src="images/analytics.png" alt="Analytics dashboard preview">
+        </div>
+        <div>
+            <h2>Keep your key metrics in view</h2>
+            <p>See how your projects, website activity, and business performance are progressing with a clearer overview of the numbers that matter.</p>
+            <ul class="insight-list">
+                <li>Review recent activity, updates, and changes from one central space.</li>
+                <li>Understand trends across projects, invoices, and business data.</li>
+                <li>Turn performance signals into smarter decisions for growth.</li>
+                <li>Use one connected dashboard instead of jumping between tools.</li>
+            </ul>
+        </div>
+    </div>
+</section>
+<section class="cta-section">
+    <div class="container">
+        <div class="cta-content">
+            <h2>See the full picture</h2>
+            <p>Unlock the tools that help you monitor growth and manage your business with confidence.</p>
+            <a href="pricing.html" class="btn-primary btn-large">View Plans</a>
+        </div>
+    </div>
+</section>
+
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="index.html" class="logo">
+                        <span class="logo-icon">◆</span>
+                        Nexlance
+                    </a>
+                    <p>Build beautiful websites without writing a single line of code.</p>
+                    <div class="social-links">
+                        <a href="https://x.com/nexlancedigital" aria-label="Twitter">𝕏</a>
+                        <a href="https://www.linkedin.com/in/nexlance-digital-8175293b1" aria-label="LinkedIn">in</a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="templates.html">Templates</a></li>
+                        <li><a href="features.html">Features</a></li>
+                        <li><a href="pricing.html">Pricing</a></li>
+                        <li><a href="updates.html">Updates</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="help-center.html">Help Center</a></li>
+                        <li><a href="webinars.html">Webinars</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="developers.html">Developers</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="careers.html">Careers</a></li>
+                        <li><a href="press.html">Press</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="terms.html">Terms of Service</a></li>
+                        <li><a href="refund.html">Refund Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <p> 📍 82a James Carter Road, Mildenhall, United Kingdom, IP28 7DE </p>
+                <div class="footer-bottom-links">
+                    <a href="terms.html">Terms & Services </a>
+                    <a href="sitemap.html">Sitemap</a>
+                    <a href="status.html">Status</a>
+                    <a href="security.html">Security</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
+

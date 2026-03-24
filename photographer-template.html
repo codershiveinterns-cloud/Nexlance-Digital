@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photographer Template</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="photographer-template.css">
+</head>
+<body>
+    <header class="ph-header">
+        <div class="ph-brand">Nina Hart Studio</div>
+        <nav class="ph-nav">
+            <a href="#portfolio">Portfolio</a>
+            <a href="#services">Services</a>
+            <a href="#story">Story</a>
+            <a href="#contact">Book</a>
+        </nav>
+        <a class="ph-cta" href="#contact">Book a Session</a>
+    </header>
+
+    <main>
+        <section class="ph-hero">
+            <div class="ph-copy">
+                <p class="ph-kicker">Photographer Template</p>
+                <h1>A visual-first website for photographers who sell atmosphere.</h1>
+                <p class="ph-text">A premium photography website template built for portrait artists, wedding photographers, commercial creatives, and personal brands that need a refined online portfolio.</p>
+                <div class="ph-actions">
+                    <a class="ph-btn ph-primary" href="#portfolio">View Portfolio</a>
+                    <a class="ph-btn ph-secondary" href="#services">See Packages</a>
+                </div>
+                <div class="ph-metrics">
+                    <div>
+                        <strong class="counter" data-target="120">0</strong>
+                        <span>Client galleries delivered</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="18">0</strong>
+                        <span>Editorial features</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="96">0</strong>
+                        <span>Client satisfaction rate</span>
+                    </div>
+                </div>
+            </div>
+            <div class="ph-visual">
+                <img src="images/photogrPHER.avif" alt="Photographer portfolio preview">
+                <div class="ph-floating">
+                    <span>Featured session</span>
+                    <strong>Light & Motion</strong>
+                    <p>Minimal styling, natural framing, and image-led storytelling built for premium portfolio presentation.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="ph-section" id="portfolio">
+            <div class="ph-heading">
+                <p class="ph-kicker">Portfolio</p>
+                <h2>Build a website where the imagery leads and the layout stays out of the way.</h2>
+            </div>
+            <div class="portfolio-grid">
+                <article class="portfolio-card reveal">
+                    <h3>Portrait Sessions</h3>
+                    <p>Show clean portrait work with gallery sections, hero images, and story-led presentation.</p>
+                </article>
+                <article class="portfolio-card reveal">
+                    <h3>Brand Stories</h3>
+                    <p>Highlight commercial or personal brand shoots with a premium editorial structure.</p>
+                </article>
+                <article class="portfolio-card reveal">
+                    <h3>Destination Shoots</h3>
+                    <p>Feature travel work, landscapes, and curated gallery pages with high-end visual pacing.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="ph-section split-layout" id="services">
+            <div class="service-panel reveal">
+                <p class="ph-kicker">Services</p>
+                <h2>Use this space to make your offering feel premium and easy to book.</h2>
+                <p>Perfect for package tiers, session types, gallery delivery process, and inquiry support.</p>
+                <ul>
+                    <li>Portrait, brand, and editorial packages</li>
+                    <li>Refined inquiry and booking sections</li>
+                    <li>Gallery-first design with clean hierarchy</li>
+                </ul>
+            </div>
+            <div class="quote-panel reveal">
+                <p class="quote">"This template feels like a real creative portfolio. It is elegant, image-led, and built to convert inquiries."</p>
+                <div class="quote-meta">
+                    <strong>Mila Soren</strong>
+                    <span>Creative Producer</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ph-section" id="story">
+            <div class="ph-heading">
+                <p class="ph-kicker">Story</p>
+                <h2>Give the portfolio a personal voice without losing polish.</h2>
+            </div>
+            <div class="story-grid">
+                <article class="story-card reveal">
+                    <span>01</span>
+                    <h3>Creative Direction</h3>
+                    <p>Explain your visual approach, editing style, and how you guide the session.</p>
+                </article>
+                <article class="story-card reveal">
+                    <span>02</span>
+                    <h3>Client Experience</h3>
+                    <p>Show how inquiries, planning, session day, and gallery delivery work end to end.</p>
+                </article>
+                <article class="story-card reveal">
+                    <span>03</span>
+                    <h3>Booking Confidence</h3>
+                    <p>Use testimonials, recent work, and process clarity to help visitors inquire faster.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="ph-section contact-wrap" id="contact">
+            <div class="contact-panel">
+                <div>
+                    <p class="ph-kicker">Inquire</p>
+                    <h2>Close with one calm, direct booking action.</h2>
+                    <p>This section is ready for consultations, session requests, or photography inquiry forms.</p>
+                </div>
+                <form class="ph-form">
+                    <input type="text" placeholder="Your name">
+                    <input type="email" placeholder="Email address">
+                    <input type="text" placeholder="Type of shoot">
+                    <textarea rows="4" placeholder="Tell us about your vision or project"></textarea>
+                    <button type="button" id="phFormButton">Send Inquiry</button>
+                    <p id="phFormMessage"></p>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="photographer-template.js"></script>
+    <script src="template-edit.js"></script>
+</body>
+</html>

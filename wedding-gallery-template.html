@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Gallery Template</title>
+    <link rel="icon" type="image/png" href="images/fav.png">
+    <link rel="stylesheet" href="wedding-gallery-template.css">
+</head>
+<body>
+    <header class="wg-header">
+        <div class="wg-brand">Ever After Studio</div>
+        <nav class="wg-nav">
+            <a href="#stories">Stories</a>
+            <a href="#portfolio">Portfolio</a>
+            <a href="#experience">Experience</a>
+            <a href="#contact">Contact</a>
+        </nav>
+        <a class="wg-cta" href="#contact">Reserve Your Date</a>
+    </header>
+
+    <main>
+        <section class="wg-hero">
+            <div class="wg-copy">
+                <p class="wg-kicker">Wedding Gallery Template</p>
+                <h1>Romantic imagery for unforgettable celebrations.</h1>
+                <p class="wg-text">A refined wedding photography website template designed to showcase galleries, packages, testimonials, and inquiry flows with a premium editorial feel.</p>
+                <div class="wg-actions">
+                    <a class="wg-btn wg-primary" href="#portfolio">View Galleries</a>
+                    <a class="wg-btn wg-secondary" href="#experience">See Experience</a>
+                </div>
+                <div class="wg-metrics">
+                    <div>
+                        <strong class="counter" data-target="180">0</strong>
+                        <span>Wedding stories captured</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="42">0</strong>
+                        <span>Destination shoots</span>
+                    </div>
+                    <div>
+                        <strong class="counter" data-target="98">0</strong>
+                        <span>Client referral rate</span>
+                    </div>
+                </div>
+            </div>
+            <div class="wg-visual">
+                <img src="images/wedding.jpg" alt="Wedding gallery showcase">
+                <div class="wg-floating">
+                    <span>Featured Story</span>
+                    <strong>Aria & Daniel</strong>
+                    <p>Golden-hour portraits, intimate ceremony details, and timeless documentary coverage.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="wg-section" id="stories">
+            <div class="wg-heading">
+                <p class="wg-kicker">Signature Stories</p>
+                <h2>A gallery-led layout that feels premium and personal.</h2>
+            </div>
+            <div class="story-grid">
+                <article class="story-card reveal">
+                    <h3>City Elegance</h3>
+                    <p>Editorial wedding coverage with refined portrait styling and reception moments.</p>
+                </article>
+                <article class="story-card reveal">
+                    <h3>Garden Ceremony</h3>
+                    <p>Soft daylight, floral styling, and romantic candid storytelling across the day.</p>
+                </article>
+                <article class="story-card reveal">
+                    <h3>Destination Weekend</h3>
+                    <p>Multi-day celebration storytelling for luxury travel weddings and private events.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="wg-section split-layout" id="portfolio">
+            <div class="portfolio-panel reveal">
+                <p class="wg-kicker">Portfolio Focus</p>
+                <h2>Use this section to highlight your best wedding collections.</h2>
+                <p>Showcase ceremony details, portraits, reception energy, and emotional candid frames in a polished storytelling sequence.</p>
+                <ul>
+                    <li>Full-day wedding coverage presentation</li>
+                    <li>Engagement and pre-wedding highlights</li>
+                    <li>Album-ready gallery sections</li>
+                </ul>
+            </div>
+            <div class="quote-panel reveal">
+                <p class="quote">"This template feels like a real luxury wedding photography brand. It is warm, elegant, and conversion-ready."</p>
+                <div class="quote-meta">
+                    <strong>Isla Morgan</strong>
+                    <span>Creative Director</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="wg-section" id="experience">
+            <div class="wg-heading">
+                <p class="wg-kicker">Client Experience</p>
+                <h2>A calm booking flow couples can trust immediately.</h2>
+            </div>
+            <div class="experience-grid">
+                <article class="experience-card reveal">
+                    <span>01</span>
+                    <h3>Discovery Call</h3>
+                    <p>Get aligned on your celebration, priorities, aesthetic, and desired coverage.</p>
+                </article>
+                <article class="experience-card reveal">
+                    <span>02</span>
+                    <h3>Planning Support</h3>
+                    <p>Timeline help, location ideas, and photography guidance before the wedding day.</p>
+                </article>
+                <article class="experience-card reveal">
+                    <span>03</span>
+                    <h3>Gallery Delivery</h3>
+                    <p>Deliver images in a polished online gallery experience with print-ready assets.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="wg-section contact-wrap" id="contact">
+            <div class="contact-panel">
+                <div>
+                    <p class="wg-kicker">Inquire</p>
+                    <h2>Make the final section feel intimate and premium.</h2>
+                    <p>This form area is ready for photography inquiries, consultation requests, or booking workflows.</p>
+                </div>
+                <form class="wg-form">
+                    <input type="text" placeholder="Your names">
+                    <input type="email" placeholder="Email address">
+                    <input type="text" placeholder="Wedding date">
+                    <textarea rows="4" placeholder="Tell us about your wedding plans"></textarea>
+                    <button type="button" id="wgFormButton">Send Inquiry</button>
+                    <p id="wgFormMessage"></p>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="wedding-gallery-template.js"></script>
+    <script src="template-edit.js"></script>
+</body>
+</html>
