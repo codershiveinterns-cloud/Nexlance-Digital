@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="pricing-card">
                     <div class="pricing-header">
                         <h3>Plus</h3>
-                        <p>Full dashboard access for growing teams</p>
+                        <p>Full dashboard access for teams that need operations and analytics</p>
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="pricing-card">
                     <div class="pricing-header">
                         <h3>Pro</h3>
-                        <p>One-time template plan with editing freedom</p>
+                        <p>One-time template access with discounts and full editing freedom</p>
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="popular-badge">Most Popular</div>
                     <div class="pricing-header">
                         <h3>Business</h3>
-                        <p>Combo offer with complete Plus and Pro benefits</p>
+                        <p>Combo offer with the benefits of both Plus and Pro</p>
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
@@ -390,6 +390,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // =========================================
     // Pricing Toggle (Monthly/Annual)
     // =========================================
+    setupPricingSections();
+
     const billingToggle = document.getElementById('billing-toggle');
     const priceAmounts = document.querySelectorAll('.amount');
     const labelMonthly = document.getElementById('label-monthly');
@@ -429,7 +431,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    setupPricingSections();
     setupPlanCheckout();
     
     // =========================================

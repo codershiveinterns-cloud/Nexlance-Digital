@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product Updates — Nexlance</title>
+    <title>Product Updates â€” Nexlance</title>
     <link rel="icon" type="image/png" href="images/fav.png">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,7 +52,7 @@
         .update-content p { font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.7; margin-bottom:1rem; }
         .update-details { display:flex; flex-direction:column; gap:.4rem; }
         .update-detail { display:flex; align-items:flex-start; gap:.6rem; font-size:var(--font-size-sm); color:var(--color-text); }
-        .update-detail::before { content:'•'; color:var(--color-secondary); font-weight:700; flex-shrink:0; }
+        .update-detail::before { content:'â€¢'; color:var(--color-secondary); font-weight:700; flex-shrink:0; }
         .update-read-more { font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); margin-top:.75rem; display:inline-block; }
         .update-read-more:hover { color:var(--color-accent); }
 
@@ -62,19 +62,19 @@
 <body>
 <nav class="navbar" id="navbar">
     <div class="nav-container">
-        <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+        <a href="index.html" class="logo"><span class="logo-icon">â—†</span> Nexlance</a>
         <ul class="nav-menu" id="nav-menu">
             <li class="nav-item has-dropdown">
-                <a href="#">Products <span class="arrow">▾</span></a>
+                <a href="#">Products <span class="arrow">â–¾</span></a>
                 <div class="dropdown"><div class="dropdown-grid">
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🌐</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">🛒</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📧</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">📅</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸŒ</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸ›’</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸ“§</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸ“…</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
                 </div></div>
             </li>
             <li class="nav-item has-dropdown">
-                <a href="templates.html">Templates <span class="arrow">▾</span></a>
+                <a href="templates.html">Templates <span class="arrow">â–¾</span></a>
                 <div class="dropdown dropdown-templates">
                     <div class="dropdown-grid templates-grid">
                         <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
@@ -82,7 +82,7 @@
                         <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
                         <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
                     </div>
-                    <a href="templates.html" class="dropdown-view-all">View All Templates →</a>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates â†’</a>
                 </div>
             </li>
             <li class="nav-item"><a href="pricing.html">Pricing</a></li>
@@ -101,9 +101,9 @@
     <div class="container">
         <span class="page-hero-label">Product Updates</span>
         <h1>What's new at <span class="gradient-text">Nexlance</span></h1>
-        <p>We ship improvements every week. Here's a full changelog of everything we've launched — new features, improvements, and fixes.</p>
+        <p>We ship improvements every week. Here's a full changelog of everything we've launched â€” new features, improvements, and fixes.</p>
         <div class="subscribe-bar">
-            <input type="email" id="subEmail" placeholder="Get updates by email…">
+            <input type="email" id="subEmail" placeholder="Get updates by emailâ€¦">
             <button onclick="subscribeUpdates()">Subscribe</button>
         </div>
     </div>
@@ -115,10 +115,10 @@
         <div class="filter-row">
             <div class="tag-filters" id="tagFilters">
                 <button class="tag-btn active" data-tag="all">All Updates</button>
-                <button class="tag-btn" data-tag="new-feature">🟢 New Feature</button>
-                <button class="tag-btn" data-tag="improvement">🟡 Improvement</button>
-                <button class="tag-btn" data-tag="fix">🔴 Bug Fix</button>
-                <button class="tag-btn" data-tag="sec">🟣 Security</button>
+                <button class="tag-btn" data-tag="new-feature">ðŸŸ¢ New Feature</button>
+                <button class="tag-btn" data-tag="improvement">ðŸŸ¡ Improvement</button>
+                <button class="tag-btn" data-tag="fix">ðŸ”´ Bug Fix</button>
+                <button class="tag-btn" data-tag="sec">ðŸŸ£ Security</button>
             </div>
         </div>
 
@@ -134,12 +134,12 @@
                         <div class="update-version">v3.8.0</div>
                         <div class="update-date">Feb 18, 2026</div>
                         <div class="update-tags">
-                            <span class="tag tag-new">🟢 New Feature</span>
-                            <span class="tag tag-impr">🟡 Improvement</span>
+                            <span class="tag tag-new">ðŸŸ¢ New Feature</span>
+                            <span class="tag tag-impr">ðŸŸ¡ Improvement</span>
                         </div>
                     </div>
                     <div class="update-content">
-                        <h3>AI Site Builder — Now with industry templates</h3>
+                        <h3>AI Site Builder â€” Now with industry templates</h3>
                         <p>The AI Site Builder now offers 50+ industry-specific prompts. Just select your industry, describe your brand, and get a complete site in under 30 seconds.</p>
                         <div class="update-details">
                             <div class="update-detail">AI now generates custom color palettes based on your brand name</div>
@@ -147,7 +147,7 @@
                             <div class="update-detail">AI copywriter now supports 12 languages</div>
                             <div class="update-detail">3x faster site generation speed</div>
                         </div>
-                        <a href="#" class="update-read-more">Read full announcement →</a>
+                        <a href="#" class="update-read-more">Read full announcement â†’</a>
                     </div>
                 </div>
 
@@ -156,8 +156,8 @@
                         <div class="update-version">v3.7.4</div>
                         <div class="update-date">Feb 5, 2026</div>
                         <div class="update-tags">
-                            <span class="tag tag-impr">🟡 Improvement</span>
-                            <span class="tag tag-fix">🔴 Bug Fix</span>
+                            <span class="tag tag-impr">ðŸŸ¡ Improvement</span>
+                            <span class="tag tag-fix">ðŸ”´ Bug Fix</span>
                         </div>
                     </div>
                     <div class="update-content">
@@ -182,7 +182,7 @@
                         <div class="update-version">v3.7.0</div>
                         <div class="update-date">Jan 22, 2026</div>
                         <div class="update-tags">
-                            <span class="tag tag-new">🟢 New Feature</span>
+                            <span class="tag tag-new">ðŸŸ¢ New Feature</span>
                         </div>
                     </div>
                     <div class="update-content">
@@ -194,7 +194,7 @@
                             <div class="update-detail">Drip content to members over time</div>
                             <div class="update-detail">Built-in member portal with profile and billing management</div>
                         </div>
-                        <a href="#" class="update-read-more">Read full announcement →</a>
+                        <a href="#" class="update-read-more">Read full announcement â†’</a>
                     </div>
                 </div>
 
@@ -203,8 +203,8 @@
                         <div class="update-version">v3.6.2</div>
                         <div class="update-date">Jan 8, 2026</div>
                         <div class="update-tags">
-                            <span class="tag tag-impr">🟡 Improvement</span>
-                            <span class="tag tag-sec">🟣 Security</span>
+                            <span class="tag tag-impr">ðŸŸ¡ Improvement</span>
+                            <span class="tag tag-sec">ðŸŸ£ Security</span>
                         </div>
                     </div>
                     <div class="update-content">
@@ -213,7 +213,7 @@
                         <div class="update-details">
                             <div class="update-detail">Added passkey / biometric login support (WebAuthn)</div>
                             <div class="update-detail">Real-time alerts for logins from new devices or countries</div>
-                            <div class="update-detail">Session management — view and revoke active sessions</div>
+                            <div class="update-detail">Session management â€” view and revoke active sessions</div>
                             <div class="update-detail">Upgraded encryption for all stored credentials</div>
                         </div>
                     </div>
@@ -229,7 +229,7 @@
                         <div class="update-version">v3.6.0</div>
                         <div class="update-date">Dec 12, 2025</div>
                         <div class="update-tags">
-                            <span class="tag tag-new">🟢 New Feature</span>
+                            <span class="tag tag-new">ðŸŸ¢ New Feature</span>
                         </div>
                     </div>
                     <div class="update-content">
@@ -241,7 +241,7 @@
                             <div class="update-detail">Custom events via no-code event picker or JS API</div>
                             <div class="update-detail">Shareable, password-protected analytics reports</div>
                         </div>
-                        <a href="#" class="update-read-more">Read full announcement →</a>
+                        <a href="#" class="update-read-more">Read full announcement â†’</a>
                     </div>
                 </div>
 
@@ -250,8 +250,8 @@
                         <div class="update-version">v3.5.3</div>
                         <div class="update-date">Dec 3, 2025</div>
                         <div class="update-tags">
-                            <span class="tag tag-impr">🟡 Improvement</span>
-                            <span class="tag tag-fix">🔴 Bug Fix</span>
+                            <span class="tag tag-impr">ðŸŸ¡ Improvement</span>
+                            <span class="tag tag-fix">ðŸ”´ Bug Fix</span>
                         </div>
                     </div>
                     <div class="update-content">
@@ -276,11 +276,11 @@
                         <div class="update-version">v3.5.0</div>
                         <div class="update-date">Nov 8, 2025</div>
                         <div class="update-tags">
-                            <span class="tag tag-new">🟢 New Feature</span>
+                            <span class="tag tag-new">ðŸŸ¢ New Feature</span>
                         </div>
                     </div>
                     <div class="update-content">
-                        <h3>AI Design Assistant — General Availability</h3>
+                        <h3>AI Design Assistant â€” General Availability</h3>
                         <p>After a 3-month beta, our AI Design Assistant is now available to all users. Generate complete websites, write copy, and create custom images with a single prompt.</p>
                         <div class="update-details">
                             <div class="update-detail">Full GA launch after successful 50,000-user beta</div>
@@ -288,7 +288,7 @@
                             <div class="update-detail">One-click SEO suggestions for every page</div>
                             <div class="update-detail">Available on all plans (limits apply)</div>
                         </div>
-                        <a href="#" class="update-read-more">Read full announcement →</a>
+                        <a href="#" class="update-read-more">Read full announcement â†’</a>
                     </div>
                 </div>
             </div>
@@ -310,15 +310,15 @@
 
 <footer class="footer"><div class="container">
     <div class="footer-grid">
-        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">𝕏</a><a href="#">in</a></div></div>
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">â—†</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">ð•</a><a href="#">in</a></div></div>
         <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
-        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="blog.html">Blog</a></li><li><a href="developers.html">Developers</a></li></ul></div>
-        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="press.html">Press</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+        <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="developers.html">Developers</a></li></ul></div>
+        <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="contact.html">Contact</a></li></ul></div>
         <div class="footer-links"><h4>Legal</h4><ul><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms of Service</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
     </div>
     <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
 </div></footer>
-<button class="back-to-top" id="back-to-top">↑</button>
+<button class="back-to-top" id="back-to-top">â†‘</button>
 <script src="main.js"></script>
 <script>
     document.querySelectorAll('.tag-btn').forEach(btn => {
@@ -334,7 +334,7 @@
     function subscribeUpdates() {
         const email = document.getElementById('subEmail').value.trim();
         if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
-        alert('✅ Subscribed! You\'ll receive product updates at ' + email);
+        alert('âœ… Subscribed! You\'ll receive product updates at ' + email);
         document.getElementById('subEmail').value = '';
     }
 </script>
