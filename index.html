@@ -52,8 +52,146 @@
         .template-access-status.error { color: #dc2626; }
         .template-access-submit { width: 100%; margin-top: 1.1rem; }
         .template-access-help { margin-top: 1rem; color: #64748b; font-size: .92rem; line-height: 1.6; }
+        .home-about-section {
+            padding: 5.5rem 0;
+            background:
+                radial-gradient(circle at top, rgba(99, 102, 241, 0.24), transparent 28%),
+                radial-gradient(circle at 20% 80%, rgba(14, 165, 233, 0.16), transparent 28%),
+                linear-gradient(135deg, #0b1020 0%, #111b34 50%, #060b16 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .home-about-section::before,
+        .home-about-section::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+            pointer-events: none;
+            filter: blur(12px);
+        }
+        .home-about-section::before {
+            width: 240px;
+            height: 240px;
+            top: 36px;
+            right: 10%;
+            background: rgba(129, 140, 248, 0.18);
+        }
+        .home-about-section::after {
+            width: 180px;
+            height: 180px;
+            left: 8%;
+            bottom: 24px;
+            background: rgba(34, 197, 94, 0.12);
+        }
+        .home-about-shell {
+            position: relative;
+            z-index: 1;
+            max-width: 980px;
+            margin: 0 auto;
+            text-align: center;
+            color: #ffffff;
+        }
+        .home-about-shell .section-label {
+            color: rgba(165, 180, 252, 0.96);
+        }
+        .home-about-shell h2 {
+            margin: .5rem auto 1rem;
+            font-size: clamp(2.2rem, 4vw, 4rem);
+            line-height: 1.1;
+            max-width: 860px;
+        }
+        .home-about-shell > p {
+            max-width: 720px;
+            margin: 0 auto;
+            color: rgba(226, 232, 240, 0.82);
+            line-height: 1.8;
+            font-size: 1.05rem;
+        }
+        .home-about-panel {
+            margin-top: 2.25rem;
+            padding: 2.4rem;
+            border-radius: 32px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            box-shadow: 0 24px 70px rgba(2, 6, 23, 0.45);
+        }
+        .home-about-quote {
+            margin: 0;
+            font-size: clamp(1.4rem, 2.5vw, 2.2rem);
+            line-height: 1.55;
+            font-weight: 700;
+            font-style: italic;
+            color: #f8fafc;
+        }
+        .home-about-meta {
+            margin-top: 1.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+        }
+        .home-about-mark {
+            width: 68px;
+            height: 68px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #8b5cf6, #4f46e5);
+            box-shadow: 0 14px 32px rgba(99, 102, 241, 0.32);
+            flex: 0 0 auto;
+        }
+        .home-about-mark span {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        .home-about-meta strong {
+            display: block;
+            text-align: left;
+            font-size: 1.1rem;
+            margin-bottom: .25rem;
+        }
+        .home-about-meta span {
+            display: block;
+            text-align: left;
+            color: rgba(203, 213, 225, 0.8);
+            line-height: 1.6;
+        }
+        .home-about-pills {
+            margin-top: 1.75rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .85rem;
+            justify-content: center;
+        }
+        .home-about-pills span {
+            display: inline-flex;
+            align-items: center;
+            padding: .72rem 1rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.6);
+            color: #e2e8f0;
+            font-size: .94rem;
+            font-weight: 600;
+        }
+        .home-about-link {
+            margin-top: 1.8rem;
+        }
         @media (max-width: 960px) {
             .template-access-shell { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 720px) {
+            .home-about-panel { padding: 1.7rem; }
+            .home-about-meta {
+                flex-direction: column;
+                text-align: center;
+            }
+            .home-about-meta strong,
+            .home-about-meta span {
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -278,7 +416,34 @@
         </div>
     </section>
 
-    <section class="testimonials"><div class="container"><div class="section-header"><span class="section-label">Testimonials</span><h2 class="section-title">Loved by creators worldwide</h2></div><div class="testimonials-slider" id="testimonials-slider"><div class="testimonial-card active"><div class="testimonial-content"><div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div><p>"Nexlance transformed my small business. I had a professional website up and running in just one afternoon. The templates are gorgeous!"</p></div><div class="testimonial-author"><div class="author-avatar">SJ</div><div class="author-info"><h4>Sarah Johnson</h4><span>Founder, Artisan Coffee Co.</span></div></div></div><div class="testimonial-card"><div class="testimonial-content"><div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div><p>"As a photographer, I needed a portfolio that would showcase my work beautifully. Nexlance delivered beyond my expectations."</p></div><div class="testimonial-author"><div class="author-avatar">MC</div><div class="author-info"><h4>Michael Chen</h4><span>Professional Photographer</span></div></div></div><div class="testimonial-card"><div class="testimonial-content"><div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div><p>"The e-commerce features helped me launch my online store quickly. Sales have increased by 200% since switching to Nexlance."</p></div><div class="testimonial-author"><div class="author-avatar">ER</div><div class="author-info"><h4>Emily Rodriguez</h4><span>Owner, Style Boutique</span></div></div></div></div><div class="testimonial-dots"><span class="dot active" data-index="0"></span><span class="dot" data-index="1"></span><span class="dot" data-index="2"></span></div></div></section>
+    <section class="home-about-section">
+        <div class="container">
+            <div class="home-about-shell">
+                <span class="section-label">About Nexlance</span>
+                <h2>Built for businesses that need a website and a working system behind it</h2>
+                <p>Nexlance brings together editable templates, business-focused plans, dashboard tools, and secure checkout flows so founders and growing teams can launch faster and manage their work with less friction.</p>
+                <div class="home-about-panel">
+                    <p class="home-about-quote">"We are building Nexlance to stay practical from day one: clear plans, editable templates, protected access, and the everyday tools a real business needs after the site goes live."</p>
+                    <div class="home-about-meta">
+                        <div class="home-about-mark"><span>N</span></div>
+                        <div>
+                            <strong>About Nexlance</strong>
+                            <span>One connected platform for templates, dashboard workflows, and secure plan or template purchases.</span>
+                        </div>
+                    </div>
+                    <div class="home-about-pills">
+                        <span>8 editable templates</span>
+                        <span>3 paid plans</span>
+                        <span>2 checkout gateways</span>
+                        <span>Projects, clients, invoices, and services</span>
+                    </div>
+                    <div class="home-about-link">
+                        <a href="about.html" class="btn-primary btn-large">Learn More About Us</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <section class="cta-section"><div class="container"><div class="cta-content"><h2>Ready to build your dream website?</h2><p>Start your free 14-day trial today. No credit card required.</p><a href="login.html?mode=register" class="btn-primary btn-large">Get Started Free</a></div></div></section>
 

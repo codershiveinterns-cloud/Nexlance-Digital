@@ -3,497 +3,451 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About Us — Nexlance</title>
+    <title>About Us - Nexlance</title>
     <link rel="icon" type="image/png" href="images/fav.png">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* ---- Page Hero (inner pages) ---- */
         .page-hero {
-            padding: 160px 0 80px;
-            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f8fafc 100%);
+            padding: 160px 0 90px;
+            background:
+                radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 26%),
+                linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%);
             text-align: center;
             position: relative;
             overflow: hidden;
         }
-        .page-hero::before {
-            content: '';
+        .page-hero::before,
+        .page-hero::after {
+            content: "";
             position: absolute;
-            width: 500px; height: 500px;
             border-radius: 50%;
+            pointer-events: none;
+        }
+        .page-hero::before {
+            width: 520px;
+            height: 520px;
+            top: -180px;
+            right: -160px;
             background: rgba(79, 70, 229, 0.08);
-            top: -150px; right: -150px;
         }
         .page-hero::after {
-            content: '';
-            position: absolute;
-            width: 300px; height: 300px;
-            border-radius: 50%;
-            background: rgba(124, 58, 237, 0.08);
-            bottom: -100px; left: -100px;
+            width: 300px;
+            height: 300px;
+            bottom: -110px;
+            left: -110px;
+            background: rgba(14, 165, 233, 0.08);
         }
-        .page-hero .container { position: relative; z-index: 1; }
+        .page-hero .container {
+            position: relative;
+            z-index: 1;
+        }
         .page-hero-label {
             display: inline-block;
             font-size: var(--font-size-sm);
-            font-weight: 600;
+            font-weight: 700;
             color: var(--color-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.12em;
             margin-bottom: 1rem;
         }
         .page-hero h1 {
-            font-size: var(--font-size-5xl);
-            font-weight: 800;
-            line-height: 1.15;
-            margin-bottom: 1.5rem;
+            font-size: clamp(2.6rem, 5vw, 4.8rem);
+            line-height: 1.08;
+            margin-bottom: 1.25rem;
         }
         .page-hero p {
-            font-size: var(--font-size-lg);
-            color: var(--color-text-light);
-            max-width: 640px;
+            max-width: 760px;
             margin: 0 auto;
-            line-height: 1.7;
+            color: var(--color-text-light);
+            line-height: 1.8;
+            font-size: var(--font-size-lg);
         }
-
-        /* ---- Stats ---- */
         .stats-row {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2rem;
-            margin-top: 4rem;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 1.5rem;
+            margin-top: 3.5rem;
         }
         .stat-item {
-            text-align: center;
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 24px;
+            padding: 1.5rem 1.25rem;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
         }
         .stat-number {
-            font-size: 3rem;
+            font-size: 2.4rem;
             font-weight: 800;
-            background: linear-gradient(135deg, var(--color-secondary), var(--color-accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--color-secondary);
             line-height: 1;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.65rem;
         }
         .stat-label {
-            font-size: var(--font-size-sm);
             color: var(--color-text-light);
-            font-weight: 500;
+            line-height: 1.6;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
         }
-
-        /* ---- Story ---- */
+        .story-section,
+        .leadership-section {
+            background: #fff;
+        }
         .story-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5rem;
+            grid-template-columns: 1.05fr 0.95fr;
+            gap: 4rem;
             align-items: center;
         }
         .story-image {
-            border-radius: var(--radius-2xl);
+            border-radius: 28px;
             overflow: hidden;
-            box-shadow: var(--shadow-2xl);
-            background: linear-gradient(135deg, #e0e7ff, #c4b5fd);
-            height: 460px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+            background: linear-gradient(135deg, #dbeafe, #e9d5ff);
+            min-height: 440px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 6rem;
         }
-        .story-content .section-label { text-align: left; display: block; }
+        .story-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .story-content .section-label {
+            display: block;
+            text-align: left;
+        }
         .story-content h2 {
-            font-size: var(--font-size-4xl);
-            font-weight: 800;
-            margin-bottom: 1.5rem;
-            line-height: 1.2;
+            font-size: clamp(2rem, 3vw, 3rem);
+            margin: 0.5rem 0 1.25rem;
+            line-height: 1.15;
         }
         .story-content p {
-            font-size: var(--font-size-base);
+            color: var(--color-text-light);
+            line-height: 1.85;
+            margin-bottom: 1rem;
+        }
+        .values-section,
+        .focus-section {
+            background: var(--color-bg-alt);
+        }
+        .values-grid,
+        .focus-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1.5rem;
+        }
+        .value-card,
+        .focus-card {
+            background: #fff;
+            border-radius: 24px;
+            padding: 2rem 1.7rem;
+            border: 1px solid var(--color-border);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .value-card:hover,
+        .focus-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(79, 70, 229, 0.28);
+            box-shadow: 0 20px 42px rgba(15, 23, 42, 0.1);
+        }
+        .value-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--color-secondary);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(14, 165, 233, 0.12));
+        }
+        .value-card h3,
+        .focus-card h3 {
+            margin-bottom: 0.75rem;
+            font-size: var(--font-size-xl);
+        }
+        .value-card p,
+        .focus-card p {
+            color: var(--color-text-light);
+            line-height: 1.75;
+            font-size: var(--font-size-sm);
+        }
+        .leadership-grid {
+            max-width: 460px;
+            margin: 0 auto;
+        }
+        .leader-card {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: 28px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+            padding: 2.2rem;
+            text-align: center;
+        }
+        .leader-card h3 {
+            margin-bottom: 0.45rem;
+            font-size: 1.6rem;
+        }
+        .leader-role {
+            color: var(--color-secondary);
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .leader-card p {
             color: var(--color-text-light);
             line-height: 1.8;
             margin-bottom: 1.25rem;
         }
-
-        /* ---- Values ---- */
-        .values-grid {
+        .leader-contact-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
+            gap: 0.75rem;
         }
-        .value-card {
-            background: #fff;
-            border-radius: var(--radius-xl);
-            padding: 2.5rem 2rem;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--color-border);
-            transition: all var(--transition-base);
-        }
-        .value-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--color-secondary);
-        }
-        .value-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1.25rem;
-        }
-        .value-card h3 {
-            font-size: var(--font-size-xl);
-            margin-bottom: 0.75rem;
-        }
-        .value-card p {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-light);
-            line-height: 1.7;
-        }
-
-        /* ---- Team ---- */
-        .team-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2rem;
-        }
-        .team-card {
-            text-align: center;
-        }
-        .team-avatar {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            margin: 0 auto 1.25rem;
-            display: flex;
+        .leader-contact-list a {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 2.25rem;
-            font-weight: 700;
-            color: #fff;
-        }
-        .avatar-indigo { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
-        .avatar-pink   { background: linear-gradient(135deg, #ec4899, #a855f7); }
-        .avatar-blue   { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
-        .avatar-green  { background: linear-gradient(135deg, #10b981, #059669); }
-        .avatar-orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .avatar-red    { background: linear-gradient(135deg, #ef4444, #b91c1c); }
-        .avatar-teal   { background: linear-gradient(135deg, #14b8a6, #0d9488); }
-        .avatar-purple { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
-        .team-card h4 {
-            font-size: var(--font-size-base);
-            font-weight: 700;
-            margin-bottom: 0.25rem;
-        }
-        .team-role {
-            font-size: var(--font-size-sm);
+            padding: 0.85rem 1rem;
+            border-radius: 999px;
+            background: var(--color-bg-alt);
+            border: 1px solid rgba(79, 70, 229, 0.12);
             color: var(--color-secondary);
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-        .team-bio {
-            font-size: var(--font-size-sm);
-            color: var(--color-text-light);
-            line-height: 1.6;
-        }
-
-        /* ---- Investors ---- */
-        .investors-grid {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 2rem;
-            margin-top: 3rem;
-        }
-        .investor-card {
-            background: #fff;
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-lg);
-            padding: 1.5rem 2.5rem;
-            text-align: center;
-            font-size: var(--font-size-lg);
             font-weight: 700;
-            color: var(--color-text-light);
-            transition: all var(--transition-fast);
         }
-        .investor-card:hover {
-            border-color: var(--color-secondary);
-            color: var(--color-secondary);
-            box-shadow: var(--shadow-md);
+        @media (max-width: 1100px) {
+            .stats-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .story-grid,
+            .values-grid,
+            .focus-grid {
+                grid-template-columns: 1fr;
+            }
         }
-
-        @media (max-width: 1024px) {
-            .story-grid { grid-template-columns: 1fr; gap: 3rem; }
-            .team-grid { grid-template-columns: repeat(2, 1fr); }
-            .stats-row { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 768px) {
-            .page-hero h1 { font-size: var(--font-size-4xl); }
-            .values-grid { grid-template-columns: 1fr; }
-            .team-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 480px) {
-            .team-grid { grid-template-columns: 1fr; }
-            .stats-row { grid-template-columns: 1fr; }
+        @media (max-width: 640px) {
+            .page-hero {
+                padding: 140px 0 78px;
+            }
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+            .story-image {
+                min-height: 320px;
+            }
+            .leader-card {
+                padding: 1.6rem;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
     <nav class="navbar" id="navbar">
-        <div class="nav-container"> 
-            <a href="index.html" class="logo">
-                <span class="logo-icon">◆</span>
-                Nexlance
-            </a>
+        <div class="nav-container">
+            <a href="index.html" class="logo"><span class="logo-icon">&#9670;</span>Nexlance</a>
             <ul class="nav-menu" id="nav-menu">
                 <li class="nav-item has-dropdown">
-                    <a href="index.html#products">Products <span class="arrow">▾</span></a>
+                    <a href="index.html#products">Products <span class="arrow">&#9662;</span></a>
                     <div class="dropdown">
                         <div class="dropdown-grid">
-                            <a href="#" class="dropdown-item">
-                                <span class="dropdown-icon">🌐</span>
-                                <div><h4>Websites</h4><p>Professional site builder</p></div>
-                            </a>
-                            <a href="#" class="dropdown-item">
-                                <span class="dropdown-icon">🛒</span>
-                                <div><h4>E-commerce</h4><p>Online store solutions</p></div>
-                            </a>
-                            <a href="#" class="dropdown-item">
-                                <span class="dropdown-icon">📧</span>
-                                <div><h4>Email Marketing</h4><p>Campaign tools</p></div>
-                            </a>
-                            <a href="#" class="dropdown-item">
-                                <span class="dropdown-icon">📅</span>
-                                <div><h4>Scheduling</h4><p>Appointment booking</p></div>
-                            </a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#127760;</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128722;</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128231;</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                            <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128197;</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
                         </div>
                     </div>
                 </li>
                 <li class="nav-item has-dropdown">
-                    <a href="index.html#templates">Templates <span class="arrow">▾</span></a>
+                    <a href="templates.html">Templates <span class="arrow">&#9662;</span></a>
                     <div class="dropdown dropdown-templates">
                         <div class="dropdown-grid templates-grid">
-                            <a href="#" class="template-thumb">
-                                <div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div>
-                                <span>Portfolio</span>
-                            </a>
-                            <a href="#" class="template-thumb">
-                                <div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%;height:100%;object-fit:cover;"></div>
-                                <span>Business</span>
-                            </a>
-                            <a href="#" class="template-thumb">
-                                <div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div>
-                                <span>Blog</span>
-                            </a>
-                            <a href="#" class="template-thumb">
-                                <div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div>
-                                <span>Store</span>
-                            </a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #667eea, #764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Portfolio</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><img src="images/business.jpg" alt="Business Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Business</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #4facfe, #00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Blog</span></a>
+                            <a href="templates.html" class="template-thumb"><div class="thumb-img" style="background: linear-gradient(135deg, #43e97b, #38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%; height:100%; object-fit:cover;"></div><span>Store</span></a>
                         </div>
-                        <a href="index.html#templates" class="dropdown-view-all">View All Templates →</a>
+                        <a href="templates.html" class="dropdown-view-all">View All Templates &rarr;</a>
                     </div>
                 </li>
-                <li class="nav-item"><a href="index.html#pricing">Pricing</a></li>
-                <li class="nav-item"><a href="index.html#features">Features</a></li>
-                <li class="nav-item"><a href="index.html#resources">Resources</a></li>
+                <li class="nav-item"><a href="pricing.html">Pricing</a></li>
+                <li class="nav-item"><a href="features.html">Features</a></li>
+                <li class="nav-item"><a href="help-center.html">Resources</a></li>
             </ul>
-            <div class="nav-actions">
-                <a href="login.html" class="btn-text">Log In</a>
-                <a href="login.html" class="btn-primary">Get Started</a>
-            </div>
-            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu">
-                <span></span><span></span><span></span>
-            </button>
+            <div class="nav-actions"><a href="login.html" class="btn-text">Log In</a><a href="login.html?mode=register" class="btn-primary">Get Started</a></div>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu"><span></span><span></span><span></span></button>
         </div>
     </nav>
 
-    <!-- Page Hero -->
     <section class="page-hero">
         <div class="container">
             <span class="page-hero-label">About Us</span>
-            <h1>Building the future of<br><span class="gradient-text">web creation</span></h1>
-            <p>We're a passionate team on a mission to make professional web design accessible to everyone — from freelancers and startups to global enterprises.</p>
-
-            <!-- Stats -->
+            <h1>Building practical tools for<br><span class="gradient-text">websites and client work</span></h1>
+            <p>Nexlance is built for freelancers, agencies, and growing businesses that want a polished website presence along with the core tools needed to manage projects, clients, templates, and payments.</p>
             <div class="stats-row">
                 <div class="stat-item">
-                    <div class="stat-number">4M+</div>
-                    <div class="stat-label">Active Users</div>
+                    <div class="stat-number">8</div>
+                    <div class="stat-label">Editable Website Templates</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">180+</div>
-                    <div class="stat-label">Countries</div>
+                    <div class="stat-number">3</div>
+                    <div class="stat-label">Paid Plans For Different Stages</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">12M+</div>
-                    <div class="stat-label">Websites Built</div>
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">Hosted Checkout Gateways</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">99.9%</div>
-                    <div class="stat-label">Uptime SLA</div>
+                    <div class="stat-number">4</div>
+                    <div class="stat-label">Launch Steps On The Home Page</div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Our Story -->
-    <section style="background: #fff;">
+    <section class="story-section">
         <div class="container">
             <div class="story-grid">
-                <div class="story-image"><img src="images/main.png" alt="Our Story Image"></div>
+                <div class="story-image">
+                    <img src="images/main.png" alt="Nexlance workspace preview">
+                </div>
                 <div class="story-content">
                     <span class="section-label">Our Story</span>
-                    <h2>From a small team to a global platform</h2>
-                    <p>Nexlance was founded in 2019 by three developers frustrated by how hard it was for non-technical founders to build a professional online presence. We believed anyone with a great idea deserved a great website — without hiring a developer or learning to code.</p>
-                    <p>Starting from a tiny office in Bangalore, we bootstrapped our way to our first 10,000 users. Two years later, we raised our Series A and expanded globally. Today, Nexlance powers over 12 million websites across 180 countries and is trusted by freelancers, agencies, and Fortune 500 companies alike.</p>
-                    <p>We're still on that same mission: make powerful web tools radically simple. And we're just getting started.</p>
+                    <h2>Made for businesses that need more than a landing page</h2>
+                    <p>Nexlance is designed to help teams move from idea to live website without making the process feel fragmented. Templates give people a fast starting point, while the broader product experience supports the work that follows after launch.</p>
+                    <p>Across the site, that direction is already visible: pricing plans for different levels of access, secure template purchasing, editable template flows, and dashboard areas for projects, clients, invoices, services, analytics, and team operations.</p>
+                    <p>Our focus is simple. We want Nexlance to feel clear, dependable, and useful for the kind of everyday business work that happens around a website, not just on it.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Our Values -->
-    <section style="background: var(--color-bg-alt);">
+    <section class="values-section">
         <div class="container">
             <div class="section-header">
                 <span class="section-label">Our Values</span>
                 <h2 class="section-title">What drives everything we do</h2>
-                <p class="section-subtitle">Our values aren't just words on a wall. They shape how we build products, support customers, and grow as a company.</p>
+                <p class="section-subtitle">We keep the product grounded in clarity, practical workflows, and features that support real businesses.</p>
             </div>
             <div class="values-grid">
-                <div class="value-card">
-                    <div class="value-icon">🌍</div>
-                    <h3>Accessibility First</h3>
-                    <p>We believe the web should be open to everyone. Our tools are designed to be intuitive for beginners and powerful enough for professionals.</p>
-                </div>
-                <div class="value-card">
-                    <div class="value-icon">⚡</div>
-                    <h3>Speed & Simplicity</h3>
-                    <p>Complexity is the enemy of progress. We obsess over removing friction so our users can focus on what matters — building great things.</p>
-                </div>
-                <div class="value-card">
-                    <div class="value-icon">🤝</div>
-                    <h3>Customer Obsession</h3>
-                    <p>Every feature we build starts with the customer. We listen, iterate, and ship solutions that make a real difference for real people.</p>
-                </div>
-                <div class="value-card">
-                    <div class="value-icon">🔒</div>
-                    <h3>Trust & Transparency</h3>
-                    <p>We are honest about our pricing, our roadmap, and our mistakes. Trust is earned through consistent action, not just promises.</p>
-                </div>
-                <div class="value-card">
-                    <div class="value-icon">🌱</div>
-                    <h3>Sustainable Growth</h3>
-                    <p>We grow responsibly — for our business, our team, and the planet. We're committed to being carbon neutral by 2027.</p>
-                </div>
-                <div class="value-card">
-                    <div class="value-icon">💡</div>
-                    <h3>Relentless Innovation</h3>
-                    <p>We're never satisfied with "good enough." Our team ships new features, improvements, and experiments every single week.</p>
-                </div>
+                <article class="value-card">
+                    <div class="value-icon">&#9673;</div>
+                    <h3>Practical By Default</h3>
+                    <p>We build around the needs visible across the platform today: templates, plans, dashboard tools, and straightforward next steps for launching or managing client work.</p>
+                </article>
+                <article class="value-card">
+                    <div class="value-icon">&#9889;</div>
+                    <h3>Clear Decisions</h3>
+                    <p>Pricing, feature access, and purchase flows should feel understandable. We want users to know what they are buying, what they can edit, and what happens next.</p>
+                </article>
+                <article class="value-card">
+                    <div class="value-icon">&#10003;</div>
+                    <h3>Business-Ready Workflows</h3>
+                    <p>Nexlance is not only about a front-end website. We also care about the tools around it, from clients and invoices to projects, services, and day-to-day operations.</p>
+                </article>
+                <article class="value-card">
+                    <div class="value-icon">&#128274;</div>
+                    <h3>Secure Access</h3>
+                    <p>Protected template access, verified checkout completion, and clear account-based flows matter because trust is built through dependable handling of real purchases.</p>
+                </article>
+                <article class="value-card">
+                    <div class="value-icon">&#8635;</div>
+                    <h3>Continuous Improvement</h3>
+                    <p>We refine the experience section by section, keeping what works and improving what does not, so the product feels more polished without becoming harder to use.</p>
+                </article>
+                <article class="value-card">
+                    <div class="value-icon">&#9993;</div>
+                    <h3>Direct Support</h3>
+                    <p>When people need help, contact should feel human and reachable. That is why our product and support touchpoints stay closely tied to the people behind the business.</p>
+                </article>
             </div>
         </div>
     </section>
 
-    <!-- Leadership Team -->
-    <section style="background: #fff;">
+    <section class="leadership-section">
         <div class="container">
             <div class="section-header">
                 <span class="section-label">Leadership</span>
-                <h2 class="section-title">Meet the team behind Nexlance</h2>
-                <p class="section-subtitle">A diverse group of builders, designers, and operators united by a shared belief in the power of the open web.</p>
+                <h2 class="section-title">Leadership at Nexlance</h2>
+                <p class="section-subtitle">For direct company communication, you can reach the founder below.</p>
             </div>
-            <div class="team-grid">
-                <div class="team-card">
-                    <div class="team-avatar avatar-indigo">AK</div>
-                    <h4>Arjun Kapoor</h4>
-                    <div class="team-role">CEO & Co-Founder</div>
-                    <p class="team-bio">Former product lead at Razorpay. IIT Delhi alumnus passionate about scaling developer tools.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-pink">PS</div>
-                    <h4>Priya Sharma</h4>
-                    <div class="team-role">CTO & Co-Founder</div>
-                    <p class="team-bio">Previously engineering manager at Flipkart. Loves distributed systems and clean code.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-blue">RN</div>
-                    <h4>Rohan Nair</h4>
-                    <div class="team-role">CPO & Co-Founder</div>
-                    <p class="team-bio">Product philosopher who spent 6 years at Adobe. Believes design is a conversation.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-green">SG</div>
-                    <h4>Sunita Gupta</h4>
-                    <div class="team-role">VP of Marketing</div>
-                    <p class="team-bio">Built go-to-market strategies for 3 unicorn startups across SaaS and fintech.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-orange">VM</div>
-                    <h4>Vikram Mehta</h4>
-                    <div class="team-role">VP of Engineering</div>
-                    <p class="team-bio">Infrastructure expert. Scaled systems to handle billions of requests daily at Ola.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-red">AM</div>
-                    <h4>Ananya Mishra</h4>
-                    <div class="team-role">Head of Design</div>
-                    <p class="team-bio">Award-winning UX designer. Previously led design at CRED and Swiggy.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-teal">KR</div>
-                    <h4>Karthik Rao</h4>
-                    <div class="team-role">Head of Sales</div>
-                    <p class="team-bio">Enterprise SaaS specialist. Grew revenue 10x at a Series B startup in 18 months.</p>
-                </div>
-                <div class="team-card">
-                    <div class="team-avatar avatar-purple">NP</div>
-                    <h4>Neha Patel</h4>
-                    <div class="team-role">Head of Customer Success</div>
-                    <p class="team-bio">NPS champion. Passionate about turning customers into lifelong advocates.</p>
-                </div>
+            <div class="leadership-grid">
+                <article class="leader-card">
+                    <h3>Vijay Pratap Singh</h3>
+                    <div class="leader-role">CEO &amp; Co-Founder</div>
+                    <p>Leading Nexlance with a focus on practical website experiences, clear customer communication, and product decisions that support real business workflows.</p>
+                    <ul class="leader-contact-list">
+                        <li><a href="mailto:vijaypratap@nexlancedigital.com">vijaypratap@nexlancedigital.com</a></li>
+                        <li><a href="tel:+919876500000">+91 98765 00000</a></li>
+                    </ul>
+                </article>
             </div>
         </div>
     </section>
 
-    <!-- Investors -->
-    <section style="background: var(--color-bg-alt);">
+    <section class="focus-section">
         <div class="container">
             <div class="section-header">
-                <span class="section-label">Backed By</span>
-                <h2 class="section-title">Trusted by world-class investors</h2>
-                <p class="section-subtitle">We've raised $42M from leading venture firms who share our vision for a more accessible internet.</p>
+                <span class="section-label">Built Around Real Work</span>
+                <h2 class="section-title">What Nexlance is centered around</h2>
+                <p class="section-subtitle">These are the product areas already visible across the website today and they reflect what the platform is being shaped to support.</p>
             </div>
-            <div class="investors-grid">
-                <div class="investor-card">◉ Sequoia India</div>
-                <div class="investor-card">◇ Accel Partners</div>
-                <div class="investor-card">○ Tiger Global</div>
-                <div class="investor-card">◆ Matrix Partners</div>
-                <div class="investor-card">● Kalaari Capital</div>
+            <div class="focus-grid">
+                <article class="focus-card">
+                    <h3>Website Templates</h3>
+                    <p>Ready-to-edit layouts for business, portfolio, ecommerce, and landing-page style websites.</p>
+                </article>
+                <article class="focus-card">
+                    <h3>Plan-Based Access</h3>
+                    <p>Plus, Pro, and Business plans that separate dashboard access, template access, and bundled workflows.</p>
+                </article>
+                <article class="focus-card">
+                    <h3>Operational Dashboard</h3>
+                    <p>Sections for projects, clients, invoices, services, reports, settings, and team management.</p>
+                </article>
+                <article class="focus-card">
+                    <h3>Secure Purchases</h3>
+                    <p>Hosted checkout flows and protected template delivery built into the user experience.</p>
+                </article>
+                <article class="focus-card">
+                    <h3>Launch Simplicity</h3>
+                    <p>A straightforward path from choosing a template to customizing, publishing, and managing work after the site goes live.</p>
+                </article>
+                <article class="focus-card">
+                    <h3>Growing Teams</h3>
+                    <p>Features that help freelancers and small businesses stay organized as projects, services, and customer work expand.</p>
+                </article>
             </div>
         </div>
     </section>
 
-    <!-- CTA -->
     <section class="cta-section">
         <div class="container">
             <div class="cta-content">
-                <h2>Join millions building on Nexlance</h2>
-                <p>Start your free trial today. No credit card required.</p>
-                <a href="login.html" class="btn-primary btn-large">Get Started Free</a>
+                <h2>Build with Nexlance</h2>
+                <p>Start with a template, choose the plan that fits your workflow, and keep everything moving from one place.</p>
+                <a href="login.html?mode=register" class="btn-primary btn-large">Get Started Free</a>
             </div>
         </div>
     </section>
 
-    <!-- Footer -->
     <footer class="footer">
         <div class="container">
             <div class="footer-grid">
                 <div class="footer-brand">
-                    <a href="index.html" class="logo"><span class="logo-icon">◆</span> Nexlance</a>
+                    <a href="index.html" class="logo"><span class="logo-icon">&#9670;</span>Nexlance</a>
                     <p>Build beautiful websites without writing a single line of code.</p>
                     <div class="social-links">
-                        <a href="#" aria-label="Twitter">𝕏</a>
-                        <a href="#" aria-label="LinkedIn">in</a>
+                        <a href="https://x.com/nexlancedigital" aria-label="Twitter">X</a>
+                        <a href="https://www.linkedin.com/in/nexlance-digital-8175293b1" aria-label="LinkedIn">in</a>
                     </div>
                 </div>
                 <div class="footer-links">
@@ -529,11 +483,12 @@
                         <li><a href="privacy.html">Privacy Policy</a></li>
                         <li><a href="terms.html">Terms of Service</a></li>
                         <li><a href="refund.html">Refund Policy</a></li>
-                                            </ul>
+                    </ul>
                 </div>
             </div>
             <div class="footer-bottom">
                 <p>&copy; 2026 Nexlance. All rights reserved.</p>
+                <p>Location: 82a James Carter Road, Mildenhall, United Kingdom, IP28 7DE</p>
                 <div class="footer-bottom-links">
                     <a href="terms.html">Terms &amp; Services</a>
                     <a href="sitemap.html">Sitemap</a>
@@ -544,8 +499,8 @@
         </div>
     </footer>
 
-    <button class="back-to-top" id="back-to-top" aria-label="Back to top">↑</button>
+    <button class="back-to-top" id="back-to-top" aria-label="Back to top">&uarr;</button>
+
     <script src="main.js"></script>
 </body>
 </html>
-  <!-- check git -->
