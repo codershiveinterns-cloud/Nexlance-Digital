@@ -82,6 +82,18 @@ function getProductGatewayAvailability(productCode) {
     };
 }
 
+function compactMetadataValues(metadata) {
+    return Object.fromEntries(
+        Object.entries(metadata || {}).filter(([, value]) => {
+            if (value === null || value === undefined) return false;
+            if (typeof value === 'string') {
+                return value.trim().length > 0;
+            }
+            return true;
+        }).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])
+    );
+}
+
 function normalizeRequestedProvider(provider) {
     const normalized = String(provider || '').trim().toLowerCase();
     if (!normalized) return '';
@@ -112,9 +124,14 @@ function extractPolarErrorMessage(data, fallbackMessage) {
         const messages = data.detail
             .map(item => {
                 if (typeof item === 'string') return item.trim();
-                if (item && typeof item.msg === 'string') return item.msg.trim();
-                if (item && typeof item.message === 'string') return item.message.trim();
-                return '';
+                const baseMessage = item && typeof item.msg === 'string'
+                    ? item.msg.trim()
+                    : (item && typeof item.message === 'string' ? item.message.trim() : '');
+                if (!baseMessage) return '';
+                const location = item && Array.isArray(item.loc) && item.loc.length
+                    ? item.loc.join('.')
+                    : '';
+                return location ? `${location}: ${baseMessage}` : baseMessage;
             })
             .filter(Boolean);
         if (messages.length) {
@@ -214,7 +231,7 @@ function buildCheckoutUrls(baseUrl, product, provider, templateId) {
 }
 
 function buildMetadata(context) {
-    return {
+    return compactMetadataValues({
         flow: isSingleTemplateProduct(context.product.productCode) ? 'template_download' : 'plan_purchase',
         product_code: context.product.productCode,
         plan_code: context.product.planCode,
@@ -224,7 +241,7 @@ function buildMetadata(context) {
         template_name: context.templateName || '',
         billing_type: context.product.billingType,
         billing_cycle: context.product.billingCycle || ''
-    };
+    });
 }
 
 async function resolveCheckoutContext(options) {
