@@ -397,6 +397,33 @@ function sanitizeBaseUrl(value) {
     return candidate;
 }
 
+function extractPolarErrorMessage(data, fallbackMessage) {
+    if (!data) return fallbackMessage;
+    if (typeof data.detail === 'string' && data.detail.trim()) {
+        return data.detail.trim();
+    }
+    if (Array.isArray(data.detail) && data.detail.length) {
+        const messages = data.detail
+            .map(item => {
+                if (typeof item === 'string') return item.trim();
+                if (item && typeof item.msg === 'string') return item.msg.trim();
+                if (item && typeof item.message === 'string') return item.message.trim();
+                return '';
+            })
+            .filter(Boolean);
+        if (messages.length) {
+            return messages.join(' ');
+        }
+    }
+    if (data.error && typeof data.error === 'string') {
+        return data.error.trim();
+    }
+    if (data.message && typeof data.message === 'string') {
+        return data.message.trim();
+    }
+    return fallbackMessage;
+}
+
 function buildReturnUrls(baseUrl, templateId, provider) {
     const escapedTemplateId = encodeURIComponent(templateId);
     return {
@@ -497,7 +524,6 @@ async function createPolarTemplateCheckout(options) {
             customer_email: context.email,
             external_customer_id: context.email,
             locale: 'en',
-            currency: TEMPLATE_PRICE.currency,
             metadata: {
                 flow: 'template_download',
                 template_id: context.templateId,
@@ -512,8 +538,7 @@ async function createPolarTemplateCheckout(options) {
 
     const data = await response.json();
     if (!response.ok) {
-        const message = data && data.detail ? data.detail : 'Polar checkout session could not be created.';
-        throw new Error(typeof message === 'string' ? message : 'Polar checkout session could not be created.');
+        throw new Error(extractPolarErrorMessage(data, 'Polar checkout session could not be created.'));
     }
 
     upsertTransaction({

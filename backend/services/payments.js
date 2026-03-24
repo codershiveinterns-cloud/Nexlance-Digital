@@ -103,6 +103,33 @@ function getProviderConfigurationError(provider, productCode) {
     return 'Hosted checkout is not configured right now. Please try again later.';
 }
 
+function extractPolarErrorMessage(data, fallbackMessage) {
+    if (!data) return fallbackMessage;
+    if (typeof data.detail === 'string' && data.detail.trim()) {
+        return data.detail.trim();
+    }
+    if (Array.isArray(data.detail) && data.detail.length) {
+        const messages = data.detail
+            .map(item => {
+                if (typeof item === 'string') return item.trim();
+                if (item && typeof item.msg === 'string') return item.msg.trim();
+                if (item && typeof item.message === 'string') return item.message.trim();
+                return '';
+            })
+            .filter(Boolean);
+        if (messages.length) {
+            return messages.join(' ');
+        }
+    }
+    if (data.error && typeof data.error === 'string') {
+        return data.error.trim();
+    }
+    if (data.message && typeof data.message === 'string') {
+        return data.message.trim();
+    }
+    return fallbackMessage;
+}
+
 function getPaymentConfig() {
     return {
         publishableKey: STRIPE_PUBLISHABLE_KEY,
@@ -340,7 +367,6 @@ async function createPolarCheckoutSession(context) {
             customer_email: context.userEmail,
             external_customer_id: context.userEmail,
             locale: 'en',
-            currency: context.product.currency,
             metadata: context.metadata,
             success_url: urls.polarSuccessUrl,
             return_url: urls.cancelUrl
@@ -349,8 +375,7 @@ async function createPolarCheckoutSession(context) {
 
     const data = await response.json();
     if (!response.ok) {
-        const message = data && data.detail ? data.detail : 'Polar checkout session could not be created.';
-        throw new Error(typeof message === 'string' ? message : 'Polar checkout session could not be created.');
+        throw new Error(extractPolarErrorMessage(data, 'Polar checkout session could not be created.'));
     }
 
     return {
@@ -499,8 +524,7 @@ async function fetchPolarCheckoutSession(checkoutId) {
 
     const data = await response.json();
     if (!response.ok) {
-        const message = data && data.detail ? data.detail : 'Could not verify Polar checkout session.';
-        throw new Error(typeof message === 'string' ? message : 'Could not verify Polar checkout session.');
+        throw new Error(extractPolarErrorMessage(data, 'Could not verify Polar checkout session.'));
     }
 
     return data;
