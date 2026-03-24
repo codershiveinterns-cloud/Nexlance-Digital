@@ -67,6 +67,42 @@ function getPolarProductId(productCode) {
     return envKey ? String(process.env[envKey] || '').trim() : '';
 }
 
+function hasStripeGatewayAccess() {
+    return Boolean(STRIPE_SECRET_KEY);
+}
+
+function hasPolarGatewayAccess(productCode) {
+    return Boolean(POLAR_ACCESS_TOKEN && getPolarProductId(productCode));
+}
+
+function getProductGatewayAvailability(productCode) {
+    return {
+        stripe: hasStripeGatewayAccess(),
+        polar: hasPolarGatewayAccess(productCode)
+    };
+}
+
+function normalizeRequestedProvider(provider) {
+    const normalized = String(provider || '').trim().toLowerCase();
+    if (!normalized) return '';
+    if (normalized === 'stripe' || normalized === 'polar') {
+        return normalized;
+    }
+    throw new Error('Unsupported payment gateway selected.');
+}
+
+function getProviderConfigurationError(provider, productCode) {
+    if (provider === 'stripe') {
+        return 'Stripe checkout is not configured right now. Please choose Polar or try again later.';
+    }
+    if (provider === 'polar') {
+        return getPolarProductId(productCode)
+            ? 'Polar checkout is not configured right now. Please choose Stripe or try again later.'
+            : 'Polar checkout is not configured for this product right now. Please choose Stripe or try again later.';
+    }
+    return 'Hosted checkout is not configured right now. Please try again later.';
+}
+
 function getPaymentConfig() {
     return {
         publishableKey: STRIPE_PUBLISHABLE_KEY,
@@ -81,12 +117,13 @@ function getPaymentConfig() {
                     currency: product.currency,
                     billingType: product.billingType,
                     billingCycle: product.billingCycle || '',
-                    entitlements: product.entitlements
+                    entitlements: product.entitlements,
+                    gateways: getProductGatewayAvailability(product.productCode)
                 }
             ])
         ),
         gateways: {
-            stripe: Boolean(STRIPE_SECRET_KEY),
+            stripe: hasStripeGatewayAccess(),
             polar: Boolean(POLAR_ACCESS_TOKEN)
         }
     };
@@ -332,7 +369,24 @@ function getProviderFallbackOrder(requestedProvider) {
 
 async function createHostedCheckout(options) {
     const context = await resolveCheckoutContext(options);
-    const [requestedProvider, fallbackProvider] = getProviderFallbackOrder(options.provider);
+    const explicitlyRequestedProvider = normalizeRequestedProvider(options.provider);
+    const gatewayAvailability = getProductGatewayAvailability(context.product.productCode);
+    let providersToTry = [];
+
+    if (explicitlyRequestedProvider) {
+        if (!gatewayAvailability[explicitlyRequestedProvider]) {
+            throw new Error(getProviderConfigurationError(explicitlyRequestedProvider, context.product.productCode));
+        }
+        providersToTry = [explicitlyRequestedProvider];
+    } else {
+        providersToTry = getProviderFallbackOrder('stripe').filter(provider => gatewayAvailability[provider]);
+        if (!providersToTry.length) {
+            throw new Error('Hosted checkout is not configured right now. Please try again later.');
+        }
+    }
+
+    const requestedProvider = providersToTry[0];
+    const fallbackProvider = providersToTry[1] || '';
     const attemptBase = {
         attemptId: crypto.randomUUID ? crypto.randomUUID() : `attempt_${Date.now()}`,
         requestedProvider,
@@ -352,7 +406,6 @@ async function createHostedCheckout(options) {
 
     await upsertPaymentAttempt(attemptBase);
 
-    const providersToTry = [requestedProvider, fallbackProvider].filter((provider, index, list) => provider && list.indexOf(provider) === index);
     let lastError = null;
 
     for (let index = 0; index < providersToTry.length; index += 1) {

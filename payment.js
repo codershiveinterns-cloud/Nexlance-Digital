@@ -15,6 +15,8 @@
 
     const config = Object.assign({}, DEFAULT_CONFIG, window.NEXLANCE_PAYMENT_CONFIG || {});
     let activeCheckoutOptions = null;
+    let paymentConfigCache = null;
+    let paymentConfigPromise = null;
 
     function normalizeApiBaseUrl(baseUrl) {
         return String(baseUrl || '').trim().replace(/\/+$/, '');
@@ -38,6 +40,45 @@
             ? String(pathname)
             : `/${String(pathname || '')}`;
         return `${getApiBaseUrl()}${normalizedPath}`;
+    }
+
+    async function fetchPaymentConfig() {
+        if (paymentConfigCache) {
+            return paymentConfigCache;
+        }
+
+        if (!paymentConfigPromise) {
+            paymentConfigPromise = fetch(getApiUrl('/api/payment-config'))
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Payment configuration could not be loaded.');
+                    }
+                    paymentConfigCache = data;
+                    return data;
+                })
+                .finally(() => {
+                    paymentConfigPromise = null;
+                });
+        }
+
+        return paymentConfigPromise;
+    }
+
+    function getGatewayAvailabilityForProduct(paymentConfig, productCode) {
+        if (!paymentConfig || !paymentConfig.products) {
+            return null;
+        }
+
+        const product = paymentConfig.products[String(productCode || '').trim().toLowerCase()];
+        if (!product || !product.gateways) {
+            return null;
+        }
+
+        return {
+            stripe: product.gateways.stripe !== false,
+            polar: product.gateways.polar !== false
+        };
     }
 
     function getCurrentPageWithQuery(extraParams) {
@@ -261,6 +302,12 @@
                 background: #fff;
                 text-align: left;
             }
+            .nl-provider-card:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
             .nl-provider-card strong {
                 display: block;
                 margin-bottom: 4px;
@@ -409,6 +456,30 @@
         el.className = 'nl-payment-message' + (type ? ` ${type}` : '');
     }
 
+    function applyProviderAvailability(availability) {
+        const buttons = Array.from(document.querySelectorAll('#nexlanceProviderOverlay [data-provider]'));
+        buttons.forEach(button => {
+            const provider = button.getAttribute('data-provider');
+            const isAvailable = !availability || availability[provider] !== false;
+            button.disabled = !isAvailable;
+            button.setAttribute('aria-disabled', isAvailable ? 'false' : 'true');
+        });
+    }
+
+    function getAvailabilityMessage(availability) {
+        if (!availability) return '';
+        if (availability.stripe === false && availability.polar === false) {
+            return 'Secure hosted checkout is not configured right now. Please try again later.';
+        }
+        if (availability.stripe === false) {
+            return 'Stripe checkout is unavailable right now. Please choose Polar.';
+        }
+        if (availability.polar === false) {
+            return 'Polar checkout is unavailable right now. Please choose Stripe.';
+        }
+        return '';
+    }
+
     function showAuthPrompt(options) {
         ensureMarkup();
         const overlay = document.getElementById('nexlanceAuthOverlay');
@@ -433,7 +504,9 @@
         document.getElementById('nexlanceProviderSummaryTitle').textContent = options.summaryTitle || 'Checkout';
         document.getElementById('nexlanceProviderSummaryText').textContent = options.summaryText || 'Hosted secure payment';
         document.getElementById('nexlanceProviderAmount').textContent = formatAmount(options.amount, options.currency || 'eur');
-        setProviderMessage('', '');
+        applyProviderAvailability(options.gatewayAvailability || null);
+        const availabilityMessage = getAvailabilityMessage(options.gatewayAvailability || null);
+        setProviderMessage(availabilityMessage, availabilityMessage ? 'error' : '');
         showOverlay(document.getElementById('nexlanceProviderOverlay'));
     }
 
@@ -446,6 +519,10 @@
 
     async function handleProviderSelection(provider) {
         if (!activeCheckoutOptions) return;
+        if (activeCheckoutOptions.gatewayAvailability && activeCheckoutOptions.gatewayAvailability[provider] === false) {
+            setProviderMessage(getAvailabilityMessage(activeCheckoutOptions.gatewayAvailability), 'error');
+            return;
+        }
 
         const buttons = Array.from(document.querySelectorAll('#nexlanceProviderOverlay [data-provider]'));
         buttons.forEach(button => {
@@ -480,9 +557,7 @@
             window.location.href = data.redirectUrl;
         } catch (error) {
             setProviderMessage(error.message || 'Checkout could not be started.', 'error');
-            buttons.forEach(button => {
-                button.disabled = false;
-            });
+            applyProviderAvailability(activeCheckoutOptions.gatewayAvailability || null);
         }
     }
 
@@ -498,12 +573,21 @@
             return;
         }
 
+        let gatewayAvailability = null;
+        try {
+            const paymentConfig = await fetchPaymentConfig();
+            gatewayAvailability = getGatewayAvailabilityForProduct(paymentConfig, options.productCode);
+        } catch (error) {
+            console.warn('Payment config could not be loaded:', error);
+        }
+
         openProviderModal({
             amount: options.amount,
             currency: options.currency || 'eur',
             productCode: options.productCode,
             templateId: options.templateId || '',
             templateName: options.templateName || '',
+            gatewayAvailability,
             title: options.title || 'Choose your payment gateway',
             message: options.message || 'Select Stripe or Polar to continue to secure hosted checkout.',
             summaryTitle: options.summaryTitle || 'Checkout',
