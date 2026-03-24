@@ -150,11 +150,11 @@
             <!-- Personal -->
             <div class="price-card">
                 <div class="plan-name">Plus</div>
-                <div class="plan-desc">Free access for projects, support info, and template editing</div>
+                <div class="plan-desc">Full dashboard access for growing teams, billed every 30 days</div>
                 <div class="price-amount">
                     <div class="price-main">
                         <span class="price-currency">â‚¬</span>
-                        <span class="price-num" data-monthly="0" data-annual="0">0</span>
+                        <span class="price-num" data-monthly="199" data-annual="1910.40">199</span>
                         <span class="price-period">/month</span>
                     </div>
                     <div class="price-note">Billed monthly</div>
@@ -171,14 +171,14 @@
                     <li><span class="crs">âœ—</span> E-commerce</li>
                     <li><span class="crs">âœ—</span> Email campaigns</li>
                 </ul>
-                <a href="login.html"><button class="plan-cta cta-outline">Continue Free</button></a>
+                <a href="pricing.html?checkout=plus"><button class="plan-cta cta-outline" data-plan-action="plus">Choose Plus</button></a>
             </div>
 
             <!-- Business (Popular) -->
             <div class="price-card popular">
                 <div class="popular-badge">Most Popular</div>
                 <div class="plan-name">Business</div>
-                <div class="plan-desc">Paid access to the full dashboard except admin panel</div>
+                <div class="plan-desc">Full dashboard and template access, billed every 30 days</div>
                 <div class="price-amount">
                     <div class="price-main">
                         <span class="price-currency">â‚¬</span>
@@ -204,29 +204,25 @@
 
             <!-- Commerce -->
             <div class="price-card">
-                <div class="plan-name">Commerce</div>
-                <div class="plan-desc">For serious sellers with high volume</div>
+                <div class="plan-name">Pro</div>
+                <div class="plan-desc">Template access with editing freedom, billed every 30 days</div>
                 <div class="price-amount">
                     <div class="price-main">
                         <span class="price-currency">â‚¬</span>
-                        <span class="price-num" data-monthly="40" data-annual="360">40</span>
-                        <span class="price-period">/month</span>
+                        <span class="price-num" data-monthly="299" data-annual="299">299</span>
+                        <span class="price-period" data-fixed-period="/month">/month</span>
                     </div>
-                    <div class="price-note">Billed monthly</div>
+                    <div class="price-note">Billed every 30 days</div>
                 </div>
                 <ul class="feature-list">
-                    <li><span class="chk">âœ“</span> Everything in Business</li>
-                    <li><span class="chk">âœ“</span> Unlimited storage</li>
-                    <li><span class="chk">âœ“</span> <strong>0% transaction fees</strong></li>
-                    <li><span class="chk">âœ“</span> Point of Sale (POS)</li>
-                    <li><span class="chk">âœ“</span> Customer accounts</li>
-                    <li><span class="chk">âœ“</span> Inventory management</li>
-                    <li><span class="chk">âœ“</span> Advanced shipping</li>
-                    <li><span class="chk">âœ“</span> Unlimited AI tools</li>
-                    <li><span class="chk">âœ“</span> Subscriptions & memberships</li>
-                    <li><span class="chk">âœ“</span> Dedicated account manager</li>
+                    <li><span class="chk">âœ“</span> One time payment for templates</li>
+                    <li><span class="chk">âœ“</span> Access to all templates</li>
+                    <li><span class="chk">âœ“</span> Discount on all templates</li>
+                    <li><span class="chk">âœ“</span> Editing of templates allowed</li>
+                    <li><span class="chk">âœ“</span> Edit at your command</li>
+                    <li><span class="crs">âœ—</span> No ad, in panel access</li>
                 </ul>
-                <a href="login.html"><button class="plan-cta cta-outline">Start Free Trial</button></a>
+                <a href="pricing.html?checkout=pro"><button class="plan-cta cta-outline" data-plan-action="pro">Choose Pro</button></a>
             </div>
 
             <!-- Enterprise -->
@@ -345,8 +341,8 @@
     const lblYr     = document.getElementById('lbl-yr');
     const noteEl    = document.getElementById('billing-note-p');
 
-    const annualSavings = ['Save â‚¬1437.60 vs monthly', 'Single payment', 'Save â‚¬4317.60 vs monthly'];
-    const monthlyNotes  = ['Billed monthly', 'Single payment', 'Billed monthly'];
+    const annualSavings = ['Save EUR 477.60 vs monthly', 'Billed every 30 days', 'Save EUR 957.60 vs monthly'];
+    const monthlyNotes  = ['Billed monthly', 'Billed every 30 days', 'Billed monthly'];
 
     toggle.addEventListener('change', () => {
         const annual = toggle.checked;

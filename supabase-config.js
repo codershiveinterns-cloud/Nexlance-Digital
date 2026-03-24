@@ -139,7 +139,7 @@ function buildIndividualPlanRecord(options = {}) {
 function buildPaidPlanRecord(planCode, options = {}) {
     const normalizedCode = String(planCode || 'business').trim().toLowerCase();
     const planNames = { plus: 'Plus', pro: 'Pro', business: 'Business' };
-    const defaultPrices = { plus: 599, pro: 1499, business: 1799 };
+    const defaultPrices = { plus: 199, pro: 299, business: 399 };
     const startedAt = options.startedAt || new Date().toISOString();
     const dashboardAccess = options.dashboardAccess !== undefined
         ? Boolean(options.dashboardAccess)

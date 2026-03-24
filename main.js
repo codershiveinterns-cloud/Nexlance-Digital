@@ -7,26 +7,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const PLAN_CONFIG = {
         plus: {
             name: 'Plus',
-            defaultAmountCents: 59900,
-            summary: { monthly: 'Monthly dashboard access', annual: 'Yearly dashboard access' },
+            defaultAmountCents: 19900,
+            summary: { monthly: '30-day dashboard access', annual: 'Yearly dashboard access' },
             productCodes: { monthly: 'plus_monthly', annual: 'plus_yearly' },
-            description: 'Nexlance Plus plan upgrade',
+            description: 'Nexlance Plus plan access for 30 days',
             successMessage: 'Plus plan payment completed successfully.'
         },
         pro: {
             name: 'Pro',
-            defaultAmountCents: 149900,
-            summary: { monthly: 'One-time template access', annual: 'One-time template access' },
+            defaultAmountCents: 29900,
+            summary: { monthly: '30-day template access', annual: '30-day template access' },
             productCodes: { monthly: 'pro_onetime', annual: 'pro_onetime' },
-            description: 'Nexlance Pro template plan purchase',
+            description: 'Nexlance Pro plan access for 30 days',
             successMessage: 'Pro plan payment completed successfully.'
         },
         business: {
             name: 'Business',
-            defaultAmountCents: 179900,
-            summary: { monthly: 'Monthly dashboard and templates access', annual: 'Yearly dashboard and templates access' },
+            defaultAmountCents: 39900,
+            summary: { monthly: '30-day dashboard and templates access', annual: 'Yearly dashboard and templates access' },
             productCodes: { monthly: 'business_monthly', annual: 'business_yearly' },
-            description: 'Nexlance Business plan upgrade',
+            description: 'Nexlance Business plan access for 30 days',
             successMessage: 'Business plan payment completed successfully.'
         }
     };
@@ -207,11 +207,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="pricing-card">
                     <div class="pricing-header">
                         <h3>Plus</h3>
-                        <p>Full dashboard access for teams that need operations and analytics</p>
+                        <p>Full dashboard access for teams that need operations and analytics, billed every 30 days</p>
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
-                    <span class="amount" data-monthly="599" data-annual="5750.40">599</span>
+                    <span class="amount" data-monthly="199" data-annual="1910.40">199</span>
                         <span class="period">/month</span>
                     </div>
                     <ul class="pricing-features">
@@ -227,12 +227,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="pricing-card">
                     <div class="pricing-header">
                         <h3>Pro</h3>
-                        <p>One-time template access with discounts and full editing freedom</p>
+                        <p>Template access with discounts and full editing freedom, billed every 30 days</p>
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
-                    <span class="amount" data-monthly="1499" data-annual="1499">1499</span>
-                        <span class="period" data-fixed-period="one-time">one-time</span>
+                    <span class="amount" data-monthly="299" data-annual="299">299</span>
+                        <span class="period" data-fixed-period="/month">/month</span>
                     </div>
                     <ul class="pricing-features">
                         <li><span class="check">&#10003;</span> One time payment for templates</li>
@@ -248,11 +248,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="popular-badge">Most Popular</div>
                     <div class="pricing-header">
                         <h3>Business</h3>
-                        <p>Combo offer with the benefits of both Plus and Pro</p>
+                        <p>Combo offer with the benefits of both Plus and Pro, billed every 30 days</p>
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
-                    <span class="amount" data-monthly="1799" data-annual="17270.40">1799</span>
+                    <span class="amount" data-monthly="399" data-annual="3830.40">399</span>
                         <span class="period">/month</span>
                     </div>
                     <ul class="pricing-features">
@@ -272,11 +272,11 @@ document.addEventListener('DOMContentLoaded', function() {
             pricingGrid.innerHTML = `
                 <div class="price-card">
                     <div class="plan-name">Plus</div>
-                    <div class="plan-desc">Full dashboard access for teams that need operations and analytics</div>
+                    <div class="plan-desc">Full dashboard access for teams that need operations and analytics, billed every 30 days</div>
                     <div class="price-amount">
                         <div class="price-main">
                             <span class="price-currency">&euro;</span>
-                            <span class="price-num" data-monthly="599" data-annual="5750.40">599</span>
+                            <span class="price-num" data-monthly="199" data-annual="1910.40">199</span>
                             <span class="price-period">/month</span>
                         </div>
                         <div class="price-note">Billed monthly</div>
@@ -293,14 +293,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="price-card">
                     <div class="plan-name">Pro</div>
-                    <div class="plan-desc">One-time template access with discounts and full editing freedom</div>
+                    <div class="plan-desc">Template access with discounts and full editing freedom, billed every 30 days</div>
                     <div class="price-amount">
                         <div class="price-main">
                             <span class="price-currency">&euro;</span>
-                            <span class="price-num" data-monthly="1499" data-annual="1499">1499</span>
-                            <span class="price-period" data-fixed-period="one-time">one-time</span>
+                            <span class="price-num" data-monthly="299" data-annual="299">299</span>
+                            <span class="price-period" data-fixed-period="/month">/month</span>
                         </div>
-                        <div class="price-note">Single payment</div>
+                        <div class="price-note">Billed every 30 days</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> One time payment for templates</li>
@@ -315,11 +315,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="price-card popular">
                     <div class="popular-badge">Most Popular</div>
                     <div class="plan-name">Business</div>
-                    <div class="plan-desc">Combo offer with the benefits of both Plus and Pro</div>
+                    <div class="plan-desc">Combo offer with the benefits of both Plus and Pro, billed every 30 days</div>
                     <div class="price-amount">
                         <div class="price-main">
                             <span class="price-currency">&euro;</span>
-                            <span class="price-num" data-monthly="1799" data-annual="17270.40">1799</span>
+                            <span class="price-num" data-monthly="399" data-annual="3830.40">399</span>
                             <span class="price-period">/month</span>
                         </div>
                         <div class="price-note">Billed monthly</div>
