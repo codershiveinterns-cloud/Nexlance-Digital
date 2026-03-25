@@ -8,7 +8,10 @@ document.addEventListener('DOMContentLoaded', function() {
         plus: {
             name: 'Plus',
             defaultAmountCents: 19900,
-            summary: { monthly: '30-day dashboard access', annual: 'Yearly dashboard access' },
+            summary: {
+                monthly: 'Dashboard access for Projects, Settings, Support Info, Access / Roles, and Services',
+                annual: 'Yearly dashboard access for Projects, Settings, Support Info, Access / Roles, and Services'
+            },
             productCodes: { monthly: 'plus_monthly', annual: 'plus_yearly' },
             description: 'Nexlance Plus plan access for 30 days',
             successMessage: 'Plus plan payment completed successfully.'
@@ -16,7 +19,10 @@ document.addEventListener('DOMContentLoaded', function() {
         pro: {
             name: 'Pro',
             defaultAmountCents: 29900,
-            summary: { monthly: '30-day template access', annual: 'Yearly template access' },
+            summary: {
+                monthly: 'Dashboard access plus up to 4 templates',
+                annual: 'Yearly dashboard access plus up to 4 templates'
+            },
             productCodes: { monthly: 'pro_onetime', annual: 'pro_yearly' },
             description: 'Nexlance Pro plan access for 30 days',
             successMessage: 'Pro plan payment completed successfully.'
@@ -24,7 +30,10 @@ document.addEventListener('DOMContentLoaded', function() {
         business: {
             name: 'Business',
             defaultAmountCents: 39900,
-            summary: { monthly: '30-day dashboard and templates access', annual: 'Yearly dashboard and templates access' },
+            summary: {
+                monthly: 'Complete dashboard access plus all 8 templates',
+                annual: 'Yearly complete dashboard access plus all 8 templates'
+            },
             productCodes: { monthly: 'business_monthly', annual: 'business_yearly' },
             description: 'Nexlance Business plan access for 30 days',
             successMessage: 'Business plan payment completed successfully.'

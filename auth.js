@@ -254,16 +254,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       : '';
 
     if (typeof activatePaidPlanAccess === 'function' && activePaidPlanCode) {
+      const defaultDashboardAccess = ['plus', 'pro', 'business'].includes(activePaidPlanCode);
+      const defaultAllTemplatesAccess = activePaidPlanCode === 'business';
+      const defaultTemplateLimit = activePaidPlanCode === 'pro' ? 4 : (activePaidPlanCode === 'business' ? 8 : 0);
       activatePaidPlanAccess(activePaidPlanCode, {
         price: record.paymentAmount || 0,
         currency: 'EUR',
         startedAt: record.planStartedAt || record.upgradedAt || new Date().toISOString(),
         endsAt: record.planEndsAt || null,
         billingCycle: record.planBillingCycle || (record.planEndsAt ? 'annual' : 'monthly'),
-        dashboardAccess: record.dashboardAccess !== undefined
-          ? Boolean(record.dashboardAccess)
-          : activePaidPlanCode !== 'pro',
-        allTemplatesAccess: Boolean(record.allTemplatesAccess || activePaidPlanCode === 'business' || activePaidPlanCode === 'pro')
+        dashboardAccess: activePaidPlanCode === 'pro'
+          ? true
+          : (record.dashboardAccess !== undefined ? Boolean(record.dashboardAccess) : defaultDashboardAccess),
+        allTemplatesAccess: activePaidPlanCode === 'business'
+          ? Boolean(record.allTemplatesAccess !== false)
+          : defaultAllTemplatesAccess,
+        templateLimit: record.templateLimit !== undefined
+          ? Number(record.templateLimit || defaultTemplateLimit)
+          : defaultTemplateLimit
       });
       return;
     }

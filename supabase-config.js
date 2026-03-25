@@ -52,6 +52,44 @@ const EMAILJS_CONFIG = {
     fromName: 'Nexlance',
     otpExpiryMinutes: 10
 };
+const PLAN_ACCESS_CONFIG = {
+    individual: {
+        pages: ['projects.html', 'project-detail.html', 'developer-info.html', 'settings.html'],
+        entities: ['projects', 'tasks'],
+        dashboardAccess: false,
+        allTemplatesAccess: false,
+        templateLimit: 0
+    },
+    plus: {
+        pages: ['dashboard.html', 'projects.html', 'project-detail.html', 'settings.html', 'developer-info.html', 'access-roles.html', 'services.html'],
+        entities: ['projects', 'tasks', 'services'],
+        dashboardAccess: true,
+        allTemplatesAccess: false,
+        templateLimit: 0
+    },
+    pro: {
+        pages: ['dashboard.html', 'projects.html', 'project-detail.html', 'settings.html', 'developer-info.html', 'access-roles.html', 'services.html', 'invoices.html', 'invoice-create.html', 'team.html'],
+        entities: ['projects', 'tasks', 'services', 'invoices', 'team'],
+        dashboardAccess: true,
+        allTemplatesAccess: false,
+        templateLimit: 4
+    },
+    business: {
+        pages: ['dashboard.html', 'projects.html', 'project-detail.html', 'settings.html', 'developer-info.html', 'access-roles.html', 'services.html', 'invoices.html', 'invoice-create.html', 'team.html', 'clients.html', 'client-detail.html', 'reports.html'],
+        entities: ['projects', 'tasks', 'services', 'invoices', 'team', 'clients', 'reports'],
+        dashboardAccess: true,
+        allTemplatesAccess: true,
+        templateLimit: 8
+    }
+};
+const TRIAL_ACCESS_CONFIG = {
+    pages: [...PLAN_ACCESS_CONFIG.business.pages],
+    entities: [...PLAN_ACCESS_CONFIG.business.entities],
+    dashboardAccess: true,
+    allTemplatesAccess: false,
+    templateLimit: 0
+};
+const RESTRICTED_PAGE_NAMES = ['dashboard.html', 'clients.html', 'team.html', 'invoices.html', 'invoice-create.html', 'services.html', 'access-roles.html', 'reports.html', 'client-detail.html'];
 
 function _snap(querySnap) {
     return querySnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -85,7 +123,38 @@ function getStoredTrialRecord() {
 }
 
 function isPaidPlanCode(planCode) {
-    return ['plus', 'business'].includes(String(planCode || '').trim().toLowerCase());
+    return ['plus', 'pro', 'business'].includes(String(planCode || '').trim().toLowerCase());
+}
+
+function getPlanAccessConfig(planCode) {
+    const normalizedCode = String(planCode || 'individual').trim().toLowerCase();
+    const config = PLAN_ACCESS_CONFIG[normalizedCode] || PLAN_ACCESS_CONFIG.individual;
+    return {
+        pages: [...config.pages],
+        entities: [...config.entities],
+        dashboardAccess: Boolean(config.dashboardAccess),
+        allTemplatesAccess: Boolean(config.allTemplatesAccess),
+        templateLimit: Number(config.templateLimit || 0)
+    };
+}
+
+function getCurrentAccessConfig() {
+    if (isTrialStillActive()) {
+        return {
+            pages: [...TRIAL_ACCESS_CONFIG.pages],
+            entities: [...TRIAL_ACCESS_CONFIG.entities],
+            dashboardAccess: true,
+            allTemplatesAccess: false,
+            templateLimit: 0
+        };
+    }
+
+    const currentPlan = getCurrentPlanRecord();
+    return getPlanAccessConfig(currentPlan && currentPlan.code);
+}
+
+function canAccessPage(pageName = getCurrentPageName()) {
+    return getCurrentAccessConfig().pages.includes(pageName);
 }
 
 function normalizeTrialRecord(trialRecord = getStoredTrialRecord()) {
@@ -140,13 +209,17 @@ function buildPaidPlanRecord(planCode, options = {}) {
     const normalizedCode = String(planCode || 'business').trim().toLowerCase();
     const planNames = { plus: 'Plus', pro: 'Pro', business: 'Business' };
     const defaultPrices = { plus: 199, pro: 299, business: 399 };
+    const accessConfig = getPlanAccessConfig(normalizedCode);
     const startedAt = options.startedAt || new Date().toISOString();
     const dashboardAccess = options.dashboardAccess !== undefined
         ? Boolean(options.dashboardAccess)
-        : ['plus', 'business'].includes(normalizedCode);
+        : accessConfig.dashboardAccess;
     const allTemplatesAccess = options.allTemplatesAccess !== undefined
         ? Boolean(options.allTemplatesAccess)
-        : ['pro', 'business'].includes(normalizedCode);
+        : accessConfig.allTemplatesAccess;
+    const templateLimit = options.templateLimit !== undefined
+        ? Number(options.templateLimit || 0)
+        : accessConfig.templateLimit;
     return {
         code: normalizedCode,
         name: planNames[normalizedCode] || 'Business',
@@ -159,12 +232,31 @@ function buildPaidPlanRecord(planCode, options = {}) {
         billingCycle: options.billingCycle || 'monthly',
         paymentIntentId: options.paymentIntentId || '',
         dashboardAccess,
-        allTemplatesAccess
+        allTemplatesAccess,
+        templateLimit
     };
 }
 
 function buildBusinessPlanRecord(options = {}) {
     return buildPaidPlanRecord('business', options);
+}
+
+function normalizePlanRecord(planRecord) {
+    if (!planRecord || !planRecord.code) {
+        return planRecord;
+    }
+
+    const normalizedCode = String(planRecord.code || '').trim().toLowerCase();
+    const accessConfig = getPlanAccessConfig(normalizedCode);
+    const isPaid = Boolean(planRecord.paid);
+
+    return {
+        ...planRecord,
+        code: normalizedCode || 'individual',
+        dashboardAccess: isPaid ? accessConfig.dashboardAccess : false,
+        allTemplatesAccess: isPaid ? accessConfig.allTemplatesAccess : false,
+        templateLimit: isPaid ? accessConfig.templateLimit : 0
+    };
 }
 
 function getScopedStorageKey(baseKey, ownerKey = getCurrentOwnerKey()) {
@@ -174,7 +266,7 @@ function getScopedStorageKey(baseKey, ownerKey = getCurrentOwnerKey()) {
 function getStoredPlanRecord() {
     try {
         const scopedKey = getScopedStorageKey('nexlance_plan');
-        return JSON.parse(localStorage.getItem(scopedKey) || localStorage.getItem('nexlance_plan') || 'null');
+        return normalizePlanRecord(JSON.parse(localStorage.getItem(scopedKey) || localStorage.getItem('nexlance_plan') || 'null'));
     } catch (error) {
         return null;
     }
@@ -268,21 +360,11 @@ function getCurrentPageName() {
 }
 
 function isFreePlanPageAllowed(pageName = getCurrentPageName()) {
-    return ['projects.html', 'project-detail.html', 'developer-info.html', 'settings.html'].includes(pageName);
+    return PLAN_ACCESS_CONFIG.individual.pages.includes(pageName);
 }
 
 function isRestrictedPreviewPage(pageName = getCurrentPageName()) {
-    return [
-        'dashboard.html',
-        'clients.html',
-        'team.html',
-        'invoices.html',
-        'invoice-create.html',
-        'services.html',
-        'access-roles.html',
-        'reports.html',
-        'client-detail.html'
-    ].includes(pageName);
+    return RESTRICTED_PAGE_NAMES.includes(pageName);
 }
 
 function hasExpiredRestrictedPreviewAccess() {
@@ -319,6 +401,7 @@ function syncPlanRecordToUserStore(planRecord) {
                 planEndsAt: planRecord.endsAt || null,
                 dashboardAccess: planRecord.dashboardAccess === true,
                 allTemplatesAccess: planRecord.allTemplatesAccess === true,
+                templateLimit: Number(planRecord.templateLimit || 0),
                 fullAccess: planRecord.dashboardAccess === true
             };
             localStorage.setItem('nexlance_users', JSON.stringify(users));
@@ -337,6 +420,7 @@ function syncPlanRecordToFirebase(planRecord) {
         planStatus: planRecord.status || (planRecord.paid ? 'active' : 'free'),
         dashboardAccess: planRecord.dashboardAccess === true,
         allTemplatesAccess: planRecord.allTemplatesAccess === true,
+        templateLimit: Number(planRecord.templateLimit || 0),
         fullAccess: planRecord.dashboardAccess === true,
         paymentAmount: planRecord.price || 0,
         planStartedAt: planRecord.startedAt || null,
@@ -506,17 +590,15 @@ function getUpgradeRequiredMessage() {
 }
 
 function canAccessEntity(entity) {
-    if (hasDashboardAccess()) return true;
-    return ['projects', 'tasks'].includes(entity);
+    return getCurrentAccessConfig().entities.includes(String(entity || '').trim().toLowerCase());
 }
 
 function syncPlanUiVisibility() {
-    const dashboardAccess = hasDashboardAccess();
     const previewAccess = hasExpiredRestrictedPreviewAccess();
-    const unrestrictedLinks = ['projects.html', 'project-detail.html', 'developer-info.html', 'settings.html'];
-    const allowedLinks = (dashboardAccess || previewAccess)
-        ? ['dashboard.html', 'clients.html', 'team.html', 'projects.html', 'invoices.html', 'services.html', 'access-roles.html', 'developer-info.html', 'settings.html']
-        : ['projects.html', 'developer-info.html', 'settings.html'];
+    const unrestrictedLinks = [...PLAN_ACCESS_CONFIG.individual.pages];
+    const allowedLinks = previewAccess
+        ? [...new Set([...TRIAL_ACCESS_CONFIG.pages, ...PLAN_ACCESS_CONFIG.individual.pages])]
+        : getCurrentAccessConfig().pages;
 
     document.querySelectorAll('.sidebar a[href]').forEach(link => {
         const href = link.getAttribute('href');
@@ -532,8 +614,8 @@ function enforcePlanPageAccess() {
         return;
     }
     if (shouldShowRestrictedPreview(pageName)) return;
-    if (hasDashboardAccess()) return;
-    if (!isFreePlanPageAllowed(pageName) && pageName.endsWith('.html') && ['dashboard.html', 'clients.html', 'team.html', 'invoices.html', 'invoice-create.html', 'services.html', 'access-roles.html', 'reports.html', 'client-detail.html'].includes(pageName)) {
+    if (canAccessPage(pageName)) return;
+    if (pageName.endsWith('.html') && RESTRICTED_PAGE_NAMES.includes(pageName)) {
         window.location.href = 'projects.html';
     }
 }

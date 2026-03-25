@@ -38,7 +38,8 @@
             entitlements: {
                 dashboardAccess: true,
                 allTemplates: false,
-                singleTemplatePurchase: false
+                singleTemplatePurchase: false,
+                templateLimit: 0
             },
             limits: {
                 aiCreditsPerMonth: 5,
@@ -58,7 +59,8 @@
             entitlements: {
                 dashboardAccess: true,
                 allTemplates: false,
-                singleTemplatePurchase: false
+                singleTemplatePurchase: false,
+                templateLimit: 0
             },
             limits: {
                 aiCreditsPerMonth: 5,
@@ -76,12 +78,13 @@
             billingCycle: 'one_time',
             successRedirect: 'templates.html',
             entitlements: {
-                dashboardAccess: false,
-                allTemplates: true,
-                singleTemplatePurchase: false
+                dashboardAccess: true,
+                allTemplates: false,
+                singleTemplatePurchase: false,
+                templateLimit: 4
             },
             limits: {
-                allTemplates: true,
+                templateLimit: 4,
                 supportTier: 'priority'
             }
         },
@@ -95,12 +98,13 @@
             billingCycle: 'yearly',
             successRedirect: 'templates.html',
             entitlements: {
-                dashboardAccess: false,
-                allTemplates: true,
-                singleTemplatePurchase: false
+                dashboardAccess: true,
+                allTemplates: false,
+                singleTemplatePurchase: false,
+                templateLimit: 4
             },
             limits: {
-                allTemplates: true,
+                templateLimit: 4,
                 supportTier: 'priority'
             }
         },
@@ -116,13 +120,15 @@
             entitlements: {
                 dashboardAccess: true,
                 allTemplates: true,
-                singleTemplatePurchase: false
+                singleTemplatePurchase: false,
+                templateLimit: 8
             },
             limits: {
                 aiCreditsPerMonth: 50,
                 storageGb: 50,
                 supportTier: 'priority',
-                allTemplates: true
+                allTemplates: true,
+                templateLimit: 8
             }
         },
         business_yearly: {
@@ -137,13 +143,15 @@
             entitlements: {
                 dashboardAccess: true,
                 allTemplates: true,
-                singleTemplatePurchase: false
+                singleTemplatePurchase: false,
+                templateLimit: 8
             },
             limits: {
                 aiCreditsPerMonth: 50,
                 storageGb: 50,
                 supportTier: 'priority',
-                allTemplates: true
+                allTemplates: true,
+                templateLimit: 8
             }
         }
     };

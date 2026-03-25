@@ -378,9 +378,7 @@ async function updateUserPlanByEmail(email, planRecord) {
     return updateUserByEmail(email, currentUser => {
         const existingTemplateIds = Array.isArray(currentUser.ownedTemplateIds) ? currentUser.ownedTemplateIds : [];
         const dashboardAccess = Boolean(planRecord.dashboardAccess);
-        const allTemplatesAccess = Boolean(planRecord.allTemplatesAccess || currentUser.allTemplatesAccess);
-        const existingTemplateSource = String(currentUser.templateAccessSource || '').toLowerCase();
-        const preservePermanentTemplateAccess = existingTemplateSource === 'pro' && !currentUser.templateAccessEndsAt;
+        const allTemplatesAccess = Boolean(planRecord.allTemplatesAccess);
 
         return {
             currentPlan: planRecord.name,
@@ -389,6 +387,7 @@ async function updateUserPlanByEmail(email, planRecord) {
             planStatus: planRecord.status,
             dashboardAccess,
             allTemplatesAccess,
+            templateLimit: Number(planRecord.templateLimit || 0),
             fullAccess: dashboardAccess,
             paymentAmount: planRecord.price,
             planStartedAt: planRecord.startedAt || '',
@@ -400,12 +399,8 @@ async function updateUserPlanByEmail(email, planRecord) {
             paymentProvider: planRecord.provider || '',
             providerCustomerId: planRecord.providerCustomerId || '',
             providerSubscriptionId: planRecord.providerSubscriptionId || '',
-            templateAccessSource: preservePermanentTemplateAccess
-                ? currentUser.templateAccessSource
-                : (planRecord.templateAccessSource || (allTemplatesAccess ? (currentUser.templateAccessSource || planRecord.code) : '')),
-            templateAccessEndsAt: preservePermanentTemplateAccess
-                ? (currentUser.templateAccessEndsAt || '')
-                : (planRecord.templateAccessEndsAt || currentUser.templateAccessEndsAt || ''),
+            templateAccessSource: planRecord.templateAccessSource || (allTemplatesAccess ? planRecord.code : ''),
+            templateAccessEndsAt: planRecord.templateAccessEndsAt || '',
             ownedTemplateIds: existingTemplateIds,
             updatedAt: new Date().toISOString()
         };

@@ -30,10 +30,40 @@
 
     function getStoredPlan() {
         try {
-            return JSON.parse(localStorage.getItem('nexlance_plan') || 'null');
+            const storedPlan = JSON.parse(localStorage.getItem('nexlance_plan') || 'null');
+            if (!storedPlan || !storedPlan.code) {
+                return storedPlan;
+            }
+
+            const normalizedCode = String(storedPlan.code || '').trim().toLowerCase();
+            return {
+                ...storedPlan,
+                code: normalizedCode,
+                allTemplatesAccess: normalizedCode === 'business' && storedPlan.paid === true,
+                templateLimit: normalizedCode === 'pro'
+                    ? Number(storedPlan.templateLimit || 4)
+                    : (normalizedCode === 'business' ? Number(storedPlan.templateLimit || 8) : Number(storedPlan.templateLimit || 0))
+            };
         } catch (error) {
             return null;
         }
+    }
+
+    function persistTemplateAccessRecord(accessRecord) {
+        const email = getCurrentUserEmail();
+        const scopedKey = email ? `nexlance_template_access_${email}` : 'nexlance_template_access';
+        localStorage.setItem(scopedKey, JSON.stringify(accessRecord));
+        localStorage.setItem('nexlance_template_access', JSON.stringify(accessRecord));
+    }
+
+    function getPlanTemplateLimit(plan) {
+        if (!plan || plan.paid !== true) return 0;
+        if (plan.allTemplatesAccess === true) return Number.MAX_SAFE_INTEGER;
+        const explicitLimit = Number(plan.templateLimit || 0);
+        if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+            return explicitLimit;
+        }
+        return plan.code === 'pro' ? 4 : 0;
     }
 
     function hasTemplateEntitlement(template) {
@@ -45,6 +75,34 @@
             || templateIds.includes(template.id)
             || (plan.allTemplatesAccess === true && plan.paid === true)
         );
+    }
+
+    function ensureTemplateEntitlement(template) {
+        if (hasTemplateEntitlement(template)) {
+            return true;
+        }
+
+        const access = getStoredTemplateAccess() || {};
+        const templateIds = Array.isArray(access.templateIds)
+            ? access.templateIds.filter(Boolean)
+            : [];
+        const plan = getStoredPlan() || {};
+        const templateLimit = getPlanTemplateLimit(plan);
+
+        if (!templateLimit || templateIds.length >= templateLimit) {
+            return false;
+        }
+
+        persistTemplateAccessRecord({
+            userEmail: getCurrentUserEmail(),
+            allTemplatesAccess: false,
+            templateIds: templateIds.concat(template.id),
+            sourceProductCode: access.sourceProductCode || plan.code || '',
+            endsAt: access.endsAt || plan.endsAt || '',
+            updatedAt: new Date().toISOString()
+        });
+
+        return true;
     }
 
     function getProjectsRedirect(slug) {
@@ -69,7 +127,7 @@
             return;
         }
 
-        if (!hasTemplateEntitlement(template)) {
+        if (!ensureTemplateEntitlement(template)) {
             window.location.href = `index.html?template=${encodeURIComponent(template.id)}#template-access`;
             return;
         }

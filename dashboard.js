@@ -515,6 +515,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ? getTrialAccessState()
             : { isActive: false, record: typeof getStoredTrial === 'function' ? getStoredTrial() : null };
 
+        function getPlanAccessMessage(plan) {
+            const normalizedCode = String(plan && plan.code || '').toLowerCase();
+            if (normalizedCode === 'plus') {
+                return 'You can access Dashboard, Projects, Settings, Support Info, Access / Roles, and Services.';
+            }
+            if (normalizedCode === 'pro') {
+                return 'You can access Dashboard, Projects, Settings, Support Info, Access / Roles, Services, Invoices, and Team, plus up to 4 templates.';
+            }
+            if (normalizedCode === 'business') {
+                return 'You can access the complete dashboard, including Clients, plus all 8 templates.';
+            }
+            return 'You can access the dashboard.';
+        }
+
         trialBanner.style.display = 'flex';
 
         if (typeof isPaidPlanActive === 'function' && isPaidPlanActive()) {
@@ -523,11 +537,11 @@ document.addEventListener('DOMContentLoaded', () => {
             trialTitle.textContent = `${currentPlan.name || 'Paid'} plan is active`;
             if (currentPlan.endsAt) {
                 const remainingMs = new Date(currentPlan.endsAt).getTime() - Date.now();
-                trialMessage.textContent = `You can access the complete dashboard except the admin panel until ${new Date(currentPlan.endsAt).toLocaleDateString()}.`;
+                trialMessage.textContent = `${getPlanAccessMessage(currentPlan)} Access remains active until ${new Date(currentPlan.endsAt).toLocaleDateString()}.`;
                 trialTimerLabel.textContent = 'Expires in';
                 trialCountdown.textContent = formatRemaining(remainingMs);
             } else {
-                trialMessage.textContent = 'You can access the complete dashboard except the admin panel.';
+                trialMessage.textContent = getPlanAccessMessage(currentPlan);
                 trialTimerLabel.textContent = 'Plan';
                 trialCountdown.textContent = currentPlan.name || 'Paid';
             }

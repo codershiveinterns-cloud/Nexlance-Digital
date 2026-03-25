@@ -671,6 +671,7 @@ async function applyPurchaseToUser(purchase) {
         providerSubscriptionId: purchase.providerSubscriptionId || '',
         dashboardAccess: Boolean(product.entitlements.dashboardAccess),
         allTemplatesAccess: Boolean(product.entitlements.allTemplates),
+        templateLimit: Number(product.entitlements.templateLimit || 0),
         templateAccessSource,
         templateAccessEndsAt
     };
@@ -957,6 +958,7 @@ async function applyStripeSubscriptionState(metadata, subscription, nextStatus) 
             paymentProvider: 'stripe',
             providerSubscriptionId: subscription && subscription.id ? subscription.id : (currentUser.providerSubscriptionId || ''),
             allTemplatesAccess: shouldKeepTemplateAccess,
+            templateLimit: keepDashboardAccess ? Number(product.entitlements.templateLimit || 0) : 0,
             updatedAt: new Date().toISOString()
         };
     });
@@ -1063,8 +1065,8 @@ async function handlePolarWebhookEvent(event) {
         const endsAt = String(object.current_period_end || object.ends_at || '');
         const hasRemainingPeriod = endsAt ? new Date(endsAt).getTime() > Date.now() : false;
         await updateUserByEmail(userEmail, currentUser => ({
-            currentPlan: hasRemainingPeriod ? product.displayName : (currentUser.allTemplatesAccess ? 'Pro' : 'Individual'),
-            planCode: hasRemainingPeriod ? product.planCode : (currentUser.allTemplatesAccess ? 'pro' : 'individual'),
+            currentPlan: hasRemainingPeriod ? product.displayName : 'Individual',
+            planCode: hasRemainingPeriod ? product.planCode : 'individual',
             planPaid: hasRemainingPeriod,
             planStatus: event.type === 'subscription.updated'
                 ? String(object.status || 'active')
@@ -1074,6 +1076,8 @@ async function handlePolarWebhookEvent(event) {
             planEndsAt: endsAt || currentUser.planEndsAt || '',
             paymentProvider: 'polar',
             providerSubscriptionId: String(object.id || currentUser.providerSubscriptionId || ''),
+            allTemplatesAccess: hasRemainingPeriod ? Boolean(product.entitlements.allTemplates) : false,
+            templateLimit: hasRemainingPeriod ? Number(product.entitlements.templateLimit || 0) : 0,
             updatedAt: new Date().toISOString()
         }));
     }

@@ -142,10 +142,13 @@
         const nextTemplateIds = options.templateId && !existingTemplateIds.includes(options.templateId)
             ? existingTemplateIds.concat(options.templateId)
             : existingTemplateIds;
+        const allTemplatesAccess = options.allTemplatesAccess !== undefined
+            ? Boolean(options.allTemplatesAccess)
+            : Boolean(existing.allTemplatesAccess);
 
         return {
             userEmail: options.userEmail,
-            allTemplatesAccess: Boolean(options.allTemplatesAccess || existing.allTemplatesAccess),
+            allTemplatesAccess,
             templateIds: nextTemplateIds,
             sourceProductCode: options.sourceProductCode || existing.sourceProductCode || '',
             endsAt: options.endsAt || existing.endsAt || '',
@@ -176,7 +179,7 @@
         if (productCode.startsWith('pro_') || productCode.startsWith('business_')) {
             persistTemplateAccess(userEmail, buildTemplateAccessRecord({
                 userEmail,
-                allTemplatesAccess: true,
+                allTemplatesAccess: productCode.startsWith('business_'),
                 sourceProductCode: productCode,
                 endsAt: userRecord.templateAccessEndsAt || paymentRecord.endsAt || ''
             }));
@@ -189,8 +192,9 @@
                 startedAt: paymentRecord.createdAt || new Date().toISOString(),
                 endsAt: userRecord.planEndsAt || '',
                 billingCycle: billingCycle === 'yearly' ? 'annual' : (billingCycle || 'monthly'),
-                dashboardAccess: planCode !== 'pro',
-                allTemplatesAccess: planCode === 'pro' || planCode === 'business'
+                dashboardAccess: ['plus', 'pro', 'business'].includes(planCode),
+                allTemplatesAccess: planCode === 'business',
+                templateLimit: planCode === 'pro' ? 4 : (planCode === 'business' ? 8 : 0)
             });
         }
     }
