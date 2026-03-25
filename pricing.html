@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pricing â€” Nexlance</title>
+    <title>Pricing &mdash; Nexlance</title>
     <link rel="icon" type="image/png" href="images/fav.png">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,13 +12,12 @@
     <style>
         .page-hero { padding:140px 0 60px; background:linear-gradient(135deg,#f8fafc 0%,#e0e7ff 50%,#f8fafc 100%); text-align:center; position:relative; overflow:hidden; }
         .page-hero::before { content:''; position:absolute; width:500px; height:500px; border-radius:50%; background:rgba(79,70,229,.07); top:-150px; right:-150px; }
-        .page-hero::after  { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,.07); bottom:-80px; left:-80px; }
+        .page-hero::after { content:''; position:absolute; width:300px; height:300px; border-radius:50%; background:rgba(124,58,237,.07); bottom:-80px; left:-80px; }
         .page-hero .container { position:relative; z-index:1; }
         .page-hero-label { display:inline-block; font-size:var(--font-size-sm); font-weight:600; color:var(--color-secondary); text-transform:uppercase; letter-spacing:.1em; margin-bottom:1rem; }
         .page-hero h1 { font-size:var(--font-size-5xl); font-weight:800; line-height:1.15; margin-bottom:1rem; }
         .page-hero p { font-size:var(--font-size-lg); color:var(--color-text-light); max-width:600px; margin:0 auto 2rem; line-height:1.7; }
 
-        /* Toggle */
         .billing-toggle { display:flex; align-items:center; justify-content:center; gap:1rem; width:fit-content; max-width:100%; margin:0 auto .75rem; flex-wrap:nowrap; }
         .toggle-label { display:flex; align-items:center; gap:.5rem; font-size:var(--font-size-sm); font-weight:500; color:var(--color-text-light); transition:color .2s, font-weight .2s; white-space:nowrap; }
         .lbl-active { color:var(--color-secondary) !important; font-weight:700 !important; }
@@ -32,46 +31,41 @@
         .toggle-switch input:checked + .toggle-slider::before { transform:translateX(24px); }
         .save-badge { display:inline-block; padding:.2rem .6rem; font-size:var(--font-size-xs); font-weight:700; color:#fff; background:var(--color-success); border-radius:var(--radius-sm); margin-left:0; }
 
-        /* Pricing grid */
-        .price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,320px)); gap:1.5rem; align-items:start; justify-content:center; }
-        .price-card { background:#fff; border:2px solid var(--color-border); border-radius:var(--radius-2xl); padding:2rem; position:relative; transition:all .2s; }
+        .price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.5rem; align-items:stretch; }
+        .price-card { min-width:0; background:#fff; border:2px solid var(--color-border); border-radius:var(--radius-2xl); padding:2rem; position:relative; transition:all .2s; }
         .price-card:hover { border-color:var(--color-text-lighter); box-shadow:var(--shadow-lg); }
         .price-card.popular { border-color:var(--color-secondary); box-shadow:var(--shadow-xl); transform:scale(1.03); }
         .popular-badge { position:absolute; top:-13px; left:50%; transform:translateX(-50%); padding:.3rem 1.1rem; font-size:var(--font-size-xs); font-weight:700; color:#fff; background:var(--color-secondary); border-radius:999px; white-space:nowrap; }
-        .price-card.enterprise { background:var(--color-bg-dark); border-color:var(--color-bg-dark); color:#fff; }
-        .price-card.enterprise:hover { box-shadow:0 20px 40px rgba(0,0,0,.3); }
         .plan-name { font-size:var(--font-size-xl); font-weight:800; margin-bottom:.25rem; }
         .plan-desc { font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1.5rem; }
-        .price-card.enterprise .plan-desc { color:rgba(255,255,255,.65); }
-        .price-amount { margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid var(--color-border); }
-        .price-card.enterprise .price-amount { border-color:rgba(255,255,255,.15); }
-        .price-main { display:flex; align-items:baseline; gap:.25rem; }
-        .price-currency { font-size:var(--font-size-xl); font-weight:700; }
-        .price-num { font-size:3.5rem; font-weight:800; line-height:1; }
-        .price-period { font-size:var(--font-size-sm); color:var(--color-text-light); }
-        .price-card.enterprise .price-period { color:rgba(255,255,255,.6); }
-        .price-note { font-size:var(--font-size-xs); color:var(--color-text-lighter); margin-top:.4rem; }
-        .price-card.enterprise .price-note { color:rgba(255,255,255,.5); }
+        .price-amount { min-width:0; margin-bottom:1.5rem; padding-bottom:1.5rem; border-bottom:1px solid var(--color-border); }
+        .price-main { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.25rem .45rem; min-width:0; }
+        .price-currency { font-size:var(--font-size-xl); font-weight:700; flex:0 0 auto; }
+        .price-num { min-width:0; font-size:clamp(3rem,4vw,3.5rem); font-weight:800; line-height:.95; word-break:break-word; }
+        .price-period { font-size:var(--font-size-sm); color:var(--color-text-light); white-space:nowrap; flex:0 0 auto; }
+        .price-note { font-size:var(--font-size-xs); color:var(--color-text-lighter); margin-top:.6rem; }
         .feature-list { margin-bottom:1.75rem; display:flex; flex-direction:column; gap:.65rem; }
         .feature-list li { display:flex; align-items:flex-start; gap:.7rem; font-size:var(--font-size-sm); }
         .feature-list li .chk { color:var(--color-success); font-weight:700; flex-shrink:0; }
         .feature-list li .crs { color:var(--color-text-lighter); flex-shrink:0; }
-        .price-card.enterprise .feature-list li { color:rgba(255,255,255,.85); }
-        .price-card.enterprise .feature-list li .chk { color:#6ee7b7; }
         .plan-cta { width:100%; padding:.9rem; font-size:var(--font-size-base); font-weight:700; border-radius:var(--radius-full); border:none; cursor:pointer; transition:all .2s; }
         .cta-outline { background:transparent; border:2px solid var(--color-border); color:var(--color-text); }
         .cta-outline:hover { border-color:var(--color-secondary); color:var(--color-secondary); }
         .cta-primary { background:var(--color-secondary); color:#fff; }
         .cta-primary:hover { background:var(--color-accent); transform:translateY(-1px); }
-        .cta-white { background:#fff; color:var(--color-bg-dark); }
-        .cta-white:hover { background:#e0e7ff; }
 
-        /* Trust badges */
         .trust-strip { display:flex; justify-content:center; flex-wrap:wrap; gap:2.5rem; padding:3rem 0; border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border); }
         .trust-item { display:flex; align-items:center; gap:.65rem; font-size:var(--font-size-sm); font-weight:600; color:var(--color-text-light); }
         .trust-icon { font-size:1.25rem; }
 
-        /* FAQ */
+        .addons-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.5rem; }
+        .addon-card { background:#fff; border-radius:var(--radius-xl); padding:1.75rem; border:1px solid var(--color-border); }
+        .addon-icon { font-size:2rem; margin-bottom:1rem; line-height:1; }
+        .addon-card h3 { font-size:var(--font-size-lg); font-weight:700; margin-bottom:.5rem; }
+        .addon-card p { font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1rem; }
+        .addon-price { font-size:var(--font-size-xl); font-weight:800; color:var(--color-secondary); }
+        .addon-price small { font-size:var(--font-size-sm); font-weight:500; color:var(--color-text-light); }
+
         .faq-list { max-width:800px; margin:0 auto; }
         .faq-item { border-bottom:1px solid var(--color-border); }
         .faq-q { width:100%; text-align:left; padding:1.4rem 0; font-size:var(--font-size-base); font-weight:600; color:var(--color-text); background:none; border:none; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:1rem; transition:color .2s; }
@@ -82,26 +76,37 @@
         .faq-a p { padding-bottom:1.4rem; font-size:var(--font-size-sm); color:var(--color-text-light); line-height:1.8; }
         .faq-item.open .faq-a { max-height:250px; }
 
-        @media(max-width:1200px){ .price-grid{grid-template-columns:repeat(2,1fr);} .price-card.popular{transform:none;} }
-        @media(max-width:640px){ .price-grid{grid-template-columns:1fr;} }
+        @media (max-width:1200px) {
+            .price-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .price-card.popular { transform:none; }
+        }
+        @media (max-width:900px) {
+            .addons-grid { grid-template-columns:1fr; }
+        }
+        @media (max-width:768px) {
+            .price-grid { grid-template-columns:1fr; }
+        }
+        @media (max-width:640px) {
+            .billing-toggle { flex-wrap:wrap; }
+        }
     </style>
 </head>
 <body>
 <nav class="navbar" id="navbar">
     <div class="nav-container">
-        <a href="index.html" class="logo"><span class="logo-icon">â—†</span> Nexlance</a>
+        <a href="index.html" class="logo"><span class="logo-icon">&#9670;</span> Nexlance</a>
         <ul class="nav-menu" id="nav-menu">
             <li class="nav-item has-dropdown">
-                <a href="#">Products <span class="arrow">â–¾</span></a>
+                <a href="#">Products <span class="arrow">&#9662;</span></a>
                 <div class="dropdown"><div class="dropdown-grid">
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸŒ</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸ›’</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸ“§</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
-                    <a href="#" class="dropdown-item"><span class="dropdown-icon">ðŸ“…</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">&#127760;</span><div><h4>Websites</h4><p>Professional site builder</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128722;</span><div><h4>E-commerce</h4><p>Online store solutions</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128231;</span><div><h4>Email Marketing</h4><p>Campaign tools</p></div></a>
+                    <a href="#" class="dropdown-item"><span class="dropdown-icon">&#128197;</span><div><h4>Scheduling</h4><p>Appointment booking</p></div></a>
                 </div></div>
             </li>
             <li class="nav-item has-dropdown">
-                <a href="templates.html">Templates <span class="arrow">â–¾</span></a>
+                <a href="templates.html">Templates <span class="arrow">&#9662;</span></a>
                 <div class="dropdown dropdown-templates">
                     <div class="dropdown-grid templates-grid">
                         <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#667eea,#764ba2);"><img src="images/f2.webp" alt="Portfolio Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Portfolio</span></a>
@@ -109,7 +114,7 @@
                         <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"><img src="images/creative.jpg" alt="Blog Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Blog</span></a>
                         <a href="#" class="template-thumb"><div class="thumb-img" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"><img src="images/store.avif" alt="Store Template" style="width:100%;height:100%;object-fit:cover;"></div><span>Store</span></a>
                     </div>
-                    <a href="templates.html" class="dropdown-view-all">View All Templates â†’</a>
+                    <a href="templates.html" class="dropdown-view-all">View All Templates &rarr;</a>
                 </div>
             </li>
             <li class="nav-item"><a href="pricing.html">Pricing</a></li>
@@ -128,13 +133,12 @@
     <div class="container">
         <span class="page-hero-label">Pricing</span>
         <h1>Simple, <span class="gradient-text">transparent</span> pricing</h1>
-        <p>Start free. Scale as you grow. Every plan includes a 14-day free trial â€” no credit card required.</p>
+        <p>Start free. Scale as you grow. Every plan includes a 14-day free trial &mdash; no credit card required.</p>
     </div>
 </section>
 
 <section style="background:#fff;">
     <div class="container">
-        <!-- Toggle -->
         <div class="billing-toggle">
             <span class="toggle-label lbl-active" id="lbl-mo">Monthly</span>
             <label class="toggle-switch">
@@ -143,126 +147,87 @@
             </label>
             <span class="toggle-label" id="lbl-yr">Annual <span class="save-badge">Save 20%</span></span>
         </div>
-        <p class="billing-note" id="billing-note-p">Billed monthly â€” switch to annual and save 20%</p>
+        <p class="billing-note" id="billing-note-p">Billed monthly - switch to annual and save 20%</p>
 
-        <!-- Cards -->
         <div class="price-grid">
-            <!-- Personal -->
             <div class="price-card">
                 <div class="plan-name">Plus</div>
-                <div class="plan-desc">Full dashboard access for growing teams, billed every 30 days</div>
+                <div class="plan-desc">Full dashboard access for teams that need operations and analytics, billed every 30 days</div>
                 <div class="price-amount">
                     <div class="price-main">
-                        <span class="price-currency">â‚¬</span>
+                        <span class="price-currency">&euro;</span>
                         <span class="price-num" data-monthly="199" data-annual="1910.40">199</span>
                         <span class="price-period">/month</span>
                     </div>
-                    <div class="price-note">Billed monthly</div>
+                    <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save EUR 477.60 vs monthly">Billed monthly</div>
                 </div>
                 <ul class="feature-list">
-                    <li><span class="chk">âœ“</span> Custom domain</li>
-                    <li><span class="chk">âœ“</span> Free SSL certificate</li>
-                    <li><span class="chk">âœ“</span> Unlimited bandwidth</li>
-                    <li><span class="chk">âœ“</span> 10 GB storage</li>
-                    <li><span class="chk">âœ“</span> 20 pages</li>
-                    <li><span class="chk">âœ“</span> Basic analytics</li>
-                    <li><span class="chk">âœ“</span> AI tools (5/month)</li>
-                    <li><span class="chk">âœ“</span> 24/7 email support</li>
-                    <li><span class="crs">âœ—</span> E-commerce</li>
-                    <li><span class="crs">âœ—</span> Email campaigns</li>
+                    <li><span class="chk">&#10003;</span> Full access of dashboard</li>
+                    <li><span class="chk">&#10003;</span> Project section access</li>
+                    <li><span class="chk">&#10003;</span> Clients, team, invoices, services</li>
+                    <li><span class="chk">&#10003;</span> Advanced analytics</li>
+                    <li><span class="chk">&#10003;</span> Priority support</li>
+                    <li><span class="crs">&#10007;</span> No admin panel access</li>
                 </ul>
-                <a href="pricing.html?checkout=plus"><button class="plan-cta cta-outline" data-plan-action="plus">Choose Plus</button></a>
+                <a href="pricing.html?checkout=plus" data-plan-action="plus"><button class="plan-cta cta-outline">Choose Plus</button></a>
             </div>
 
-            <!-- Business (Popular) -->
+            <div class="price-card">
+                <div class="plan-name">Pro</div>
+                <div class="plan-desc">Template access with discounts and full editing freedom, billed every 30 days</div>
+                <div class="price-amount">
+                    <div class="price-main">
+                        <span class="price-currency">&euro;</span>
+                        <span class="price-num" data-monthly="299" data-annual="2870.40">299</span>
+                        <span class="price-period">/month</span>
+                    </div>
+                    <div class="price-note" data-monthly-note="Billed every 30 days" data-annual-note="Save EUR 717.60 vs monthly">Billed every 30 days</div>
+                </div>
+                <ul class="feature-list">
+                    <li><span class="chk">&#10003;</span> One time payment for templates</li>
+                    <li><span class="chk">&#10003;</span> Access to all templates</li>
+                    <li><span class="chk">&#10003;</span> Discount on all templates</li>
+                    <li><span class="chk">&#10003;</span> Editing of templates allowed</li>
+                    <li><span class="chk">&#10003;</span> Edit at your command</li>
+                    <li><span class="crs">&#10007;</span> No ad, in panel access</li>
+                </ul>
+                <a href="pricing.html?checkout=pro" data-plan-action="pro"><button class="plan-cta cta-outline">Choose Pro</button></a>
+            </div>
+
             <div class="price-card popular">
                 <div class="popular-badge">Most Popular</div>
                 <div class="plan-name">Business</div>
-                <div class="plan-desc">Full dashboard and template access, billed every 30 days</div>
+                <div class="plan-desc">Combo offer with the benefits of both Plus and Pro, billed every 30 days</div>
                 <div class="price-amount">
                     <div class="price-main">
-                        <span class="price-currency">â‚¬</span>
+                        <span class="price-currency">&euro;</span>
                         <span class="price-num" data-monthly="399" data-annual="3830.40">399</span>
                         <span class="price-period">/month</span>
                     </div>
-                    <div class="price-note">Billed monthly</div>
+                    <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save EUR 957.60 vs monthly">Billed monthly</div>
                 </div>
                 <ul class="feature-list">
-                    <li><span class="chk">âœ“</span> Everything in Personal</li>
-                    <li><span class="chk">âœ“</span> Unlimited pages</li>
-                    <li><span class="chk">âœ“</span> 50 GB storage</li>
-                    <li><span class="chk">âœ“</span> E-commerce (3% fee)</li>
-                    <li><span class="chk">âœ“</span> Professional email</li>
-                    <li><span class="chk">âœ“</span> Advanced analytics</li>
-                    <li><span class="chk">âœ“</span> Email campaigns</li>
-                    <li><span class="chk">âœ“</span> AI tools (50/month)</li>
-                    <li><span class="chk">âœ“</span> Priority support</li>
-                    <li><span class="chk">âœ“</span> Promotional pop-ups</li>
+                    <li><span class="chk">&#10003;</span> Combo offer</li>
+                    <li><span class="chk">&#10003;</span> Benefits of Pro + Plus plans</li>
+                    <li><span class="chk">&#10003;</span> Full access to dashboard services</li>
+                    <li><span class="chk">&#10003;</span> Full access to all templates</li>
+                    <li><span class="chk">&#10003;</span> Priority support</li>
+                    <li><span class="crs">&#10007;</span> No access to admin panel</li>
                 </ul>
                 <a href="pricing.html?checkout=business"><button class="plan-cta cta-primary" data-plan-action="business">Choose Business</button></a>
             </div>
-
-            <!-- Commerce -->
-            <div class="price-card">
-                <div class="plan-name">Pro</div>
-                <div class="plan-desc">Template access with editing freedom, billed every 30 days</div>
-                <div class="price-amount">
-                    <div class="price-main">
-                        <span class="price-currency">â‚¬</span>
-                        <span class="price-num" data-monthly="299" data-annual="299">299</span>
-                        <span class="price-period" data-fixed-period="/month">/month</span>
-                    </div>
-                    <div class="price-note">Billed every 30 days</div>
-                </div>
-                <ul class="feature-list">
-                    <li><span class="chk">âœ“</span> One time payment for templates</li>
-                    <li><span class="chk">âœ“</span> Access to all templates</li>
-                    <li><span class="chk">âœ“</span> Discount on all templates</li>
-                    <li><span class="chk">âœ“</span> Editing of templates allowed</li>
-                    <li><span class="chk">âœ“</span> Edit at your command</li>
-                    <li><span class="crs">âœ—</span> No ad, in panel access</li>
-                </ul>
-                <a href="pricing.html?checkout=pro"><button class="plan-cta cta-outline" data-plan-action="pro">Choose Pro</button></a>
-            </div>
-
-            <!-- Enterprise -->
-            <div class="price-card enterprise">
-                <div class="plan-name" style="color:#fff;">Enterprise</div>
-                <div class="plan-desc">Custom solution for large organizations</div>
-                <div class="price-amount">
-                    <div class="price-main" style="color:#fff;">
-                        <span class="price-num" style="font-size:2.5rem; color:#fff;">Custom</span>
-                    </div>
-                    <div class="price-note">Volume pricing Â· Annual contracts</div>
-                </div>
-                <ul class="feature-list">
-                    <li><span class="chk">âœ“</span> Everything in Commerce</li>
-                    <li><span class="chk">âœ“</span> Unlimited sites</li>
-                    <li><span class="chk">âœ“</span> SSO / SAML</li>
-                    <li><span class="chk">âœ“</span> Custom SLA (99.99%)</li>
-                    <li><span class="chk">âœ“</span> Dedicated infrastructure</li>
-                    <li><span class="chk">âœ“</span> Security audit & pen testing</li>
-                    <li><span class="chk">âœ“</span> Custom integrations</li>
-                    <li><span class="chk">âœ“</span> Onboarding & training</li>
-                    <li><span class="chk">âœ“</span> 24/7 phone support</li>
-                    <li><span class="chk">âœ“</span> White-label option</li>
-                </ul>
-                <a href="contact.html"><button class="plan-cta cta-white">Talk to Sales</button></a>
-            </div>
         </div>
 
-        <!-- Trust strip -->
         <div class="trust-strip">
-            <div class="trust-item"><span class="trust-icon">ðŸ”’</span> Secure payments</div>
-            <div class="trust-item"><span class="trust-icon">â†©ï¸</span> 30-day money back</div>
-            <div class="trust-item"><span class="trust-icon">ðŸ’³</span> No credit card to trial</div>
-            <div class="trust-item"><span class="trust-icon">âš¡</span> Instant activation</div>
-            <div class="trust-item"><span class="trust-icon">ðŸŒ</span> Available in 180 countries</div>
+            <div class="trust-item"><span class="trust-icon">&#128274;</span> Secure payments</div>
+            <div class="trust-item"><span class="trust-icon">&#8634;</span> 30-day money back</div>
+            <div class="trust-item"><span class="trust-icon">&#128179;</span> No credit card to trial</div>
+            <div class="trust-item"><span class="trust-icon">&#9889;</span> Instant activation</div>
+            <div class="trust-item"><span class="trust-icon">&#127757;</span> Available in 180 countries</div>
         </div>
     </div>
 </section>
 
-<!-- Add-ons -->
 <section style="background:var(--color-bg-alt);">
     <div class="container">
         <div class="section-header">
@@ -270,30 +235,29 @@
             <h2 class="section-title">Extend any plan</h2>
             <p class="section-subtitle">Optional extras available on all plans.</p>
         </div>
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem;">
-            <div style="background:#fff; border-radius:var(--radius-xl); padding:1.75rem; border:1px solid var(--color-border);">
-                <div style="font-size:2rem; margin-bottom:1rem;">ðŸ“§</div>
-                <h3 style="font-size:var(--font-size-lg); font-weight:700; margin-bottom:.5rem;">Extra Email Campaigns</h3>
-                <p style="font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1rem;">Send up to 100,000 emails/month to your subscribers.</p>
-                <span style="font-size:var(--font-size-xl); font-weight:800; color:var(--color-secondary);">â‚¬10<span style="font-size:var(--font-size-sm); font-weight:500; color:var(--color-text-light);">/mo</span></span>
+        <div class="addons-grid">
+            <div class="addon-card">
+                <div class="addon-icon">&#128231;</div>
+                <h3>Extra Email Campaigns</h3>
+                <p>Send up to 100,000 emails/month to your subscribers.</p>
+                <span class="addon-price">&euro;10<small>/mo</small></span>
             </div>
-            <div style="background:#fff; border-radius:var(--radius-xl); padding:1.75rem; border:1px solid var(--color-border);">
-                <div style="font-size:2rem; margin-bottom:1rem;">ðŸŒ</div>
-                <h3 style="font-size:var(--font-size-lg); font-weight:700; margin-bottom:.5rem;">Additional Domains</h3>
-                <p style="font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1rem;">Connect multiple domains to a single site or account.</p>
-                <span style="font-size:var(--font-size-xl); font-weight:800; color:var(--color-secondary);">â‚¬5<span style="font-size:var(--font-size-sm); font-weight:500; color:var(--color-text-light);">/domain/mo</span></span>
+            <div class="addon-card">
+                <div class="addon-icon">&#127760;</div>
+                <h3>Additional Domains</h3>
+                <p>Connect multiple domains to a single site or account.</p>
+                <span class="addon-price">&euro;5<small>/domain/mo</small></span>
             </div>
-            <div style="background:#fff; border-radius:var(--radius-xl); padding:1.75rem; border:1px solid var(--color-border);">
-                <div style="font-size:2rem; margin-bottom:1rem;">ðŸ¤–</div>
-                <h3 style="font-size:var(--font-size-lg); font-weight:700; margin-bottom:.5rem;">AI Credits Bundle</h3>
-                <p style="font-size:var(--font-size-sm); color:var(--color-text-light); margin-bottom:1rem;">500 extra AI-generated pages, images, or copy pieces.</p>
-                <span style="font-size:var(--font-size-xl); font-weight:800; color:var(--color-secondary);">â‚¬15<span style="font-size:var(--font-size-sm); font-weight:500; color:var(--color-text-light);">/bundle</span></span>
+            <div class="addon-card">
+                <div class="addon-icon">&#129302;</div>
+                <h3>AI Credits Bundle</h3>
+                <p>500 extra AI-generated pages, images, or copy pieces.</p>
+                <span class="addon-price">&euro;15<small>/bundle</small></span>
             </div>
         </div>
     </div>
 </section>
 
-<!-- FAQ -->
 <section style="background:#fff;">
     <div class="container">
         <div class="section-header">
@@ -301,16 +265,15 @@
             <h2 class="section-title">Pricing questions answered</h2>
         </div>
         <div class="faq-list">
-            <div class="faq-item"><button class="faq-q">Can I change plans later?<span class="faq-arr">â–¾</span></button><div class="faq-a"><p>Yes. Upgrade or downgrade at any time from your account settings. Upgrades take effect immediately and you're only charged the prorated difference. Downgrades apply at the start of your next billing cycle.</p></div></div>
-            <div class="faq-item"><button class="faq-q">Is there a free plan?<span class="faq-arr">â–¾</span></button><div class="faq-a"><p>We offer a 14-day free trial on all plans with no credit card required. After the trial, if you don't upgrade, your site moves to a free tier with a Nexlance subdomain and basic features. You can stay on the free tier indefinitely.</p></div></div>
-            <div class="faq-item"><button class="faq-q">What happens if I cancel?<span class="faq-arr">â–¾</span></button><div class="faq-a"><p>Cancel anytime from your dashboard. Your site stays live until the end of your current billing period. We also offer a 30-day money-back guarantee on all annual plans â€” no questions asked.</p></div></div>
-            <div class="faq-item"><button class="faq-q">Do you offer a discount for nonprofits or students?<span class="faq-arr">â–¾</span></button><div class="faq-a"><p>Yes â€” verified nonprofits and students get 50% off all plans. Contact our support team with proof of eligibility (charity registration or student ID) to claim your discount.</p></div></div>
-            <div class="faq-item"><button class="faq-q">What payment methods are accepted?<span class="faq-arr">â–¾</span></button><div class="faq-a"><p>We accept all major credit and debit cards (Visa, Mastercard, Amex), UPI, net banking, and PayPal. Enterprise customers can pay by invoice (bank transfer).</p></div></div>
+            <div class="faq-item"><button class="faq-q">Can I change plans later?<span class="faq-arr">&#9662;</span></button><div class="faq-a"><p>Yes. Upgrade or downgrade at any time from your account settings. Upgrades take effect immediately and you're only charged the prorated difference. Downgrades apply at the start of your next billing cycle.</p></div></div>
+            <div class="faq-item"><button class="faq-q">Is there a free plan?<span class="faq-arr">&#9662;</span></button><div class="faq-a"><p>We offer a 14-day free trial on all plans with no credit card required. After the trial, if you don't upgrade, your site moves to a free tier with a Nexlance subdomain and basic features. You can stay on the free tier indefinitely.</p></div></div>
+            <div class="faq-item"><button class="faq-q">What happens if I cancel?<span class="faq-arr">&#9662;</span></button><div class="faq-a"><p>Cancel anytime from your dashboard. Your site stays live until the end of your current billing period. We also offer a 30-day money-back guarantee on all annual plans - no questions asked.</p></div></div>
+            <div class="faq-item"><button class="faq-q">Do you offer a discount for nonprofits or students?<span class="faq-arr">&#9662;</span></button><div class="faq-a"><p>Yes - verified nonprofits and students get 50% off all plans. Contact our support team with proof of eligibility to claim your discount.</p></div></div>
+            <div class="faq-item"><button class="faq-q">What payment methods are accepted?<span class="faq-arr">&#9662;</span></button><div class="faq-a"><p>We accept all major credit and debit cards, UPI, net banking, and PayPal. Enterprise customers can also pay by invoice.</p></div></div>
         </div>
     </div>
 </section>
 
-<!-- CTA -->
 <section class="cta-section">
     <div class="container">
         <div class="cta-content">
@@ -323,7 +286,7 @@
 
 <footer class="footer"><div class="container">
     <div class="footer-grid">
-        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">â—†</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#">ð•</a><a href="#">in</a></div></div>
+        <div class="footer-brand"><a href="index.html" class="logo"><span class="logo-icon">&#9670;</span> Nexlance</a><p>Build beautiful websites without writing a single line of code.</p><div class="social-links"><a href="#" aria-label="X">X</a><a href="#" aria-label="LinkedIn">in</a></div></div>
         <div class="footer-links"><h4>Product</h4><ul><li><a href="templates.html">Templates</a></li><li><a href="features.html">Features</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="updates.html">Updates</a></li></ul></div>
         <div class="footer-links"><h4>Resources</h4><ul><li><a href="help-center.html">Help Center</a></li><li><a href="webinars.html">Webinars</a></li><li><a href="developers.html">Developers</a></li></ul></div>
         <div class="footer-links"><h4>Company</h4><ul><li><a href="about.html">About Us</a></li><li><a href="careers.html">Careers</a></li><li><a href="contact.html">Contact</a></li></ul></div>
@@ -331,58 +294,64 @@
     </div>
     <div class="footer-bottom"><p>&copy; 2026 Nexlance. All rights reserved.</p><div class="footer-bottom-links"><a href="terms.html">Terms &amp; Services</a><a href="sitemap.html">Sitemap</a><a href="status.html">Status</a><a href="security.html">Security</a></div></div>
 </div></footer>
-<button class="back-to-top" id="back-to-top">â†‘</button>
+<button class="back-to-top" id="back-to-top">&#8593;</button>
 <script src="supabase-config.js"></script>
 <script src="payment.js"></script>
 <script src="main.js"></script>
 <script>
-    const toggle    = document.getElementById('billingToggle');
-    const lblMo     = document.getElementById('lbl-mo');
-    const lblYr     = document.getElementById('lbl-yr');
-    const noteEl    = document.getElementById('billing-note-p');
+    document.addEventListener('DOMContentLoaded', function () {
+        const toggle = document.getElementById('billingToggle');
+        const lblMo = document.getElementById('lbl-mo');
+        const lblYr = document.getElementById('lbl-yr');
+        const noteEl = document.getElementById('billing-note-p');
 
-    const annualSavings = ['Save EUR 477.60 vs monthly', 'Billed every 30 days', 'Save EUR 957.60 vs monthly'];
-    const monthlyNotes  = ['Billed monthly', 'Billed every 30 days', 'Billed monthly'];
+        function updateBillingState() {
+            if (!toggle) return;
+            const annual = toggle.checked;
 
-    toggle.addEventListener('change', () => {
-        const annual = toggle.checked;
+            document.querySelectorAll('.price-num[data-monthly]').forEach(function (el) {
+                el.textContent = annual ? el.dataset.annual : el.dataset.monthly;
+            });
 
-        // Switch price number and period (/month â†” /year)
-        document.querySelectorAll('.price-num[data-monthly]').forEach(el => {
-            el.textContent = annual ? el.dataset.annual : el.dataset.monthly;
-        });
-        document.querySelectorAll('.price-period').forEach(el => {
-            el.textContent = el.dataset.fixedPeriod || (annual ? '/year' : '/month');
-        });
+            document.querySelectorAll('.price-period').forEach(function (el) {
+                el.textContent = el.dataset.fixedPeriod || (annual ? '/year' : '/month');
+            });
 
-        // Switch sub-notes
-        document.querySelectorAll('.price-note').forEach((el, i) => {
-            el.textContent = annual ? annualSavings[i] : monthlyNotes[i];
-        });
+            document.querySelectorAll('.price-note').forEach(function (el) {
+                el.textContent = annual ? (el.dataset.annualNote || el.textContent) : (el.dataset.monthlyNote || el.textContent);
+            });
 
-        // Active label highlight
-        lblMo.classList.toggle('lbl-active', !annual);
-        lblYr.classList.toggle('lbl-active',  annual);
+            if (lblMo && lblYr) {
+                lblMo.classList.toggle('lbl-active', !annual);
+                lblYr.classList.toggle('lbl-active', annual);
+            }
 
-        // Top billing note
-        if (annual) {
-            noteEl.textContent = 'Billed annually â€” you save 20% compared to monthly';
-            noteEl.classList.add('is-annual');
-        } else {
-            noteEl.textContent = 'Billed monthly â€” switch to annual and save 20%';
-            noteEl.classList.remove('is-annual');
+            if (noteEl) {
+                noteEl.textContent = annual
+                    ? 'Billed annually - you save 20% compared to monthly'
+                    : 'Billed monthly - switch to annual and save 20%';
+                noteEl.classList.toggle('is-annual', annual);
+            }
         }
-    });
 
-    document.querySelectorAll('.faq-q').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const item = btn.parentElement;
-            const open = item.classList.contains('open');
-            document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
-            if (!open) item.classList.add('open');
+        if (toggle) {
+            toggle.addEventListener('change', updateBillingState);
+            updateBillingState();
+        }
+
+        document.querySelectorAll('.faq-q').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const item = btn.parentElement;
+                const open = item.classList.contains('open');
+                document.querySelectorAll('.faq-item').forEach(function (faqItem) {
+                    faqItem.classList.remove('open');
+                });
+                if (!open) {
+                    item.classList.add('open');
+                }
+            });
         });
     });
 </script>
 </body>
 </html>
-

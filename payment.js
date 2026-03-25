@@ -163,7 +163,7 @@
         const billingCycle = String(paymentRecord.billingCycle || '').trim().toLowerCase();
         const planCode = productCode.startsWith('plus_')
             ? 'plus'
-            : (productCode.startsWith('business_') ? 'business' : (productCode === 'pro_onetime' ? 'pro' : ''));
+            : (productCode.startsWith('business_') ? 'business' : (productCode.startsWith('pro_') ? 'pro' : ''));
 
         if (productCode === 'single_template') {
             persistTemplateAccess(userEmail, buildTemplateAccessRecord({
@@ -173,7 +173,7 @@
             }));
         }
 
-        if (productCode === 'pro_onetime' || productCode.startsWith('business_')) {
+        if (productCode.startsWith('pro_') || productCode.startsWith('business_')) {
             persistTemplateAccess(userEmail, buildTemplateAccessRecord({
                 userEmail,
                 allTemplatesAccess: true,

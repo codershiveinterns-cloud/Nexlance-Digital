@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
         pro: {
             name: 'Pro',
             defaultAmountCents: 29900,
-            summary: { monthly: '30-day template access', annual: '30-day template access' },
-            productCodes: { monthly: 'pro_onetime', annual: 'pro_onetime' },
+            summary: { monthly: '30-day template access', annual: 'Yearly template access' },
+            productCodes: { monthly: 'pro_onetime', annual: 'pro_yearly' },
             description: 'Nexlance Pro plan access for 30 days',
             successMessage: 'Pro plan payment completed successfully.'
         },
@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const detail = event && event.detail ? event.detail : {};
         const productCode = String(detail.productCode || '').trim().toLowerCase();
         if (productCode === 'single_template') return;
-        if (productCode === 'pro_onetime') {
+        if (productCode.startsWith('pro_')) {
             notify('Pro access is now active on your account.', 'success');
             return;
         }
@@ -231,8 +231,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="pricing-price">
                         <span class="currency">&euro;</span>
-                    <span class="amount" data-monthly="299" data-annual="299">299</span>
-                        <span class="period" data-fixed-period="/month">/month</span>
+                    <span class="amount" data-monthly="299" data-annual="2870.40">299</span>
+                        <span class="period">/month</span>
                     </div>
                     <ul class="pricing-features">
                         <li><span class="check">&#10003;</span> One time payment for templates</li>
@@ -279,7 +279,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="price-num" data-monthly="199" data-annual="1910.40">199</span>
                             <span class="price-period">/month</span>
                         </div>
-                        <div class="price-note">Billed monthly</div>
+                        <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save EUR 477.60 vs monthly">Billed monthly</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> Full access of dashboard</li>
@@ -297,10 +297,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="price-amount">
                         <div class="price-main">
                             <span class="price-currency">&euro;</span>
-                            <span class="price-num" data-monthly="299" data-annual="299">299</span>
-                            <span class="price-period" data-fixed-period="/month">/month</span>
+                            <span class="price-num" data-monthly="299" data-annual="2870.40">299</span>
+                            <span class="price-period">/month</span>
                         </div>
-                        <div class="price-note">Billed every 30 days</div>
+                        <div class="price-note" data-monthly-note="Billed every 30 days" data-annual-note="Save EUR 717.60 vs monthly">Billed every 30 days</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> One time payment for templates</li>
@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="price-num" data-monthly="399" data-annual="3830.40">399</span>
                             <span class="price-period">/month</span>
                         </div>
-                        <div class="price-note">Billed monthly</div>
+                        <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save EUR 957.60 vs monthly">Billed monthly</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> Combo offer</li>

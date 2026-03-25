@@ -85,6 +85,25 @@
                 supportTier: 'priority'
             }
         },
+        pro_yearly: {
+            productCode: 'pro_yearly',
+            planCode: 'pro',
+            displayName: 'Pro',
+            price: 287040,
+            currency: DEFAULT_CURRENCY,
+            billingType: 'subscription',
+            billingCycle: 'yearly',
+            successRedirect: 'templates.html',
+            entitlements: {
+                dashboardAccess: false,
+                allTemplates: true,
+                singleTemplatePurchase: false
+            },
+            limits: {
+                allTemplates: true,
+                supportTier: 'priority'
+            }
+        },
         business_monthly: {
             productCode: 'business_monthly',
             planCode: 'business',

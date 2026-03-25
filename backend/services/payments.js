@@ -32,6 +32,7 @@ const STRIPE_PRICE_ENV_MAP = {
     plus_monthly: 'STRIPE_PRICE_PLUS_MONTHLY',
     plus_yearly: 'STRIPE_PRICE_PLUS_YEARLY',
     pro_onetime: 'STRIPE_PRICE_PRO_ONETIME',
+    pro_yearly: 'STRIPE_PRICE_PRO_YEARLY',
     business_monthly: 'STRIPE_PRICE_BUSINESS_MONTHLY',
     business_yearly: 'STRIPE_PRICE_BUSINESS_YEARLY'
 };
@@ -41,6 +42,7 @@ const POLAR_PRODUCT_ENV_MAP = {
     plus_monthly: 'POLAR_PRODUCT_PLUS_MONTHLY',
     plus_yearly: 'POLAR_PRODUCT_PLUS_YEARLY',
     pro_onetime: 'POLAR_PRODUCT_PRO_ONETIME',
+    pro_yearly: 'POLAR_PRODUCT_PRO_YEARLY',
     business_monthly: 'POLAR_PRODUCT_BUSINESS_MONTHLY',
     business_yearly: 'POLAR_PRODUCT_BUSINESS_YEARLY'
 };
