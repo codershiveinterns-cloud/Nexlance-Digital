@@ -18,6 +18,19 @@
     let paymentConfigCache = null;
     let paymentConfigPromise = null;
 
+    function getSharedDefaultCurrency() {
+        const sharedCurrency = window.NEXLANCE_BILLING_CATALOG
+            && typeof window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY === 'string'
+            ? window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY
+            : 'gbp';
+        const normalized = String(sharedCurrency || '').trim().toLowerCase();
+        return normalized || 'gbp';
+    }
+
+    function getSharedDefaultCurrencyUpper() {
+        return getSharedDefaultCurrency().toUpperCase();
+    }
+
     function normalizeApiBaseUrl(baseUrl) {
         return String(baseUrl || '').trim().replace(/\/+$/, '');
     }
@@ -188,7 +201,7 @@
         if (planCode && typeof window.activatePaidPlanAccess === 'function') {
             window.activatePaidPlanAccess(planCode, {
                 price: Number(paymentRecord.amount || 0),
-                currency: paymentRecord.currency || 'EUR',
+                currency: paymentRecord.currency || getSharedDefaultCurrencyUpper(),
                 startedAt: paymentRecord.createdAt || new Date().toISOString(),
                 endsAt: userRecord.planEndsAt || '',
                 billingCycle: billingCycle === 'yearly' ? 'annual' : (billingCycle || 'monthly'),
@@ -400,7 +413,7 @@
                             <strong id="nexlanceProviderSummaryTitle">Checkout</strong>
                             <span id="nexlanceProviderSummaryText">Hosted secure payment</span>
                         </div>
-                        <div class="nl-payment-amount" id="nexlanceProviderAmount">EUR 0.00</div>
+                        <div class="nl-payment-amount" id="nexlanceProviderAmount">${getSharedDefaultCurrencyUpper()} 0.00</div>
                     </div>
                     <div class="nl-provider-actions">
                         <button type="button" class="nl-btn nl-provider-card" data-provider="stripe">
@@ -449,7 +462,7 @@
     function formatAmount(amountCents, currency) {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: String(currency || 'eur').toUpperCase()
+            currency: String(currency || getSharedDefaultCurrency()).toUpperCase()
         }).format((Number(amountCents) || 0) / 100);
     }
 
@@ -507,7 +520,7 @@
         document.getElementById('nexlanceProviderText').textContent = options.message || 'Select Stripe or Polar to continue to secure hosted checkout.';
         document.getElementById('nexlanceProviderSummaryTitle').textContent = options.summaryTitle || 'Checkout';
         document.getElementById('nexlanceProviderSummaryText').textContent = options.summaryText || 'Hosted secure payment';
-        document.getElementById('nexlanceProviderAmount').textContent = formatAmount(options.amount, options.currency || 'eur');
+        document.getElementById('nexlanceProviderAmount').textContent = formatAmount(options.amount, options.currency || getSharedDefaultCurrency());
         applyProviderAvailability(options.gatewayAvailability || null);
         const availabilityMessage = getAvailabilityMessage(options.gatewayAvailability || null);
         setProviderMessage(availabilityMessage, availabilityMessage ? 'error' : '');
@@ -587,7 +600,7 @@
 
         openProviderModal({
             amount: options.amount,
-            currency: options.currency || 'eur',
+            currency: options.currency || getSharedDefaultCurrency(),
             productCode: options.productCode,
             templateId: options.templateId || '',
             templateName: options.templateName || '',

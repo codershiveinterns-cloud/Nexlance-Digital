@@ -5,7 +5,7 @@
     "referenceId": "STARTU-N5F9-J3X8",
     "status": "succeeded",
     "amount": 0,
-    "currency": "EUR",
+    "currency": "GBP",
     "templateId": "startup-landing-template",
     "templateName": "Startup Landing",
     "email": "test@example.com",

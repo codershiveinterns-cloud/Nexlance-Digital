@@ -1,5 +1,13 @@
 (() => {
     const TEMPLATE_DOWNLOAD_AMOUNT_CENTS = 19900;
+    const DEFAULT_BILLING_CURRENCY = (() => {
+        const sharedCurrency = window.NEXLANCE_BILLING_CATALOG
+            && typeof window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY === 'string'
+            ? window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY
+            : 'gbp';
+        const normalized = String(sharedCurrency || '').trim().toLowerCase();
+        return normalized || 'gbp';
+    })();
     let workspaceMounted = false;
     let hasUnsavedChanges = false;
     let workspaceActionInFlight = false;
@@ -301,7 +309,7 @@
         completeBtn.disabled = completed;
         completeBtn.textContent = completed ? 'Project Completed' : 'Complete Project';
         downloadBtn.disabled = !completed;
-        downloadBtn.textContent = project.template_download_paid ? 'Download Final Output' : 'Download (Pay EUR 199)';
+        downloadBtn.textContent = project.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)';
     }
 
     async function saveTemplateState(projectId, templateState, options = {}) {
@@ -366,15 +374,15 @@
 
         await window.NexlancePayments.startTemplatePayment({
             amount: TEMPLATE_DOWNLOAD_AMOUNT_CENTS,
-            currency: 'eur',
+            currency: DEFAULT_BILLING_CURRENCY,
             productCode: 'template_download',
             templateId: project.template_id || '',
             templateName,
             title: 'Complete your template payment',
-            message: 'Pay EUR 199 to unlock the final template download for this project.',
+            message: 'Pay GBP 199 to unlock the final template download for this project.',
             summaryTitle: templateName || 'Template Download',
             summaryText: 'Final editable website output',
-            buttonText: 'Pay EUR 199',
+            buttonText: 'Pay GBP 199',
             metadata: {
                 project_id: project.id,
                 template_id: project.template_id || ''
@@ -384,13 +392,13 @@
                     template_download_paid: true,
                     template_download_paid_at: new Date().toISOString(),
                     template_download_payment_intent_id: paymentIntent.id,
-                    template_download_amount_eur: 199
+                    template_download_amount_gbp: 199
                 });
                 if (typeof recordPaymentRecord === 'function') {
                     await recordPaymentRecord({
                         paymentIntentId: paymentIntent.id,
                         amount: 199,
-                        currency: 'EUR',
+                        currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
                         paymentType: 'template_download',
                         templateId: project.template_id || '',
                         templateName: templateName || '',

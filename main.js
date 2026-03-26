@@ -4,6 +4,19 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    function getDefaultBillingCurrency() {
+        const sharedCurrency = window.NEXLANCE_BILLING_CATALOG
+            && typeof window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY === 'string'
+            ? window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY
+            : 'gbp';
+        const normalized = String(sharedCurrency || '').trim().toLowerCase();
+        return normalized || 'gbp';
+    }
+
+    function getDefaultBillingCurrencyUpper() {
+        return getDefaultBillingCurrency().toUpperCase();
+    }
+
     const PLAN_CONFIG = {
         plus: {
             name: 'Plus',
@@ -116,10 +129,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return isAnnualBillingSelected() ? config.productCodes.annual : config.productCodes.monthly;
     }
 
-    function formatEuroAmount(amountCents) {
+    function formatPlanAmount(amountCents) {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'EUR'
+            currency: getDefaultBillingCurrencyUpper()
         }).format((Number(amountCents) || 0) / 100);
     }
 
@@ -160,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     await window.NexlancePayments.startBusinessCheckout({
                         amount: amountCents,
-                        currency: 'eur',
+                        currency: getDefaultBillingCurrency(),
                         productCode,
                         redirectTarget,
                         title: `Complete your ${config.name} purchase`,
@@ -219,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p>Access dashboard pages including Projects, Settings, Support Info, Access/Role, and Services, billed every 30 days</p>
                     </div>
                     <div class="pricing-price">
-                        <span class="currency">&euro;</span>
+                        <span class="currency">&pound;</span>
                     <span class="amount" data-monthly="199" data-annual="1910.40">199</span>
                         <span class="period">/month</span>
                     </div>
@@ -239,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p>Access dashboard pages including Projects, Settings, Support Info, Access/Role, Services, Invoices, and Team, plus any 4 templates, billed every 30 days</p>
                     </div>
                     <div class="pricing-price">
-                        <span class="currency">&euro;</span>
+                        <span class="currency">&pound;</span>
                     <span class="amount" data-monthly="299" data-annual="2870.40">299</span>
                         <span class="period">/month</span>
                     </div>
@@ -257,10 +270,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="popular-badge">Most Popular</div>
                     <div class="pricing-header">
                         <h3>Business</h3>
-                        <p>Complete dashboard access including Projects, Settings, Support Info, Access/Role, Services, Invoices, Team, and Clients, plus all 8 templates, billed every 30 days</p>
+                        <p>Complete dashboard access including Projects, Settings, Support Info, Access/Role, Services, Invoices, Team, Clients, and Reports, plus all 8 templates, billed every 30 days</p>
                     </div>
                     <div class="pricing-price">
-                        <span class="currency">&euro;</span>
+                        <span class="currency">&pound;</span>
                     <span class="amount" data-monthly="399" data-annual="3830.40">399</span>
                         <span class="period">/month</span>
                     </div>
@@ -268,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <li><span class="check">&#10003;</span> Complete dashboard access</li>
                         <li><span class="check">&#10003;</span> Projects, Settings, and Support Info</li>
                         <li><span class="check">&#10003;</span> Access/Role, Services, and Invoices</li>
-                        <li><span class="check">&#10003;</span> Team and Clients access</li>
+                        <li><span class="check">&#10003;</span> Team, Clients, and Reports access</li>
                         <li><span class="check">&#10003;</span> Access to all 8 templates</li>
                         <li><span class="check">&#10003;</span> Priority support</li>
                     </ul>
@@ -284,11 +297,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="plan-desc">Access dashboard pages including Projects, Settings, Support Info, Access/Role, and Services, billed every 30 days</div>
                     <div class="price-amount">
                         <div class="price-main">
-                            <span class="price-currency">&euro;</span>
+                            <span class="price-currency">&pound;</span>
                             <span class="price-num" data-monthly="199" data-annual="1910.40">199</span>
                             <span class="price-period">/month</span>
                         </div>
-                        <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save EUR 477.60 vs monthly">Billed monthly</div>
+                        <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save GBP 477.60 vs monthly">Billed monthly</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> Projects page access</li>
@@ -305,11 +318,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="plan-desc">Access dashboard pages including Projects, Settings, Support Info, Access/Role, Services, Invoices, and Team, plus any 4 templates, billed every 30 days</div>
                     <div class="price-amount">
                         <div class="price-main">
-                            <span class="price-currency">&euro;</span>
+                            <span class="price-currency">&pound;</span>
                             <span class="price-num" data-monthly="299" data-annual="2870.40">299</span>
                             <span class="price-period">/month</span>
                         </div>
-                        <div class="price-note" data-monthly-note="Billed every 30 days" data-annual-note="Save EUR 717.60 vs monthly">Billed every 30 days</div>
+                        <div class="price-note" data-monthly-note="Billed every 30 days" data-annual-note="Save GBP 717.60 vs monthly">Billed every 30 days</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> Projects and Settings access</li>
@@ -324,20 +337,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="price-card popular">
                     <div class="popular-badge">Most Popular</div>
                     <div class="plan-name">Business</div>
-                    <div class="plan-desc">Complete dashboard access including Projects, Settings, Support Info, Access/Role, Services, Invoices, Team, and Clients, plus all 8 templates, billed every 30 days</div>
+                    <div class="plan-desc">Complete dashboard access including Projects, Settings, Support Info, Access/Role, Services, Invoices, Team, Clients, and Reports, plus all 8 templates, billed every 30 days</div>
                     <div class="price-amount">
                         <div class="price-main">
-                            <span class="price-currency">&euro;</span>
+                            <span class="price-currency">&pound;</span>
                             <span class="price-num" data-monthly="399" data-annual="3830.40">399</span>
                             <span class="price-period">/month</span>
                         </div>
-                        <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save EUR 957.60 vs monthly">Billed monthly</div>
+                        <div class="price-note" data-monthly-note="Billed monthly" data-annual-note="Save GBP 957.60 vs monthly">Billed monthly</div>
                     </div>
                     <ul class="feature-list">
                         <li><span class="chk">&#10003;</span> Complete dashboard access</li>
                         <li><span class="chk">&#10003;</span> Projects, Settings, and Support Info</li>
                         <li><span class="chk">&#10003;</span> Access/Role, Services, and Invoices</li>
-                        <li><span class="chk">&#10003;</span> Team and Clients access</li>
+                        <li><span class="chk">&#10003;</span> Team, Clients, and Reports access</li>
                         <li><span class="chk">&#10003;</span> Access to all 8 templates</li>
                         <li><span class="chk">&#10003;</span> Priority support</li>
                     </ul>

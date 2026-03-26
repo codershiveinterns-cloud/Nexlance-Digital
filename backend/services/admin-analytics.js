@@ -1,4 +1,7 @@
+const { DEFAULT_CURRENCY } = require('../../billing-catalog.js');
 const { listCollectionDocuments } = require('./firebase-service');
+
+const DEFAULT_CURRENCY_CODE = String(DEFAULT_CURRENCY || 'gbp').trim().toUpperCase() || 'GBP';
 
 function toTimestamp(value) {
     const timestamp = new Date(value || '').getTime();
@@ -104,7 +107,7 @@ async function getAdminAnalytics(options = {}) {
             id: payment.payment_intent_id || payment.id,
             email: payment.user_email || '',
             amount: Number(payment.amount || 0),
-            currency: payment.currency || 'EUR',
+            currency: payment.currency || DEFAULT_CURRENCY_CODE,
             type: payment.payment_type || 'payment',
             status: payment.status || 'unknown',
             planCode: payment.plan_code || '',

@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const upgradePlanBtn = document.getElementById('upgradePlanBtn');
     const plansModal = document.getElementById('plansModal');
     const closePlansModal = document.getElementById('closePlansModal');
-    const planLinks = Array.from(document.querySelectorAll('[data-plan-name]'));
+    const planLinks = Array.from(document.querySelectorAll('[data-plan-code]'));
     const deleteAccountBtn = document.getElementById('deleteAccountBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const deleteAccountModal = document.getElementById('deleteAccountModal');
@@ -524,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return 'You can access Dashboard, Projects, Settings, Support Info, Access / Roles, Services, Invoices, and Team, plus up to 4 templates.';
             }
             if (normalizedCode === 'business') {
-                return 'You can access the complete dashboard, including Clients, plus all 8 templates.';
+                return 'You can access the complete dashboard, including Clients and Reports, plus all 8 templates.';
             }
             return 'You can access the dashboard.';
         }
@@ -578,18 +578,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (upgradeControls) upgradeControls.hidden = false;
     }
 
-    async function activatePaidPlan(planName) {
+    async function activatePaidPlan(planCode) {
         closeModal();
-        if (planName === 'Business') {
-            window.location.href = 'pricing.html?checkout=business';
-            return;
-        }
-        if (planName === 'Commerce') {
-            window.location.href = 'contact.html';
+        const normalizedPlanCode = String(planCode || '').trim().toLowerCase();
+        if (['plus', 'pro', 'business'].includes(normalizedPlanCode)) {
+            window.location.href = `pricing.html?checkout=${encodeURIComponent(normalizedPlanCode)}`;
             return;
         }
         if (typeof showToast === 'function') {
-            showToast(`${planName} is not activated from the dashboard. Use the pricing page to upgrade securely.`, 'info');
+            showToast('This plan is not activated from the dashboard. Use the pricing page to upgrade securely.', 'info');
         }
     }
 
@@ -635,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
             data: {
                 labels: monthLabels,
                 datasets: [{
-                    label: 'Revenue (EUR)',
+                    label: 'Revenue (GBP)',
                     data: monthlyTotals,
                     borderColor: palette.accent,
                     backgroundColor: palette.accentSoft,
@@ -806,10 +803,10 @@ document.addEventListener('DOMContentLoaded', () => {
     planLinks.forEach(link => {
         link.addEventListener('click', async event => {
             event.preventDefault();
-            const planName = link.getAttribute('data-plan-name');
-            if (!planName) return;
+            const planCode = link.getAttribute('data-plan-code');
+            if (!planCode) return;
             try {
-                await activatePaidPlan(planName);
+                await activatePaidPlan(planCode);
             } catch (error) {
                 console.error('Plan activation failed:', error);
             }

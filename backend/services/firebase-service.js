@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { DEFAULT_CURRENCY } = require('../../billing-catalog.js');
 
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nexlance-df59e';
 const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || '';
@@ -8,6 +9,7 @@ const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREB
 const FIRESTORE_SCOPE = 'https://www.googleapis.com/auth/datastore';
 
 let accessTokenCache = null;
+const DEFAULT_CURRENCY_CODE = String(DEFAULT_CURRENCY || 'gbp').trim().toUpperCase() || 'GBP';
 
 function assertFirebaseServiceConfig() {
     if (!FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY) {
@@ -420,7 +422,7 @@ async function upsertPaymentAttempt(record) {
         templateId: String(record.templateId || ''),
         status: String(record.status || 'pending'),
         amount: Number(record.amount || 0),
-        currency: String(record.currency || 'EUR').toUpperCase(),
+        currency: String(record.currency || DEFAULT_CURRENCY_CODE).toUpperCase(),
         siteBaseUrl: String(record.siteBaseUrl || ''),
         redirectUrl: String(record.redirectUrl || ''),
         providerReferenceId: String(record.providerReferenceId || ''),
@@ -444,7 +446,7 @@ async function upsertPaymentRecord(record) {
         userName: String(record.userName || ''),
         templateId: String(record.templateId || ''),
         amount: Number(record.amount || 0),
-        currency: String(record.currency || 'EUR').toUpperCase(),
+        currency: String(record.currency || DEFAULT_CURRENCY_CODE).toUpperCase(),
         providerPaymentId: String(record.providerPaymentId || ''),
         providerSessionId: String(record.providerSessionId || ''),
         providerSubscriptionId: String(record.providerSubscriptionId || ''),

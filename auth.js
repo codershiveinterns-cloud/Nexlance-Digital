@@ -1,5 +1,13 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
+  const DEFAULT_PLAN_CURRENCY = (() => {
+    const sharedCurrency = window.NEXLANCE_BILLING_CATALOG
+      && typeof window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY === 'string'
+      ? window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY
+      : 'gbp';
+    const normalized = String(sharedCurrency || '').trim().toUpperCase();
+    return normalized || 'GBP';
+  })();
   const VIP_EMAILS = [
     'vijaypratap@nexlancedigital.com',
     'mehrahinal113@gmail.com'
@@ -259,7 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const defaultTemplateLimit = activePaidPlanCode === 'pro' ? 4 : (activePaidPlanCode === 'business' ? 8 : 0);
       activatePaidPlanAccess(activePaidPlanCode, {
         price: record.paymentAmount || 0,
-        currency: 'EUR',
+        currency: DEFAULT_PLAN_CURRENCY,
         startedAt: record.planStartedAt || record.upgradedAt || new Date().toISOString(),
         endsAt: record.planEndsAt || null,
         billingCycle: record.planBillingCycle || (record.planEndsAt ? 'annual' : 'monthly'),

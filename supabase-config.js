@@ -89,6 +89,14 @@ const TRIAL_ACCESS_CONFIG = {
     allTemplatesAccess: false,
     templateLimit: 0
 };
+const DEFAULT_PLAN_CURRENCY = (function () {
+    const sharedCurrency = window.NEXLANCE_BILLING_CATALOG
+        && typeof window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY === 'string'
+        ? window.NEXLANCE_BILLING_CATALOG.DEFAULT_CURRENCY
+        : 'gbp';
+    const normalized = String(sharedCurrency || '').trim().toUpperCase();
+    return normalized || 'GBP';
+})();
 const RESTRICTED_PAGE_NAMES = ['dashboard.html', 'clients.html', 'team.html', 'invoices.html', 'invoice-create.html', 'services.html', 'access-roles.html', 'reports.html', 'client-detail.html'];
 
 function _snap(querySnap) {
@@ -199,7 +207,7 @@ function buildIndividualPlanRecord(options = {}) {
         name: 'Individual',
         paid: false,
         price: 0,
-        currency: 'EUR',
+        currency: DEFAULT_PLAN_CURRENCY,
         startedAt: options.startedAt || new Date().toISOString(),
         status: options.status || 'free'
     };
@@ -225,7 +233,7 @@ function buildPaidPlanRecord(planCode, options = {}) {
         name: planNames[normalizedCode] || 'Business',
         paid: true,
         price: Number(options.price || defaultPrices[normalizedCode] || defaultPrices.business),
-        currency: options.currency || 'EUR',
+        currency: options.currency || DEFAULT_PLAN_CURRENCY,
         startedAt,
         endsAt: options.endsAt || null,
         status: 'active',
@@ -985,7 +993,7 @@ async function recordPaymentRecord(options = {}) {
         payment_intent_id: options.paymentIntentId || '',
         user_email: normalizeEmail(options.userEmail || (currentUser && currentUser.email) || ''),
         amount: Number(options.amount || 0),
-        currency: options.currency || 'EUR',
+        currency: options.currency || DEFAULT_PLAN_CURRENCY,
         payment_type: options.paymentType || 'payment',
         plan_code: options.planCode || '',
         template_id: options.templateId || '',
@@ -1369,23 +1377,23 @@ async function logActivity(description, userName = 'Admin') {
     });
 }
 
-const EURO_SYMBOL = '€';
-const INR_TO_EUR_RATE = 1 / 90;
+const GBP_SYMBOL = '£';
+const INR_TO_GBP_RATE = 1 / 123.5;
 
 function formatCurrency(n) {
     return new Intl.NumberFormat('en-IE', {
         style: 'currency',
-        currency: 'EUR',
+        currency: DEFAULT_PLAN_CURRENCY,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
     }).format(Number(n) || 0);
 }
 
-function convertInrToEur(value) {
-    return Math.round((Number(value) || 0) * INR_TO_EUR_RATE);
+function convertInrToGbp(value) {
+    return Math.round((Number(value) || 0) * INR_TO_GBP_RATE);
 }
 
-function migrateLocalCurrencyToEuro() {
+function migrateLocalCurrencyToGbp() {
     const migrationKey = 'nexlance_currency_migrated_to_eur_v1';
     if (localStorage.getItem(migrationKey) === '1') return;
 
@@ -1414,7 +1422,7 @@ function migrateLocalCurrencyToEuro() {
                 const updatedRecord = { ...record };
                 fields.forEach(field => {
                     if (updatedRecord[field] !== undefined && updatedRecord[field] !== null) {
-                        updatedRecord[field] = convertInrToEur(updatedRecord[field]);
+                        updatedRecord[field] = convertInrToGbp(updatedRecord[field]);
                     }
                 });
                 return updatedRecord;
@@ -1544,7 +1552,7 @@ const sampleTeamMembers = [
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
-    migrateLocalCurrencyToEuro();
+    migrateLocalCurrencyToGbp();
     syncAccessUiState();
     if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG && EMAILJS_CONFIG.publicKey) {
         try { emailjs.init(EMAILJS_CONFIG.publicKey); } catch (e) { /* will use per-call key */ }

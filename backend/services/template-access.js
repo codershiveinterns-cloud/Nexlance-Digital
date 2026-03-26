@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { DEFAULT_CURRENCY } = require('../../billing-catalog.js');
 const { completeHostedCheckout, createHostedCheckout } = require('./payments');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -22,7 +23,7 @@ const POLAR_TEMPLATE_PRODUCT_ID = process.env.POLAR_TEMPLATE_PRODUCT_ID || '';
 
 const TEMPLATE_PRICE = {
     amount: 19900,
-    currency: 'eur'
+    currency: String(DEFAULT_CURRENCY || 'gbp').trim().toLowerCase() || 'gbp'
 };
 
 const TEMPLATE_CATALOG = {
