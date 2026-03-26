@@ -8,7 +8,6 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const DATA_DIR = path.join(PROJECT_ROOT, 'backend', 'data');
 const TRANSACTIONS_PATH = path.join(DATA_DIR, 'template-access-transactions.json');
 const PRIMARY_LICENSE_FILE = path.join(PROJECT_ROOT, 'template_license_key.txt');
-const FALLBACK_LICENSE_FILE = path.join(PROJECT_ROOT, 'TEMPLATE_LICENSE_KEYS.txt');
 
 const TEMPLATE_DOWNLOAD_SECRET = process.env.TEMPLATE_DOWNLOAD_TOKEN_SECRET
     || process.env.ADMIN_SESSION_SECRET
@@ -70,7 +69,19 @@ const TEMPLATE_CATALOG = {
 };
 
 function ensureDataDir() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch (error) {
+        if (error && (error.code === 'EROFS' || error.code === 'EPERM' || error.code === 'EACCES')) {
+            return false;
+        }
+        throw error;
+    }
+    return true;
+}
+
+function isReadonlyFilesystemError(error) {
+    return Boolean(error && (error.code === 'EROFS' || error.code === 'EPERM' || error.code === 'EACCES'));
 }
 
 function normalizeTemplateId(value) {
@@ -206,56 +217,27 @@ function parseLicenseRecordLine(line, lineIndex, sourceFile) {
         };
     }
 
-    if (parts.length >= 8) {
-        return {
-            sourceFile,
-            lineIndex,
-            format: 'legacy',
-            templateName: String(parts[0] || '').trim(),
-            templateId: String(parts[1] || '').trim(),
-            licenseKey: normalizeLicenseKey(parts[2]),
-            status: String(parts[3] || 'active').trim().toLowerCase(),
-            issuedToEmail: normalizeEmail(parts[4] || ''),
-            usedByEmail: normalizeEmail(parts[5] || ''),
-            createdAt: String(parts[6] || '').trim(),
-            usedAt: String(parts[7] || '').trim()
-        };
-    }
-
     return null;
 }
 
 function loadLicenseRecords() {
-    const candidates = [PRIMARY_LICENSE_FILE, FALLBACK_LICENSE_FILE].filter(fs.existsSync);
     const records = [];
+    if (!fs.existsSync(PRIMARY_LICENSE_FILE)) {
+        return records;
+    }
 
-    candidates.forEach(filePath => {
-        const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
-        lines.forEach((line, lineIndex) => {
-            const record = parseLicenseRecordLine(line, lineIndex, filePath);
-            if (record && record.licenseKey) {
-                records.push(record);
-            }
-        });
+    const lines = fs.readFileSync(PRIMARY_LICENSE_FILE, 'utf8').split(/\r?\n/);
+    lines.forEach((line, lineIndex) => {
+        const record = parseLicenseRecordLine(line, lineIndex, PRIMARY_LICENSE_FILE);
+        if (record && record.licenseKey) {
+            records.push(record);
+        }
     });
 
     return records;
 }
 
 function serializeLicenseRecord(record) {
-    if (record.format === 'legacy') {
-        return [
-            record.templateName || TEMPLATE_CATALOG[record.templateId].name,
-            record.templateId,
-            record.licenseKey,
-            record.status,
-            record.issuedToEmail || '',
-            record.usedByEmail || '',
-            record.createdAt || '',
-            record.usedAt || ''
-        ].join(' | ');
-    }
-
     return [
         record.templateId,
         record.licenseKey,
@@ -272,10 +254,16 @@ function updateLicenseRecord(recordToPersist) {
     if (!filePath || !fs.existsSync(filePath)) {
         return;
     }
-
-    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
-    lines[recordToPersist.lineIndex] = serializeLicenseRecord(recordToPersist);
-    fs.writeFileSync(filePath, lines.join('\n'));
+    try {
+        const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+        lines[recordToPersist.lineIndex] = serializeLicenseRecord(recordToPersist);
+        fs.writeFileSync(filePath, lines.join('\n'));
+    } catch (error) {
+        if (isReadonlyFilesystemError(error)) {
+            return;
+        }
+        throw error;
+    }
 }
 
 function validateLicenseAccess(options) {
@@ -319,7 +307,9 @@ function validateLicenseAccess(options) {
 }
 
 function readTransactions() {
-    ensureDataDir();
+    if (!ensureDataDir()) {
+        return [];
+    }
     if (!fs.existsSync(TRANSACTIONS_PATH)) {
         return [];
     }
@@ -333,8 +323,18 @@ function readTransactions() {
 }
 
 function writeTransactions(transactions) {
-    ensureDataDir();
-    fs.writeFileSync(TRANSACTIONS_PATH, JSON.stringify(transactions, null, 2));
+    if (!ensureDataDir()) {
+        return false;
+    }
+    try {
+        fs.writeFileSync(TRANSACTIONS_PATH, JSON.stringify(transactions, null, 2));
+        return true;
+    } catch (error) {
+        if (isReadonlyFilesystemError(error)) {
+            return false;
+        }
+        throw error;
+    }
 }
 
 function upsertTransaction(entry) {

@@ -7,5 +7,5 @@ fashion-store-template | FASHIO-V6N1-B8T4 | active |  |  | 2026-03-16T00:00:00.0
 fine-dining-template | FINEDI-H3W7-K5M9 | active |  |  | 2026-03-16T00:00:00.000Z |
 jewelry-luxury-template | JEWELR-P2D6-Y7Q4 | active |  |  | 2026-03-16T00:00:00.000Z |
 photographer-template | PHOTOG-R8C2-L4Z7 | active |  |  | 2026-03-16T00:00:00.000Z |
-startup-landing-template | STARTU-N5F9-J3X8 | active |  |  | 2026-03-16T00:00:00.000Z |
+startup-landing-template | STARTU-N5F9-J3X8 | used |  | test@example.com | 2026-03-16T00:00:00.000Z | 2026-03-26T12:13:40.952Z
 wedding-gallery-template | WEDDIN-T7H4-S6P1 | active |  |  | 2026-03-16T00:00:00.000Z |
