@@ -608,8 +608,8 @@
         const pageName = window.location.pathname.split('/').pop() || 'index.html';
         if (pageName !== 'project-detail.html') return;
 
-        const project = await waitForProject();
-        if (!project || !project.template_id) return;
+        const project = resolveWorkspaceProject(await waitForProject());
+        if (!project || !project.template_id || !project.template_page) return;
         await mountWorkspace(project);
     }
 
