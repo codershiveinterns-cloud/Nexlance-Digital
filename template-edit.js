@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isEditMode = false;
     let editableElements = [];
+    let editableImages = [];
+    let imagePicker = null;
+    let pendingImageElement = null;
 
     function ensureStyles() {
         if (document.getElementById('templateWorkspaceStyles')) return;
@@ -45,17 +48,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 background: rgba(79, 70, 229, 0.08);
                 border-radius: 6px;
             }
+
+            .template-workspace-editable-image {
+                transition: outline 0.2s ease, transform 0.2s ease;
+            }
+
+            .template-workspace-editing .template-workspace-editable-image {
+                outline: 2px dashed rgba(79, 70, 229, 0.65);
+                outline-offset: 4px;
+                cursor: pointer;
+            }
         `;
         document.head.appendChild(style);
     }
 
     function getEditableCandidates() {
-        return Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, li, a, button, label'))
+        return Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, li, a, button, label, strong, small, blockquote'))
             .filter(element => {
                 if (!element.textContent.trim()) return false;
                 if (element.closest('script, style')) return false;
                 return true;
             });
+    }
+
+    function getEditableImageCandidates() {
+        return Array.from(document.querySelectorAll('img'))
+            .filter(element => {
+                if (!element.getAttribute('src')) return false;
+                if (element.closest('script, style')) return false;
+                return true;
+            });
+    }
+
+    function ensureImagePicker() {
+        if (imagePicker) return imagePicker;
+
+        imagePicker = document.createElement('input');
+        imagePicker.type = 'file';
+        imagePicker.accept = 'image/*';
+        imagePicker.id = 'templateWorkspaceImagePicker';
+        imagePicker.hidden = true;
+        imagePicker.addEventListener('change', event => {
+            const file = event.target.files && event.target.files[0];
+            if (!file || !pendingImageElement) return;
+
+            const reader = new FileReader();
+            reader.onload = loadEvent => {
+                pendingImageElement.setAttribute('src', String(loadEvent.target && loadEvent.target.result ? loadEvent.target.result : ''));
+                pendingImageElement.setAttribute('data-template-image-updated', '1');
+                parentWorkspace.setDirtyState(true);
+                pendingImageElement = null;
+                imagePicker.value = '';
+            };
+            reader.readAsDataURL(file);
+        });
+        document.body.appendChild(imagePicker);
+        return imagePicker;
     }
 
     function assignEditableKeys() {
@@ -69,6 +117,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 parentWorkspace.setDirtyState(true);
             });
         });
+
+        editableImages = getEditableImageCandidates();
+        editableImages.forEach((element, index) => {
+            element.dataset.templateEditKey = `image-${index}`;
+            element.classList.add('template-workspace-editable-image');
+            element.addEventListener('click', event => {
+                if (!isEditMode) return;
+                event.preventDefault();
+                event.stopPropagation();
+                pendingImageElement = element;
+                ensureImagePicker().click();
+            });
+        });
     }
 
     function restoreSavedState() {
@@ -77,7 +138,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         savedState.elements.forEach(item => {
             const element = document.querySelector(`[data-template-edit-key="${item.key}"]`);
-            if (element) {
+            if (!element) return;
+
+            if (item.kind === 'image' && element.tagName.toLowerCase() === 'img') {
+                if (item.src) {
+                    element.setAttribute('src', item.src);
+                }
+                if (item.alt !== undefined) {
+                    element.setAttribute('alt', item.alt);
+                }
+                return;
+            }
+
+            if (item.kind === 'content' || !item.kind) {
                 element.innerHTML = item.html;
             }
         });
@@ -98,10 +171,19 @@ document.addEventListener('DOMContentLoaded', () => {
             templatePage,
             templateName,
             savedAt: new Date().toISOString(),
-            elements: editableElements.map(element => ({
-                key: element.dataset.templateEditKey,
-                html: element.innerHTML
-            }))
+            elements: [
+                ...editableElements.map(element => ({
+                    key: element.dataset.templateEditKey,
+                    kind: 'content',
+                    html: element.innerHTML
+                })),
+                ...editableImages.map(element => ({
+                    key: element.dataset.templateEditKey,
+                    kind: 'image',
+                    src: element.getAttribute('src') || '',
+                    alt: element.getAttribute('alt') || ''
+                }))
+            ]
         };
     }
 
@@ -110,7 +192,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         clone.querySelectorAll('[contenteditable]').forEach(element => element.removeAttribute('contenteditable'));
         clone.querySelectorAll('.template-workspace-editable').forEach(element => element.classList.remove('template-workspace-editable'));
+        clone.querySelectorAll('.template-workspace-editable-image').forEach(element => element.classList.remove('template-workspace-editable-image'));
         clone.querySelectorAll('#templateWorkspaceStyles').forEach(element => element.remove());
+        clone.querySelectorAll('#templateWorkspaceImagePicker').forEach(element => element.remove());
 
         clone.querySelectorAll('link[href], script[src], img[src], source[src]').forEach(element => {
             const attr = element.tagName.toLowerCase() === 'link' ? 'href' : 'src';
