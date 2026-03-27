@@ -1,5 +1,7 @@
 (function () {
     const DEFAULT_TEMPLATE_ID = 'startup-landing-template';
+    const TEMPLATE_ACCESS_MODAL_ID = 'templateAccessSuccessModal';
+    const TEMPLATE_ACCESS_MODAL_STYLE_ID = 'templateAccessSuccessStyles';
 
     function getApiUrl(pathname) {
         if (window.NexlancePayments && typeof window.NexlancePayments.getApiUrl === 'function') {
@@ -82,8 +84,172 @@
         }
     }
 
+    function getCurrentUserEmail() {
+        const currentUser = getCurrentUser();
+        return currentUser && currentUser.email ? String(currentUser.email).trim().toLowerCase() : '';
+    }
+
     function isLoggedIn() {
         return localStorage.getItem('nexlance_auth') === '1';
+    }
+
+    function getTemplateAccessStorageKey(email) {
+        const normalized = String(email || '').trim().toLowerCase();
+        return normalized ? `nexlance_template_access_${normalized}` : 'nexlance_template_access';
+    }
+
+    function getStoredTemplateAccess(email) {
+        try {
+            return JSON.parse(localStorage.getItem(getTemplateAccessStorageKey(email)) || localStorage.getItem('nexlance_template_access') || 'null');
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function persistTemplateAccess(templateId) {
+        const email = getCurrentUserEmail();
+        const existing = getStoredTemplateAccess(email) || {};
+        const templateIds = Array.isArray(existing.templateIds) ? existing.templateIds.filter(Boolean) : [];
+        const nextTemplateIds = templateIds.includes(templateId) ? templateIds : templateIds.concat(templateId);
+        const accessRecord = {
+            userEmail: email,
+            allTemplatesAccess: false,
+            templateIds: nextTemplateIds,
+            sourceProductCode: existing.sourceProductCode || 'license_key',
+            endsAt: existing.endsAt || '',
+            updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem(getTemplateAccessStorageKey(email), JSON.stringify(accessRecord));
+        localStorage.setItem('nexlance_template_access', JSON.stringify(accessRecord));
+    }
+
+    function ensureSuccessModal() {
+        if (!document.getElementById(TEMPLATE_ACCESS_MODAL_STYLE_ID)) {
+            const style = document.createElement('style');
+            style.id = TEMPLATE_ACCESS_MODAL_STYLE_ID;
+            style.textContent = `
+                .template-access-success-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(15, 23, 42, 0.7);
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                    z-index: 12050;
+                    backdrop-filter: blur(6px);
+                }
+                .template-access-success-overlay.show {
+                    display: flex;
+                }
+                .template-access-success-modal {
+                    width: min(100%, 520px);
+                    background: #ffffff;
+                    border-radius: 24px;
+                    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.25);
+                    padding: 28px;
+                    position: relative;
+                }
+                .template-access-success-modal h3 {
+                    margin: 0 0 12px;
+                    font-size: 1.9rem;
+                    color: #111827;
+                }
+                .template-access-success-modal p {
+                    margin: 0 0 14px;
+                    color: #475569;
+                    line-height: 1.7;
+                }
+                .template-access-success-actions {
+                    display: flex;
+                    gap: 12px;
+                    flex-wrap: wrap;
+                    margin-top: 20px;
+                }
+                .template-access-success-actions button,
+                .template-access-success-actions a {
+                    border: none;
+                    border-radius: 999px;
+                    padding: 13px 18px;
+                    font-weight: 700;
+                    text-decoration: none;
+                    cursor: pointer;
+                    text-align: center;
+                }
+                .template-access-success-primary {
+                    background: #111111;
+                    color: #ffffff;
+                    flex: 1 1 220px;
+                }
+                .template-access-success-secondary {
+                    background: #eef2ff;
+                    color: #4338ca;
+                    flex: 1 1 160px;
+                }
+                .template-access-success-close {
+                    position: absolute;
+                    top: 14px;
+                    right: 14px;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    border: none;
+                    background: #f8fafc;
+                    color: #475569;
+                    cursor: pointer;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        if (document.getElementById(TEMPLATE_ACCESS_MODAL_ID)) {
+            return document.getElementById(TEMPLATE_ACCESS_MODAL_ID);
+        }
+
+        const overlay = document.createElement('div');
+        overlay.id = TEMPLATE_ACCESS_MODAL_ID;
+        overlay.className = 'template-access-success-overlay';
+        overlay.innerHTML = `
+            <div class="template-access-success-modal" role="dialog" aria-modal="true" aria-labelledby="templateAccessSuccessTitle">
+                <button type="button" class="template-access-success-close" data-template-access-close>&times;</button>
+                <h3 id="templateAccessSuccessTitle">Template unlocked</h3>
+                <p id="templateAccessSuccessMessage">Your template is now available in the Projects section on your dashboard.</p>
+                <div class="template-access-success-actions">
+                    <a href="projects.html" class="template-access-success-primary" id="templateAccessSuccessGo">Go to Projects</a>
+                    <button type="button" class="template-access-success-secondary" data-template-access-close>Stay Here</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function (event) {
+            if (event.target === overlay) {
+                overlay.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+        });
+        overlay.querySelectorAll('[data-template-access-close]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                overlay.classList.remove('show');
+                document.body.style.overflow = '';
+            });
+        });
+
+        return overlay;
+    }
+
+    function showTemplateUnlockedModal(templateId, templateName) {
+        const overlay = ensureSuccessModal();
+        const message = document.getElementById('templateAccessSuccessMessage');
+        const primaryAction = document.getElementById('templateAccessSuccessGo');
+        if (message) {
+            message.textContent = `${templateName} is now available in the Projects section on your dashboard.`;
+        }
+        if (primaryAction) {
+            primaryAction.href = `projects.html?template=${encodeURIComponent(templateId)}&template_source=license`;
+        }
+        overlay.classList.add('show');
+        document.body.style.overflow = 'hidden';
     }
 
     function syncUserFields() {
@@ -141,7 +307,7 @@
         setStatus('', '');
 
         try {
-            if (!licenseKey && !isLoggedIn()) {
+            if (!isLoggedIn()) {
                 const redirectTarget = `index.html?template=${encodeURIComponent(templateId)}#template-access`;
                 window.location.href = `login.html?mode=register&redirect=${encodeURIComponent(redirectTarget)}`;
                 return;
@@ -156,9 +322,10 @@
                 siteBaseUrl: getSiteBaseUrl()
             });
 
-            if (payload.mode === 'license' && payload.downloadUrl) {
-                setStatus('License key validated. Your template download is starting now.', 'success');
-                triggerDownload(payload.downloadUrl);
+            if (payload.mode === 'license') {
+                persistTemplateAccess(payload.templateId || templateId);
+                setStatus('License key validated. Your template is now available in Projects.', 'success');
+                showTemplateUnlockedModal(payload.templateId || templateId, payload.templateName || getTemplateDisplayName(templateId));
                 return;
             }
 

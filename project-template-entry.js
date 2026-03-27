@@ -25,6 +25,10 @@
         return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     }
 
+    function buildProjectsLandingUrl(projectId) {
+        return `projects.html?highlight=${encodeURIComponent(projectId)}&template_unlocked=1`;
+    }
+
     async function createTemplateProject(template) {
         return addProject({
             name: `${template.name} Project`,
@@ -54,9 +58,11 @@
 
         const params = new URLSearchParams(window.location.search);
         const templateId = params.get('template');
+        if (!templateId) return;
+
         const pendingSelection = getPendingTemplateSelection();
         const template = typeof getTemplateConfig === 'function'
-            ? getTemplateConfig(templateId || (pendingSelection && pendingSelection.templateId))
+            ? getTemplateConfig(templateId)
             : null;
 
         if (!template) return;
@@ -83,7 +89,7 @@
                     });
                 }
                 clearPendingTemplateSelection();
-                window.location.href = `project-detail.html?id=${encodeURIComponent(pendingProject.id)}`;
+                window.location.href = buildProjectsLandingUrl(pendingProject.id);
                 return;
             }
 
@@ -101,14 +107,8 @@
                     }
                 });
             }
-            setPendingTemplateSelection({
-                templateId: template.id,
-                templatePage: template.page,
-                templateName: template.name,
-                projectId: createdProject.id,
-                storedAt: new Date().toISOString()
-            });
-            window.location.href = `project-detail.html?id=${encodeURIComponent(createdProject.id)}`;
+            clearPendingTemplateSelection();
+            window.location.href = buildProjectsLandingUrl(createdProject.id);
         } catch (error) {
             console.error('Could not create template project:', error);
             if (typeof showToast === 'function') {

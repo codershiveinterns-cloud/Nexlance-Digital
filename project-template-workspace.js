@@ -13,6 +13,13 @@
     let workspaceActionInFlight = false;
     let lastWorkspaceError = { message: '', at: 0 };
 
+    function getCurrentProject() {
+        if (typeof window.getProjectDetailProject === 'function') {
+            return window.getProjectDetailProject();
+        }
+        return null;
+    }
+
     function slugify(value) {
         return String(value || 'template-project')
             .trim()
@@ -167,9 +174,7 @@
         tab.id = 'templateWorkspaceTab';
         tab.textContent = 'Template Workspace';
         tab.addEventListener('click', () => {
-            if (typeof window.switchTab === 'function') {
-                window.switchTab(tab, 'workspace');
-            }
+            openWorkspaceTab();
         });
         tabs.appendChild(tab);
 
@@ -203,6 +208,18 @@
         const kanbanTab = document.getElementById('tab-kanban');
         if (kanbanTab && kanbanTab.parentNode) {
             kanbanTab.parentNode.appendChild(content);
+        }
+    }
+
+    function openWorkspaceTab() {
+        const project = getCurrentProject();
+        if (!project || !project.template_id || !project.template_page) return;
+
+        ensureWorkspaceLoaded(project);
+
+        const workspaceTab = document.getElementById('templateWorkspaceTab');
+        if (workspaceTab && typeof window.switchTab === 'function') {
+            window.switchTab(workspaceTab, 'workspace');
         }
     }
 
@@ -282,9 +299,7 @@
         } finally {
             workspaceActionInFlight = false;
             setWorkspaceBusy(false);
-            const currentProject = typeof window.getProjectDetailProject === 'function'
-                ? window.getProjectDetailProject()
-                : null;
+            const currentProject = getCurrentProject();
             if (currentProject) {
                 updateWorkspaceChrome(currentProject);
             }
@@ -313,7 +328,7 @@
     }
 
     async function saveTemplateState(projectId, templateState, options = {}) {
-        const currentProject = window.getProjectDetailProject();
+        const currentProject = getCurrentProject();
         const serializableTemplateState = getSerializableTemplateState(templateState, currentProject);
         const nextProgress = options.completed ? 100 : Math.max(Number(currentProject.progress || 0), 50);
         const nextStatus = options.completed ? 'Live' : (currentProject.status === 'Planning' ? 'Development' : currentProject.status || 'Development');
@@ -476,16 +491,10 @@
         });
     }
 
-    async function mountWorkspace(project) {
-        if (workspaceMounted || !project || !project.template_id || !project.template_page) return;
-
-        ensureWorkspaceStyles();
-        injectWorkspaceTab();
-        updateWorkspaceChrome(project);
-
+    function registerWorkspaceBridge() {
         window.NexlanceProjectWorkspace = {
             getProjectState(projectId) {
-                const currentProject = window.getProjectDetailProject();
+                const currentProject = getCurrentProject();
                 if (!currentProject || currentProject.id !== projectId) return null;
                 return getSerializableTemplateState(currentProject.template_state, currentProject);
             },
@@ -513,6 +522,10 @@
             },
             setDirtyState: setWorkspaceDirty
         };
+    }
+
+    function ensureWorkspaceLoaded(project) {
+        if (workspaceMounted || !project || !project.template_id || !project.template_page) return;
 
         const iframe = document.getElementById('templateWorkspaceFrame');
         if (!iframe) return;
@@ -520,12 +533,16 @@
         const pageUrl = `${project.template_page}?workspace=1&project=${encodeURIComponent(project.id)}`;
         iframe.src = pageUrl;
         bindWorkspaceButtons(project);
-
         workspaceMounted = true;
-        const workspaceTab = document.getElementById('templateWorkspaceTab');
-        if (workspaceTab && typeof window.switchTab === 'function') {
-            window.switchTab(workspaceTab, 'workspace');
-        }
+    }
+
+    async function mountWorkspace(project) {
+        if (!project || !project.template_id || !project.template_page) return;
+
+        ensureWorkspaceStyles();
+        injectWorkspaceTab();
+        updateWorkspaceChrome(project);
+        registerWorkspaceBridge();
     }
 
     async function initProjectTemplateWorkspace() {

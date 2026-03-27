@@ -59,6 +59,11 @@
       align-items: stretch;
     }
   }
+
+  .project-row-highlight {
+    background: rgba(108, 92, 231, 0.08);
+    box-shadow: inset 4px 0 0 #6c5ce7;
+  }
 </style>
 <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -193,6 +198,7 @@
 <script>
 let projects = [];
 let editingId = null;
+let highlightedProjectId = new URLSearchParams(window.location.search).get('highlight') || '';
 
 function formatTrialRemaining(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -257,6 +263,7 @@ async function init() {
   projects = await fetchProjects();
   renderStats();
   renderTable(projects);
+  handleTemplateUnlockState();
 }
 
 function renderStats() {
@@ -282,7 +289,8 @@ function renderTable(data) {
   tbody.innerHTML = data.map(p => {
     const deadline = p.deadline ? new Date(p.deadline) : null;
     const overdue = deadline && deadline < today && p.status !== 'Live';
-    return `<tr onclick="openProjectDetail('${p.id}')" style="cursor:pointer;">
+    const rowClass = p.id === highlightedProjectId ? 'project-row-highlight' : '';
+    return `<tr class="${rowClass}" data-project-id="${p.id}" onclick="openProjectDetail('${p.id}')" style="cursor:pointer;">
       <td><div style="font-weight:600;color:#333;">${p.name}</div></td>
       <td><div style="font-size:0.85rem;color:#666;">${p.client_name || '—'}</div></td>
       <td style="color:#888;font-size:0.85rem;">${formatDate(p.start_date)}</td>
@@ -303,6 +311,30 @@ function renderTable(data) {
   tbody.querySelectorAll('.action-delete').forEach(button => {
     button.addEventListener('click', event => event.stopPropagation());
   });
+}
+
+function handleTemplateUnlockState() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('template_unlocked') !== '1') return;
+
+  if (typeof showToast === 'function') {
+    showToast('Your template is now available in Projects.', 'success');
+  }
+
+  if (highlightedProjectId) {
+    window.setTimeout(() => {
+      const row = document.querySelector(`[data-project-id="${highlightedProjectId}"]`);
+      if (row && typeof row.scrollIntoView === 'function') {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 120);
+  }
+
+  params.delete('template_unlocked');
+  params.delete('highlight');
+  const nextQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+  window.history.replaceState({}, document.title, nextUrl);
 }
 
 function openProjectDetail(id) {

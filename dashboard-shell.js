@@ -1,6 +1,7 @@
 (function () {
     const THEME_STORAGE_KEY = 'nexlance_dashboard_theme';
     const SETTINGS_STORAGE_KEY = 'nexlance_dashboard_settings';
+    const MOBILE_SIDEBAR_BREAKPOINT = '(max-width: 768px)';
 
     function normalizeEmail(email) {
         return String(email || '').trim().toLowerCase();
@@ -146,6 +147,86 @@
         });
     }
 
+    function closeMobileSidebar() {
+        document.body.classList.remove('sidebar-open');
+        const toggle = document.getElementById('mobileSidebarToggle');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    function openMobileSidebar() {
+        document.body.classList.add('sidebar-open');
+        const toggle = document.getElementById('mobileSidebarToggle');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    function ensureMobileSidebarToggle() {
+        const sidebar = document.querySelector('.sidebar');
+        const topbar = document.querySelector('.topbar');
+        if (!sidebar || !topbar) return;
+
+        let backdrop = document.getElementById('mobileSidebarBackdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('button');
+            backdrop.type = 'button';
+            backdrop.id = 'mobileSidebarBackdrop';
+            backdrop.className = 'mobile-sidebar-backdrop';
+            backdrop.setAttribute('aria-label', 'Close sidebar');
+            backdrop.addEventListener('click', closeMobileSidebar);
+            document.body.appendChild(backdrop);
+        }
+
+        if (!document.getElementById('mobileSidebarToggle')) {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.id = 'mobileSidebarToggle';
+            toggle.className = 'mobile-sidebar-toggle';
+            toggle.setAttribute('aria-label', 'Open sidebar navigation');
+            toggle.setAttribute('aria-controls', 'dashboardSidebar');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.innerHTML = '<span></span><span></span><span></span>';
+            toggle.addEventListener('click', () => {
+                if (document.body.classList.contains('sidebar-open')) {
+                    closeMobileSidebar();
+                    return;
+                }
+                openMobileSidebar();
+            });
+            topbar.insertBefore(toggle, topbar.firstChild);
+        }
+
+        if (!sidebar.id) {
+            sidebar.id = 'dashboardSidebar';
+        }
+
+        sidebar.querySelectorAll('a[href], button').forEach(element => {
+            if (element.dataset.mobileSidebarBound === '1') return;
+            element.dataset.mobileSidebarBound = '1';
+            element.addEventListener('click', () => {
+                if (window.matchMedia(MOBILE_SIDEBAR_BREAKPOINT).matches) {
+                    closeMobileSidebar();
+                }
+            });
+        });
+
+        const syncSidebarState = () => {
+            if (!window.matchMedia(MOBILE_SIDEBAR_BREAKPOINT).matches) {
+                closeMobileSidebar();
+            }
+        };
+
+        window.addEventListener('resize', syncSidebarState);
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                closeMobileSidebar();
+            }
+        });
+        syncSidebarState();
+    }
+
     function handleStorageSync(event) {
         const key = event && event.key ? String(event.key) : '';
         if (!key || key.startsWith(THEME_STORAGE_KEY) || key.startsWith(SETTINGS_STORAGE_KEY)) {
@@ -164,17 +245,22 @@
         applyTheme,
         applySettingsToPage,
         logoutCurrentUser,
-        ensureSidebarSignOutButton
+        ensureSidebarSignOutButton,
+        ensureMobileSidebarToggle,
+        openMobileSidebar,
+        closeMobileSidebar
     };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             applySettingsToPage();
             ensureSidebarSignOutButton();
+            ensureMobileSidebarToggle();
         });
     } else {
         applySettingsToPage();
         ensureSidebarSignOutButton();
+        ensureMobileSidebarToggle();
     }
 
     window.addEventListener('storage', handleStorageSync);
