@@ -15,9 +15,68 @@
 
     function getCurrentProject() {
         if (typeof window.getProjectDetailProject === 'function') {
-            return window.getProjectDetailProject();
+            return resolveWorkspaceProject(window.getProjectDetailProject());
         }
         return null;
+    }
+
+    function normalizeTemplateLookupValue(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\.html$/, '')
+            .replace(/\s+project$/, '');
+    }
+
+    function resolveWorkspaceProject(project) {
+        if (!project || typeof project !== 'object') return null;
+
+        const explicitCandidates = [
+            project.template_id,
+            project.template_page,
+            project.template_name
+        ];
+
+        let templateConfig = null;
+        if (typeof window.getTemplateConfig === 'function') {
+            templateConfig = explicitCandidates
+                .map(candidate => window.getTemplateConfig(candidate))
+                .find(Boolean) || null;
+        }
+
+        if (!templateConfig && window.NEXLANCE_TEMPLATE_REGISTRY) {
+            const registry = Object.values(window.NEXLANCE_TEMPLATE_REGISTRY);
+            const projectName = normalizeTemplateLookupValue(project.name);
+            const deliverables = normalizeTemplateLookupValue(project.deliverables);
+            const scope = normalizeTemplateLookupValue(project.scope_of_work);
+
+            templateConfig = registry.find(template => {
+                const templateId = normalizeTemplateLookupValue(template.id);
+                const templatePage = normalizeTemplateLookupValue(template.page);
+                const templateName = normalizeTemplateLookupValue(template.name);
+                return (
+                    projectName === templateId
+                    || projectName === templatePage
+                    || projectName === templateName
+                    || (deliverables && deliverables.includes(templateName))
+                    || (scope && scope.includes(templateName))
+                );
+            }) || null;
+        }
+
+        if (!templateConfig) {
+            return project;
+        }
+
+        return {
+            ...project,
+            template_id: project.template_id || templateConfig.id,
+            template_name: project.template_name || templateConfig.name,
+            template_page: project.template_page || templateConfig.page,
+            template_category: project.template_category || templateConfig.category,
+            template_image: project.template_image || templateConfig.image,
+            template_description: project.template_description || templateConfig.description
+        };
     }
 
     function slugify(value) {
