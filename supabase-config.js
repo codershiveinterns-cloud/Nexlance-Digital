@@ -850,6 +850,59 @@ function setLocalEntityData(entity, records) {
     window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity } }));
 }
 
+function getLegacyTemplateProjects() {
+    try {
+        const records = JSON.parse(localStorage.getItem('nexlance_projects') || '[]');
+        return Array.isArray(records) ? records : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function setLegacyTemplateProjects(records) {
+    localStorage.setItem('nexlance_projects', JSON.stringify(Array.isArray(records) ? records : []));
+    window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'projects' } }));
+}
+
+function mergeProjectCollections() {
+    const merged = [];
+    const seen = new Set();
+
+    Array.from(arguments).forEach(collection => {
+        const records = Array.isArray(collection) ? collection : [];
+        records.forEach(record => {
+            if (!record || typeof record !== 'object') return;
+            const key = String(record.id || '').trim()
+                || `${String(record.template_id || '').trim()}::${String(record.name || '').trim()}`;
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            merged.push(record);
+        });
+    });
+
+    return merged;
+}
+
+function sortProjectsByRecent(records) {
+    return records.slice().sort((a, b) => new Date(b.created_at || b.completedAt || b.template_last_saved_at || 0) - new Date(a.created_at || a.completedAt || a.template_last_saved_at || 0));
+}
+
+function updateProjectInCollection(records, id, updates) {
+    const nextRecords = Array.isArray(records) ? records.slice() : [];
+    const index = nextRecords.findIndex(record => record && record.id === id);
+    if (index > -1) {
+        nextRecords[index] = { ...nextRecords[index], ...updates };
+        return {
+            records: nextRecords,
+            record: nextRecords[index]
+        };
+    }
+    return {
+        records: nextRecords,
+        record: null
+    };
+}
+
 function cloneDemoRecords(records, prefix) {
     return records.map((record, index) => ({
         ...record,
@@ -1081,37 +1134,30 @@ async function deleteClient(id) {
 
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
-    
-    // Fetch template-created projects from localStorage
-    let templateProjects = [];
-    try {
-        templateProjects = JSON.parse(localStorage.getItem('nexlance_projects') || '[]');
-    } catch (e) {
-        templateProjects = [];
-    }
-    
+
+    const scopedProjects = getLocalEntityData('projects');
+    const templateProjects = getLegacyTemplateProjects();
+
     if (!isFirebaseConfigured) {
         const records = createAccessFilteredDataset('projects', sampleProjects);
-        const combined = [...records, ...templateProjects];
+        const combined = sortProjectsByRecent(mergeProjectCollections(records, scopedProjects, templateProjects));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     }
     try {
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) {
-            // If no owner key, just return template projects
-            return clientId ? templateProjects.filter(p => p.client_id === clientId) : templateProjects;
+            const combinedWithoutOwner = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
+            return clientId ? combinedWithoutOwner.filter(p => p.client_id === clientId) : combinedWithoutOwner;
         }
         let q = db.collection('projects').where('owner_key', '==', ownerKey);
         if (clientId) q = q.where('client_id', '==', clientId);
         const snap = await q.get();
         const firebaseProjects = _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        // Merge Firebase projects with template projects
-        const combined = [...firebaseProjects, ...templateProjects.filter(tp => !firebaseProjects.find(fp => fp.id === tp.id))];
-        return combined.sort((a, b) => new Date(b.created_at || b.completedAt || 0) - new Date(a.created_at || a.completedAt || 0));
+        const combined = sortProjectsByRecent(mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects));
+        return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     } catch (e) {
         console.error(e);
-        const records = getLocalEntityData('projects');
-        const combined = [...records, ...templateProjects.filter(tp => !records.find(r => r.id === tp.id))];
+        const combined = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     }
 }
@@ -1147,17 +1193,64 @@ async function updateProject(id, d) {
         }
         return null;
     }
-    await db.collection('projects').doc(id).update(doc);
-    return { id, ...doc };
+    try {
+        await db.collection('projects').doc(id).update(doc);
+        return { id, ...doc };
+    } catch (error) {
+        const message = String(error && error.message ? error.message : '');
+        const code = String(error && error.code ? error.code : '');
+        const isMissingDocumentError = message.toLowerCase().includes('no document to update')
+            || code === 'not-found'
+            || code === 5;
+
+        if (!isMissingDocumentError) {
+            throw error;
+        }
+
+        const scopedProjects = getLocalEntityData('projects');
+        const scopedResult = updateProjectInCollection(scopedProjects, id, doc);
+        if (scopedResult.record) {
+            setLocalEntityData('projects', scopedResult.records);
+            return scopedResult.record;
+        }
+
+        const legacyProjects = getLegacyTemplateProjects();
+        const legacyResult = updateProjectInCollection(legacyProjects, id, doc);
+        if (legacyResult.record) {
+            setLegacyTemplateProjects(legacyResult.records);
+            return legacyResult.record;
+        }
+
+        throw error;
+    }
 }
 
 async function deleteProject(id) {
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('projects').filter(p => p.id !== id);
         setLocalEntityData('projects', records);
+        const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
+        setLegacyTemplateProjects(legacyRecords);
         return;
     }
-    await db.collection('projects').doc(id).delete();
+    try {
+        await db.collection('projects').doc(id).delete();
+    } catch (error) {
+        const message = String(error && error.message ? error.message : '');
+        const code = String(error && error.code ? error.code : '');
+        const isMissingDocumentError = message.toLowerCase().includes('no document to update')
+            || message.toLowerCase().includes('no document to delete')
+            || code === 'not-found'
+            || code === 5;
+        if (!isMissingDocumentError) {
+            throw error;
+        }
+    }
+
+    const records = getLocalEntityData('projects').filter(p => p.id !== id);
+    setLocalEntityData('projects', records);
+    const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
+    setLegacyTemplateProjects(legacyRecords);
 }
 
 async function fetchTasks(projectId) {

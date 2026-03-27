@@ -213,13 +213,45 @@ const columns = [
 ];
 const statusBadges = { 'Live':'badge-green','Development':'badge-blue','Design':'badge-purple','Testing':'badge-teal','Planning':'badge-gray','On Hold':'badge-orange' };
 
+function getActiveProjectId() {
+  return project && project.id ? project.id : projectId;
+}
+
+function resolveProjectRecord(projects, requestedId) {
+  if (!requestedId) return null;
+
+  const directMatch = projects.find(p => p.id === requestedId);
+  const matchingTemplateProjects = projects.filter(p => p.template_id === requestedId || p.template_page === `${requestedId}.html`);
+  const isTemplateSlug = typeof getTemplateConfig === 'function' && Boolean(getTemplateConfig(requestedId));
+
+  if (!isTemplateSlug) {
+    return directMatch;
+  }
+
+  if (matchingTemplateProjects.length) {
+    const preferred = matchingTemplateProjects.find(p => p.id !== requestedId) || matchingTemplateProjects[0];
+    return preferred || directMatch;
+  }
+
+  return directMatch;
+}
+
+function syncProjectUrl(projectRecord, requestedId) {
+  if (!projectRecord || !projectRecord.id || projectRecord.id === requestedId) return;
+  const nextParams = new URLSearchParams(window.location.search);
+  nextParams.set('id', projectRecord.id);
+  const nextUrl = `${window.location.pathname}?${nextParams.toString()}${window.location.hash || ''}`;
+  window.history.replaceState({}, document.title, nextUrl);
+}
+
 async function init() {
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); window.location.href = 'projects.html'; return; }
   if (!projectId) { window.location.href = 'projects.html'; return; }
   const projects = await fetchProjects();
-  project = projects.find(p => p.id === projectId);
+  project = resolveProjectRecord(projects, projectId);
   if (!project) { window.location.href = 'projects.html'; return; }
-  tasks = await fetchTasks(projectId);
+  syncProjectUrl(project, projectId);
+  tasks = await fetchTasks(getActiveProjectId());
   populateOverview();
   renderKanban();
 }
@@ -357,7 +389,7 @@ async function saveTask() {
   const title = document.getElementById('tTitle').value.trim();
   if (!title) { showToast('Task title is required', 'error'); return; }
   const data = {
-    project_id: projectId,
+    project_id: getActiveProjectId(),
     title,
     description: document.getElementById('tDesc').value.trim(),
     status: document.getElementById('tStatus').value,
@@ -421,7 +453,7 @@ async function saveEditProject() {
     deliverables: document.getElementById('epDeliverables').value.trim()
   };
   try {
-    project = await updateProject(projectId, data);
+    project = await updateProject(getActiveProjectId(), data);
     closeEditProject(); populateOverview();
     showToast('Project updated!', 'success');
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
@@ -439,7 +471,7 @@ window.getProjectDetailProject = function() {
   return project;
 };
 window.getProjectDetailProjectId = function() {
-  return projectId;
+  return getActiveProjectId();
 };
 window.setProjectDetailProject = function(nextProject) {
   project = nextProject;
@@ -447,7 +479,7 @@ window.setProjectDetailProject = function(nextProject) {
 };
 window.refreshProjectDetailProject = async function() {
   const allProjects = await fetchProjects();
-  const refreshedProject = allProjects.find(p => p.id === projectId);
+  const refreshedProject = resolveProjectRecord(allProjects, getActiveProjectId());
   if (refreshedProject) {
     project = refreshedProject;
     populateOverview();
