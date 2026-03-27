@@ -114,6 +114,12 @@ document.addEventListener('DOMContentLoaded', () => {
             element.contentEditable = 'false';
             element.spellcheck = false;
             element.addEventListener('input', () => {
+                if (element.classList.contains('counter')) {
+                    const numericValue = String(element.textContent || '').replace(/[^\d.-]/g, '').trim();
+                    if (numericValue) {
+                        element.setAttribute('data-target', numericValue);
+                    }
+                }
                 parentWorkspace.setDirtyState(true);
             });
         });
@@ -151,6 +157,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (item.kind === 'content' || !item.kind) {
+                if (item.attrs && typeof item.attrs === 'object') {
+                    Object.keys(item.attrs).forEach(attributeName => {
+                        if (String(attributeName || '').trim()) {
+                            element.setAttribute(attributeName, item.attrs[attributeName]);
+                        }
+                    });
+                }
                 element.innerHTML = item.html;
             }
         });
@@ -175,7 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...editableElements.map(element => ({
                     key: element.dataset.templateEditKey,
                     kind: 'content',
-                    html: element.innerHTML
+                    html: element.innerHTML,
+                    attrs: {
+                        ...(element.hasAttribute('data-target') ? { 'data-target': element.getAttribute('data-target') || '' } : {})
+                    }
                 })),
                 ...editableImages.map(element => ({
                     key: element.dataset.templateEditKey,

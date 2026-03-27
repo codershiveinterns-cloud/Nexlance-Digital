@@ -15,9 +15,68 @@
 
     function getCurrentProject() {
         if (typeof window.getProjectDetailProject === 'function') {
-            return resolveWorkspaceProject(window.getProjectDetailProject());
+            return mergeWorkspaceStateIntoProject(resolveWorkspaceProject(window.getProjectDetailProject()));
         }
         return null;
+    }
+
+    function getCurrentWorkspaceUserKey() {
+        try {
+            const currentUser = JSON.parse(localStorage.getItem('nexlance_user') || 'null');
+            return String(currentUser && currentUser.email ? currentUser.email : 'guest').trim().toLowerCase() || 'guest';
+        } catch (error) {
+            return 'guest';
+        }
+    }
+
+    function getWorkspaceStateStorageKey(projectId) {
+        return `nexlance_template_workspace_${getCurrentWorkspaceUserKey()}_${String(projectId || '').trim()}`;
+    }
+
+    function getStoredWorkspaceState(projectId) {
+        if (!projectId) return null;
+        try {
+            return JSON.parse(localStorage.getItem(getWorkspaceStateStorageKey(projectId)) || 'null');
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function persistWorkspaceState(projectId, payload) {
+        if (!projectId || !payload || typeof payload !== 'object') return;
+        localStorage.setItem(getWorkspaceStateStorageKey(projectId), JSON.stringify(payload));
+    }
+
+    function getTimestampValue(value) {
+        const timestamp = new Date(value || '').getTime();
+        return Number.isFinite(timestamp) ? timestamp : 0;
+    }
+
+    function mergeWorkspaceStateIntoProject(project) {
+        if (!project || typeof project !== 'object' || !project.id) return project;
+
+        const storedWorkspace = getStoredWorkspaceState(project.id);
+        if (!storedWorkspace || typeof storedWorkspace !== 'object') {
+            return project;
+        }
+
+        const storedSavedAt = storedWorkspace.template_last_saved_at || (storedWorkspace.template_state && storedWorkspace.template_state.savedAt) || '';
+        const projectSavedAt = project.template_last_saved_at || (project.template_state && project.template_state.savedAt) || '';
+
+        if (getTimestampValue(storedSavedAt) < getTimestampValue(projectSavedAt)) {
+            return project;
+        }
+
+        return {
+            ...project,
+            template_state: storedWorkspace.template_state || project.template_state,
+            template_last_saved_at: storedSavedAt || project.template_last_saved_at,
+            template_workflow_status: storedWorkspace.template_workflow_status || project.template_workflow_status,
+            template_completed_at: storedWorkspace.template_completed_at || project.template_completed_at,
+            template_download_paid: storedWorkspace.template_download_paid !== undefined
+                ? storedWorkspace.template_download_paid
+                : project.template_download_paid
+        };
     }
 
     function normalizeTemplateLookupValue(value) {
@@ -305,7 +364,16 @@
             elements: sourceElements
                 .map(item => ({
                     key: String(item && item.key != null ? item.key : ''),
-                    html: String(item && item.html != null ? item.html : '')
+                    kind: String(item && item.kind != null ? item.kind : 'content'),
+                    html: String(item && item.html != null ? item.html : ''),
+                    src: String(item && item.src != null ? item.src : ''),
+                    alt: String(item && item.alt != null ? item.alt : ''),
+                    attrs: item && item.attrs && typeof item.attrs === 'object'
+                        ? Object.keys(item.attrs).reduce((accumulator, key) => {
+                            accumulator[String(key)] = String(item.attrs[key] != null ? item.attrs[key] : '');
+                            return accumulator;
+                        }, {})
+                        : {}
                 }))
                 .filter(item => item.key !== '')
         };
@@ -366,14 +434,19 @@
     }
 
     function updateWorkspaceChrome(project) {
+        const resolvedProject = mergeWorkspaceStateIntoProject(project);
         const statusEl = document.getElementById('workspaceStatus');
         const saveMetaEl = document.getElementById('workspaceSaveMeta');
         const downloadBtn = document.getElementById('workspaceDownloadBtn');
         const completeBtn = document.getElementById('workspaceCompleteBtn');
         if (!statusEl || !saveMetaEl || !downloadBtn || !completeBtn) return;
 
-        const workflowStatus = project.template_workflow_status || 'draft';
-        const savedAt = project.template_last_saved_at || project.updated_at || project.updatedAt || null;
+        const workflowStatus = resolvedProject.template_workflow_status || 'draft';
+        const savedAt = resolvedProject.template_last_saved_at
+            || (resolvedProject.template_state && resolvedProject.template_state.savedAt)
+            || resolvedProject.updated_at
+            || resolvedProject.updatedAt
+            || null;
         const completed = workflowStatus === 'completed';
 
         statusEl.textContent = completed ? 'Completed' : (workflowStatus === 'in_progress' ? 'In Progress' : 'Draft');
@@ -383,25 +456,37 @@
         completeBtn.disabled = completed;
         completeBtn.textContent = completed ? 'Project Completed' : 'Complete Project';
         downloadBtn.disabled = !completed;
-        downloadBtn.textContent = project.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)';
+        downloadBtn.textContent = resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)';
     }
 
     async function saveTemplateState(projectId, templateState, options = {}) {
         const currentProject = getCurrentProject();
-        const serializableTemplateState = getSerializableTemplateState(templateState, currentProject);
+        const savedAt = new Date().toISOString();
+        const serializableTemplateState = getSerializableTemplateState({
+            ...templateState,
+            savedAt
+        }, currentProject);
         const nextProgress = options.completed ? 100 : Math.max(Number(currentProject.progress || 0), 50);
         const nextStatus = options.completed ? 'Live' : (currentProject.status === 'Planning' ? 'Development' : currentProject.status || 'Development');
         const nextWorkflow = options.completed ? 'completed' : 'in_progress';
+        const workspaceSnapshot = {
+            template_state: serializableTemplateState,
+            template_last_saved_at: savedAt,
+            template_workflow_status: nextWorkflow,
+            template_completed_at: options.completed ? new Date().toISOString() : (currentProject.template_completed_at || null),
+            template_download_paid: Boolean(currentProject.template_download_paid)
+        };
         console.debug('[TemplateWorkspace] Persisting template state', {
             projectId,
             completed: Boolean(options.completed),
             templateState: serializableTemplateState
         });
+        persistWorkspaceState(projectId, workspaceSnapshot);
         await updateProject(projectId, {
             template_state: serializableTemplateState,
-            template_last_saved_at: new Date().toISOString(),
+            template_last_saved_at: savedAt,
             template_workflow_status: nextWorkflow,
-            template_completed_at: options.completed ? new Date().toISOString() : (currentProject.template_completed_at || null),
+            template_completed_at: workspaceSnapshot.template_completed_at,
             status: nextStatus,
             progress: nextProgress
         });
@@ -564,7 +649,7 @@
                 return saveTemplateState(projectId, templateState, { completed: true });
             },
             async downloadProjectTemplate(projectId, payload) {
-                const currentProject = window.getProjectDetailProject();
+                const currentProject = getCurrentProject();
                 if (!currentProject || currentProject.id !== projectId) {
                     throw new Error('Project could not be found for download.');
                 }
