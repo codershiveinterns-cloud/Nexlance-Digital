@@ -39,6 +39,49 @@
     font-size: 0.92rem;
   }
 
+  .trial-banner-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1 1 auto;
+  }
+
+  .trial-banner-actions {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .trial-banner-actions.show {
+    display: flex;
+  }
+
+  .trial-upgrade-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #2d1b69;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .trial-upgrade-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
+  }
+
+  .trial-upgrade-note {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
   .trial-timer {
     min-width: 220px;
     padding: 14px 16px;
@@ -57,6 +100,10 @@
     .trial-banner {
       flex-direction: column;
       align-items: stretch;
+    }
+
+    .trial-timer {
+      min-width: 0;
     }
   }
 
@@ -103,9 +150,13 @@
     </div>
 
     <section class="trial-banner" id="trialBanner">
-      <div>
+      <div class="trial-banner-body">
         <h3 id="trialTitle">Your 3-day dashboard trial is active</h3>
         <p id="trialMessage">You can use dashboard features during the trial. Templates still require separate payment.</p>
+        <div class="trial-banner-actions" id="trialBannerActions">
+          <a class="trial-upgrade-btn" id="trialUpgradeLink" href="pricing.html">Upgrade Plans</a>
+          <span class="trial-upgrade-note">Choose Plus, Pro, or Business to unlock the full dashboard again.</span>
+        </div>
       </div>
       <div class="trial-timer">
         <span id="trialTimerLabel">Trial ends in</span>
@@ -215,14 +266,22 @@ function renderTrialBanner() {
   const message = document.getElementById('trialMessage');
   const timerLabel = document.getElementById('trialTimerLabel');
   const countdown = document.getElementById('trialCountdown');
+  const bannerActions = document.getElementById('trialBannerActions');
+  const upgradeLink = document.getElementById('trialUpgradeLink');
   if (!banner || !title || !message || !timerLabel || !countdown) return;
 
   const currentPlan = typeof getCurrentPlanRecord === 'function' ? getCurrentPlanRecord() : { code: 'individual', name: 'Individual' };
   const trialRecord = typeof getStoredTrialRecord === 'function' ? getStoredTrialRecord() : null;
   const trialActive = typeof isTrialStillActive === 'function' && isTrialStillActive();
+  const pricingTarget = 'pricing.html';
+
+  if (upgradeLink) {
+    upgradeLink.href = pricingTarget;
+  }
 
   if (currentPlan.code === 'business' || currentPlan.code === 'plus' || currentPlan.code === 'pro') {
     banner.style.display = 'none';
+    if (bannerActions) bannerActions.classList.remove('show');
     return;
   }
 
@@ -236,15 +295,17 @@ function renderTrialBanner() {
     message.textContent = 'The dashboard is unlocked during this trial. Templates still require separate payment.';
     timerLabel.textContent = 'Trial ends in';
     countdown.textContent = formatTrialRemaining(remainingMs);
+    if (bannerActions) bannerActions.classList.remove('show');
     return;
   }
 
   banner.classList.remove('active');
   banner.classList.add('expired');
   title.textContent = 'Dashboard trial expired';
-  message.textContent = 'The dashboard is locked now. Only the Projects section is accessible for this account.';
+  message.textContent = 'The dashboard is locked now. Only the Projects section is accessible for this account. Upgrade your plan to unlock the full dashboard and continue purchasing features.';
   timerLabel.textContent = 'Access';
   countdown.textContent = 'Projects only';
+  if (bannerActions) bannerActions.classList.add('show');
 }
 
 function ensureDataAccess() {
