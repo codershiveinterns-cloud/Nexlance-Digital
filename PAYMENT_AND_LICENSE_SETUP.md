@@ -68,8 +68,8 @@ Rules:
    - browser leaves the site for checkout.
 5. If a license key was entered:
    - the server validates it immediately,
-   - the server returns a protected download URL,
-   - download starts without payment.
+   - the server unlocks the matching template,
+   - the frontend redirects the user to `projects.html` with that template available.
 6. After Stripe or Polar success:
    - the browser returns to `index.html`,
    - frontend calls `/api/template-access-complete`,
@@ -88,7 +88,7 @@ Rules:
   - loads and validates the key from `template_license_key.txt`
   - marks it used
   - stores a transaction record
-  - returns a signed download URL
+  - returns a redirect into `projects.html` for the unlocked template
 - otherwise:
   - creates a Stripe or Polar checkout session
   - stores a pending transaction record
