@@ -68,6 +68,26 @@
                 supportTier: 'email'
             }
         },
+        pro_monthly: {
+            productCode: 'pro_monthly',
+            planCode: 'pro',
+            displayName: 'Pro',
+            price: 29900,
+            currency: DEFAULT_CURRENCY,
+            billingType: 'subscription',
+            billingCycle: 'monthly',
+            successRedirect: 'templates.html',
+            entitlements: {
+                dashboardAccess: true,
+                allTemplates: false,
+                singleTemplatePurchase: false,
+                templateLimit: 4
+            },
+            limits: {
+                templateLimit: 4,
+                supportTier: 'priority'
+            }
+        },
         pro_onetime: {
             productCode: 'pro_onetime',
             planCode: 'pro',

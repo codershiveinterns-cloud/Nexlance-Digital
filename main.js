@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 monthly: 'Dashboard access plus up to 4 templates',
                 annual: 'Yearly dashboard access plus up to 4 templates'
             },
-            productCodes: { monthly: 'pro_onetime', annual: 'pro_yearly' },
+            productCodes: { monthly: 'pro_monthly', annual: 'pro_yearly' },
             description: 'Nexlance Pro plan access for 30 days',
             successMessage: 'Pro plan payment completed successfully.'
         },

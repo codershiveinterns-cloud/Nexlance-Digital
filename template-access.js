@@ -98,6 +98,10 @@
         return normalized ? `nexlance_template_access_${normalized}` : 'nexlance_template_access';
     }
 
+    function buildProjectsAccessUrl(templateId) {
+        return `projects.html?template=${encodeURIComponent(templateId)}&template_source=license`;
+    }
+
     function getStoredTemplateAccess(email) {
         try {
             return JSON.parse(localStorage.getItem(getTemplateAccessStorageKey(email)) || localStorage.getItem('nexlance_template_access') || 'null');
@@ -246,7 +250,7 @@
             message.textContent = `${templateName} is now available in the Projects section on your dashboard.`;
         }
         if (primaryAction) {
-            primaryAction.href = `projects.html?template=${encodeURIComponent(templateId)}&template_source=license`;
+            primaryAction.href = buildProjectsAccessUrl(templateId);
         }
         overlay.classList.add('show');
         document.body.style.overflow = 'hidden';
@@ -323,9 +327,10 @@
             });
 
             if (payload.mode === 'license') {
-                persistTemplateAccess(payload.templateId || templateId);
-                setStatus('License key validated. Your template is now available in Projects.', 'success');
-                showTemplateUnlockedModal(payload.templateId || templateId, payload.templateName || getTemplateDisplayName(templateId));
+                const unlockedTemplateId = payload.templateId || templateId;
+                persistTemplateAccess(unlockedTemplateId);
+                setStatus('License key validated. Redirecting you to Projects...', 'success');
+                window.location.href = payload.redirectUrl || buildProjectsAccessUrl(unlockedTemplateId);
                 return;
             }
 

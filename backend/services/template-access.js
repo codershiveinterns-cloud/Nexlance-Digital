@@ -597,20 +597,12 @@ async function startTemplateAccess(options) {
             }
         });
 
-        const token = issueDownloadToken({
-            templateId: license.templateId,
-            email: context.email,
-            name: context.customerName,
-            provider: 'license',
-            referenceId
-        });
-
         return {
             mode: 'license',
             provider: 'license',
             templateId: license.templateId,
             templateName: license.templateName,
-            downloadUrl: `/api/template-download?token=${encodeURIComponent(token)}`
+            redirectUrl: `/projects.html?template=${encodeURIComponent(license.templateId)}&template_source=license`
         };
     }
 

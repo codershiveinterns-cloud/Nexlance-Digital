@@ -28,23 +28,25 @@ const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET || '';
 const POLAR_API_BASE_URL = String(process.env.POLAR_API_BASE_URL || 'https://api.polar.sh/v1').trim().replace(/\/+$/, '');
 
 const STRIPE_PRICE_ENV_MAP = {
-    single_template: 'STRIPE_PRICE_SINGLE_TEMPLATE',
-    plus_monthly: 'STRIPE_PRICE_PLUS_MONTHLY',
-    plus_yearly: 'STRIPE_PRICE_PLUS_YEARLY',
-    pro_onetime: 'STRIPE_PRICE_PRO_ONETIME',
-    pro_yearly: 'STRIPE_PRICE_PRO_YEARLY',
-    business_monthly: 'STRIPE_PRICE_BUSINESS_MONTHLY',
-    business_yearly: 'STRIPE_PRICE_BUSINESS_YEARLY'
+    single_template: ['STRIPE_PRICE_SINGLE_TEMPLATE'],
+    plus_monthly: ['STRIPE_PRICE_PLUS_MONTHLY'],
+    plus_yearly: ['STRIPE_PRICE_PLUS_YEARLY'],
+    pro_monthly: ['STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_ONETIME'],
+    pro_onetime: ['STRIPE_PRICE_PRO_ONETIME', 'STRIPE_PRICE_PRO_MONTHLY'],
+    pro_yearly: ['STRIPE_PRICE_PRO_YEARLY'],
+    business_monthly: ['STRIPE_PRICE_BUSINESS_MONTHLY'],
+    business_yearly: ['STRIPE_PRICE_BUSINESS_YEARLY']
 };
 
 const POLAR_PRODUCT_ENV_MAP = {
-    single_template: 'POLAR_PRODUCT_SINGLE_TEMPLATE',
-    plus_monthly: 'POLAR_PRODUCT_PLUS_MONTHLY',
-    plus_yearly: 'POLAR_PRODUCT_PLUS_YEARLY',
-    pro_onetime: 'POLAR_PRODUCT_PRO_ONETIME',
-    pro_yearly: 'POLAR_PRODUCT_PRO_YEARLY',
-    business_monthly: 'POLAR_PRODUCT_BUSINESS_MONTHLY',
-    business_yearly: 'POLAR_PRODUCT_BUSINESS_YEARLY'
+    single_template: ['POLAR_PRODUCT_SINGLE_TEMPLATE'],
+    plus_monthly: ['POLAR_PRODUCT_PLUS_MONTHLY'],
+    plus_yearly: ['POLAR_PRODUCT_PLUS_YEARLY'],
+    pro_monthly: ['POLAR_PRODUCT_PRO_MONTHLY', 'POLAR_PRODUCT_PRO_ONETIME'],
+    pro_onetime: ['POLAR_PRODUCT_PRO_ONETIME', 'POLAR_PRODUCT_PRO_MONTHLY'],
+    pro_yearly: ['POLAR_PRODUCT_PRO_YEARLY'],
+    business_monthly: ['POLAR_PRODUCT_BUSINESS_MONTHLY'],
+    business_yearly: ['POLAR_PRODUCT_BUSINESS_YEARLY']
 };
 
 function normalizeEmail(value) {
@@ -59,14 +61,32 @@ function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function getConfiguredEnvValue(envKeys) {
+    const keys = Array.isArray(envKeys) ? envKeys : [envKeys];
+    for (const envKey of keys) {
+        const value = envKey ? String(process.env[envKey] || '').trim() : '';
+        if (value) {
+            return value;
+        }
+    }
+    return '';
+}
+
+function getPrimaryEnvKey(envKeys) {
+    const keys = Array.isArray(envKeys) ? envKeys : [envKeys];
+    return keys.find(Boolean) || '';
+}
+
 function getPriceEnvValue(productCode) {
-    const envKey = STRIPE_PRICE_ENV_MAP[productCode];
-    return envKey ? String(process.env[envKey] || '').trim() : '';
+    return getConfiguredEnvValue(STRIPE_PRICE_ENV_MAP[productCode]);
 }
 
 function getPolarProductId(productCode) {
-    const envKey = POLAR_PRODUCT_ENV_MAP[productCode];
-    return envKey ? String(process.env[envKey] || '').trim() : '';
+    return getConfiguredEnvValue(POLAR_PRODUCT_ENV_MAP[productCode]);
+}
+
+function getPolarProductEnvKey(productCode) {
+    return getPrimaryEnvKey(POLAR_PRODUCT_ENV_MAP[productCode]);
 }
 
 function hasStripeGatewayAccess() {
@@ -394,7 +414,14 @@ async function createPolarCheckoutSession(context) {
 
     const data = await response.json();
     if (!response.ok) {
-        throw new Error(extractPolarErrorMessage(data, 'Polar checkout session could not be created.'));
+        const message = extractPolarErrorMessage(data, 'Polar checkout session could not be created.');
+        if (/product is archived/i.test(message)) {
+            const envKey = getPolarProductEnvKey(context.product.productCode);
+            throw new Error(envKey
+                ? `${message} Replace ${envKey} with an active Polar product ID.`
+                : `${message} Replace the configured Polar product ID with an active product.`);
+        }
+        throw new Error(message);
     }
 
     return {
