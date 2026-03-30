@@ -1029,6 +1029,38 @@ function setLocalEntityData(entity, records) {
     window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity } }));
 }
 
+function mergeEntityCollections() {
+    const seen = new Set();
+    const merged = [];
+    Array.from(arguments).forEach(collection => {
+        (Array.isArray(collection) ? collection : []).forEach(record => {
+            const key = String(record && record.id ? record.id : '');
+            if (key && seen.has(key)) return;
+            if (key) seen.add(key);
+            merged.push(record);
+        });
+    });
+    return merged;
+}
+
+function shouldUseLocalEntityFallback(error) {
+    const code = String(error && error.code ? error.code : '').toLowerCase();
+    const message = String(error && error.message ? error.message : '').toLowerCase();
+    const status = Number(error && error.status);
+    return (
+        code === 'permission-denied'
+        || code === 'firestore/permission-denied'
+        || code === 'api/unavailable'
+        || code === 'api/not-configured'
+        || status === 401
+        || status === 403
+        || message.includes('missing or insufficient permissions')
+        || message.includes('permission denied')
+        || message.includes('insufficient permissions')
+        || message.includes('dashboard api is unavailable')
+    );
+}
+
 function getLegacyTemplateProjects() {
     try {
         const records = JSON.parse(localStorage.getItem('nexlance_projects') || '[]');
@@ -1266,7 +1298,10 @@ async function fetchClients() {
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('clients').where('owner_key', '==', ownerKey).get();
-        return _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        return mergeEntityCollections(
+            _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+            getLocalEntityData('clients')
+        ).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     } catch (e) { console.error(e); return getLocalEntityData('clients'); }
 }
 
@@ -1290,8 +1325,19 @@ async function addClient(d) {
         setLocalEntityData('clients', records);
         return r;
     }
-    const ref = await db.collection('clients').add(doc);
-    return { id: ref.id, ...doc };
+    try {
+        const ref = await db.collection('clients').add(doc);
+        return { id: ref.id, ...doc };
+    } catch (error) {
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('clients');
+            const r = { ...doc, id: 'c' + Date.now(), storage_fallback: true };
+            records.unshift(r);
+            setLocalEntityData('clients', records);
+            return r;
+        }
+        throw error;
+    }
 }
 
 async function updateClient(id, d) {
@@ -1392,8 +1438,19 @@ async function addProject(d) {
         setLocalEntityData('projects', records);
         return r;
     }
-    const ref = await db.collection('projects').add(doc);
-    return { id: ref.id, ...doc };
+    try {
+        const ref = await db.collection('projects').add(doc);
+        return { id: ref.id, ...doc };
+    } catch (error) {
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('projects');
+            const r = { ...doc, id: 'p' + Date.now(), storage_fallback: true };
+            records.unshift(r);
+            setLocalEntityData('projects', records);
+            return r;
+        }
+        throw error;
+    }
 }
 
 async function updateProject(id, d) {
@@ -1513,7 +1570,10 @@ async function fetchTasks(projectId) {
             .where('owner_key', '==', ownerKey)
             .where('project_id', '==', projectId)
             .get();
-        return _snap(snap).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+        return mergeEntityCollections(
+            _snap(snap).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
+            getLocalEntityData('tasks').filter(t => t.project_id === projectId)
+        ).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
     } catch (e) { console.error(e); return []; }
 }
 
@@ -1537,8 +1597,19 @@ async function addTask(d) {
         setLocalEntityData('tasks', records);
         return r;
     }
-    const ref = await db.collection('tasks').add(doc);
-    return { id: ref.id, ...doc };
+    try {
+        const ref = await db.collection('tasks').add(doc);
+        return { id: ref.id, ...doc };
+    } catch (error) {
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('tasks');
+            const r = { ...doc, id: 't' + Date.now(), storage_fallback: true };
+            records.push(r);
+            setLocalEntityData('tasks', records);
+            return r;
+        }
+        throw error;
+    }
 }
 
 async function updateTask(id, d) {
@@ -1596,7 +1667,10 @@ async function fetchInvoices() {
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('invoices').where('owner_key', '==', ownerKey).get();
-        return _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        return mergeEntityCollections(
+            _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+            getLocalEntityData('invoices')
+        ).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     } catch (e) { console.error(e); return getLocalEntityData('invoices'); }
 }
 
@@ -1620,8 +1694,19 @@ async function addInvoice(d) {
         setLocalEntityData('invoices', records);
         return r;
     }
-    const ref = await db.collection('invoices').add(doc);
-    return { id: ref.id, ...doc };
+    try {
+        const ref = await db.collection('invoices').add(doc);
+        return { id: ref.id, ...doc };
+    } catch (error) {
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('invoices');
+            const r = { ...doc, id: 'i' + Date.now(), storage_fallback: true };
+            records.unshift(r);
+            setLocalEntityData('invoices', records);
+            return r;
+        }
+        throw error;
+    }
 }
 
 async function updateInvoiceStatus(id, status, paidDate = null) {
@@ -1678,7 +1763,7 @@ async function fetchServices() {
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('services').where('owner_key', '==', ownerKey).get();
-        return _snap(snap);
+        return mergeEntityCollections(_snap(snap), getLocalEntityData('services'));
     } catch (e) { console.error(e); return getLocalEntityData('services'); }
 }
 
@@ -1702,8 +1787,19 @@ async function addService(d) {
         setLocalEntityData('services', records);
         return r;
     }
-    const ref = await db.collection('services').add(doc);
-    return { id: ref.id, ...doc };
+    try {
+        const ref = await db.collection('services').add(doc);
+        return { id: ref.id, ...doc };
+    } catch (error) {
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('services');
+            const r = { ...doc, id: 's' + Date.now(), storage_fallback: true };
+            records.push(r);
+            setLocalEntityData('services', records);
+            return r;
+        }
+        throw error;
+    }
 }
 
 async function updateService(id, d) {
@@ -1761,7 +1857,7 @@ async function fetchTeamMembers() {
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('team_members').where('owner_key', '==', ownerKey).get();
-        return _snap(snap);
+        return mergeEntityCollections(_snap(snap), getLocalEntityData('team_members'));
     } catch (e) { console.error(e); return getLocalEntityData('team_members'); }
 }
 
@@ -1785,8 +1881,19 @@ async function addTeamMember(d) {
         setLocalEntityData('team_members', records);
         return r;
     }
-    const ref = await db.collection('team_members').add(doc);
-    return { id: ref.id, ...doc };
+    try {
+        const ref = await db.collection('team_members').add(doc);
+        return { id: ref.id, ...doc };
+    } catch (error) {
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('team_members');
+            const r = { ...doc, id: 'm' + Date.now(), storage_fallback: true };
+            records.push(r);
+            setLocalEntityData('team_members', records);
+            return r;
+        }
+        throw error;
+    }
 }
 
 async function updateTeamMember(id, d) {
