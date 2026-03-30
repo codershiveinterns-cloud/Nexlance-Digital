@@ -176,6 +176,73 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  function normalizeDashboardRole(role) {
+    return String(role || 'owner').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  }
+
+  function getDefaultDashboardPermissions(role = 'owner') {
+    const normalizedRole = normalizeDashboardRole(role);
+    const permissionMatrix = {
+      owner: {
+        clients: { create: true, update: true, delete: true },
+        invoices: { create: true, update: true, delete: true },
+        projects: { create: true, update: true, delete: true },
+        services: { create: true, update: true, delete: true },
+        tasks: { create: true, update: true, delete: true },
+        team: { create: true, update: true, delete: true }
+      },
+      admin: {
+        clients: { create: true, update: true, delete: true },
+        invoices: { create: true, update: true, delete: true },
+        projects: { create: true, update: true, delete: true },
+        services: { create: true, update: true, delete: true },
+        tasks: { create: true, update: true, delete: true },
+        team: { create: true, update: true, delete: true }
+      },
+      project_manager: {
+        clients: { create: false, update: true, delete: false },
+        invoices: { create: true, update: true, delete: false },
+        projects: { create: true, update: true, delete: false },
+        services: { create: true, update: true, delete: false },
+        tasks: { create: true, update: true, delete: false },
+        team: { create: false, update: false, delete: false }
+      },
+      developer: {
+        clients: { create: false, update: false, delete: false },
+        invoices: { create: false, update: false, delete: false },
+        projects: { create: false, update: false, delete: false },
+        services: { create: false, update: false, delete: false },
+        tasks: { create: false, update: true, delete: false },
+        team: { create: false, update: false, delete: false }
+      },
+      designer: {
+        clients: { create: false, update: false, delete: false },
+        invoices: { create: false, update: false, delete: false },
+        projects: { create: false, update: false, delete: false },
+        services: { create: false, update: false, delete: false },
+        tasks: { create: false, update: true, delete: false },
+        team: { create: false, update: false, delete: false }
+      },
+      client: {
+        clients: { create: false, update: false, delete: false },
+        invoices: { create: false, update: false, delete: false },
+        projects: { create: false, update: false, delete: false },
+        services: { create: false, update: false, delete: false },
+        tasks: { create: false, update: false, delete: false },
+        team: { create: false, update: false, delete: false }
+      }
+    };
+    return JSON.parse(JSON.stringify(permissionMatrix[normalizedRole] || permissionMatrix.owner));
+  }
+
+  function buildDefaultDashboardAccessFields(role = 'owner') {
+    const normalizedRole = normalizeDashboardRole(role);
+    return {
+      role: normalizedRole,
+      permissions: getDefaultDashboardPermissions(normalizedRole)
+    };
+  }
+
   function persistTrialRecord(trialRecord) {
     const currentUser = getCurrentSessionUser();
     const ownerKey = normalizeEmail(currentUser && currentUser.email);
@@ -678,15 +745,33 @@ document.addEventListener('DOMContentLoaded', async () => {
           throw profileError;
         }
 
+        let userRecord = userDoc && userDoc.exists ? userDoc.data() : null;
+        const accessFields = buildDefaultDashboardAccessFields(userRecord && userRecord.role ? userRecord.role : 'owner');
+        if (!userRecord || !userRecord.role || !userRecord.permissions) {
+          await userRef.set({
+            role: accessFields.role,
+            permissions: accessFields.permissions,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+          userRecord = {
+            ...(userRecord || {}),
+            role: accessFields.role,
+            permissions: accessFields.permissions
+          };
+        }
+
         persistSession({
+          uid: user.uid,
           name: user.displayName || user.email,
-          email: user.email
+          email: user.email,
+          role: userRecord && userRecord.role ? userRecord.role : accessFields.role,
+          permissions: userRecord && userRecord.permissions ? userRecord.permissions : accessFields.permissions
         });
 
         if (isVipEmail(user.email)) {
           persistTrialRecord(buildActiveRecord());
         } else if (userDoc.exists) {
-          const hydratedRecord = await ensureTrialRecordForFirstLogin(userDoc.data(), async nextRecord => {
+          const hydratedRecord = await ensureTrialRecordForFirstLogin(userRecord, async nextRecord => {
             await userRef.set({
               trialStartedAt: nextRecord.trialStartedAt || null,
               trialEndsAt: nextRecord.trialEndsAt || null,
@@ -747,7 +832,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    persistSession({ name: user.name, email: user.email });
+    const accessFields = buildDefaultDashboardAccessFields(user.role || 'owner');
+    if (!user.role || !user.permissions) {
+      const nextUsers = users.map(item =>
+        normalizeEmail(item.email) === email
+          ? { ...item, role: accessFields.role, permissions: accessFields.permissions }
+          : item
+      );
+      saveLocalUsers(nextUsers);
+    }
+    persistSession({
+      name: user.name,
+      email: user.email,
+      role: user.role || accessFields.role,
+      permissions: user.permissions || accessFields.permissions
+    });
     if (isVipEmail(user.email)) {
       persistTrialRecord(buildActiveRecord());
     } else {
@@ -837,6 +936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deletedMarker = await getDeletedMarker(email);
         const isVip = isVipEmail(email);
         const trialRecord = isVip ? buildActiveRecord() : (deletedMarker ? buildExpiredRecord() : buildTrialRecord());
+        const accessFields = buildDefaultDashboardAccessFields('owner');
         const { user } = await auth.createUserWithEmailAndPassword(email, password);
         await user.updateProfile({ displayName: name });
         await db.collection('users').doc(user.uid).set({
@@ -856,10 +956,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           fullAccess: isVip,
           currentPlan: isVip ? 'Business' : 'Individual',
           planCode: isVip ? 'business' : 'individual',
-          planPaid: isVip
+          planPaid: isVip,
+          role: accessFields.role,
+          permissions: accessFields.permissions
         });
 
-        persistSession({ name, email });
+        persistSession({
+          uid: user.uid,
+          name,
+          email,
+          role: accessFields.role,
+          permissions: accessFields.permissions
+        });
         persistTrialRecord(trialRecord);
         if (isVip) {
           if (typeof activateBusinessPlanAccess === 'function') activateBusinessPlanAccess();
@@ -910,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const deletedAccounts = getLocalDeletedAccounts();
     const deletedMarker = deletedAccounts[normalizeEmail(email)];
     const trialRecord = isVip ? buildActiveRecord() : (deletedMarker ? buildExpiredRecord() : buildTrialRecord());
+    const accessFields = buildDefaultDashboardAccessFields('owner');
     const users = getLocalUsers();
     if (users.find(item => normalizeEmail(item.email) === email && !item.deletedAt)) {
       setLoading('registerBtn', false, 'Create Account');
@@ -935,10 +1044,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       fullAccess: isVip,
       currentPlan: isVip ? 'Business' : 'Individual',
       planCode: isVip ? 'business' : 'individual',
-      planPaid: isVip
+      planPaid: isVip,
+      role: accessFields.role,
+      permissions: accessFields.permissions
     });
     saveLocalUsers(users);
-    persistSession({ name, email });
+    persistSession({
+      name,
+      email,
+      role: accessFields.role,
+      permissions: accessFields.permissions
+    });
     persistTrialRecord(trialRecord);
     if (isVip) {
       if (typeof activateBusinessPlanAccess === 'function') activateBusinessPlanAccess();

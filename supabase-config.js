@@ -601,6 +601,185 @@ function canAccessEntity(entity) {
     return getCurrentAccessConfig().entities.includes(String(entity || '').trim().toLowerCase());
 }
 
+const DASHBOARD_ROLE_PERMISSIONS = {
+    owner: {
+        clients: { create: true, update: true, delete: true },
+        invoices: { create: true, update: true, delete: true },
+        projects: { create: true, update: true, delete: true },
+        services: { create: true, update: true, delete: true },
+        tasks: { create: true, update: true, delete: true },
+        team: { create: true, update: true, delete: true }
+    },
+    admin: {
+        clients: { create: true, update: true, delete: true },
+        invoices: { create: true, update: true, delete: true },
+        projects: { create: true, update: true, delete: true },
+        services: { create: true, update: true, delete: true },
+        tasks: { create: true, update: true, delete: true },
+        team: { create: true, update: true, delete: true }
+    },
+    project_manager: {
+        clients: { create: false, update: true, delete: false },
+        invoices: { create: true, update: true, delete: false },
+        projects: { create: true, update: true, delete: false },
+        services: { create: true, update: true, delete: false },
+        tasks: { create: true, update: true, delete: false },
+        team: { create: false, update: false, delete: false }
+    },
+    developer: {
+        clients: { create: false, update: false, delete: false },
+        invoices: { create: false, update: false, delete: false },
+        projects: { create: false, update: false, delete: false },
+        services: { create: false, update: false, delete: false },
+        tasks: { create: false, update: true, delete: false },
+        team: { create: false, update: false, delete: false }
+    },
+    designer: {
+        clients: { create: false, update: false, delete: false },
+        invoices: { create: false, update: false, delete: false },
+        projects: { create: false, update: false, delete: false },
+        services: { create: false, update: false, delete: false },
+        tasks: { create: false, update: true, delete: false },
+        team: { create: false, update: false, delete: false }
+    },
+    client: {
+        clients: { create: false, update: false, delete: false },
+        invoices: { create: false, update: false, delete: false },
+        projects: { create: false, update: false, delete: false },
+        services: { create: false, update: false, delete: false },
+        tasks: { create: false, update: false, delete: false },
+        team: { create: false, update: false, delete: false }
+    }
+};
+
+function normalizeDashboardRole(role) {
+    return String(role || 'owner').trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function getDefaultDashboardPermissions(role = 'owner') {
+    const normalizedRole = normalizeDashboardRole(role);
+    const source = DASHBOARD_ROLE_PERMISSIONS[normalizedRole] || DASHBOARD_ROLE_PERMISSIONS.owner;
+    return JSON.parse(JSON.stringify(source));
+}
+
+function getCurrentDashboardUserContext() {
+    const user = getCurrentSessionUser() || {};
+    const normalizedRole = normalizeDashboardRole(user.role || user.dashboardRole || 'owner');
+    const permissions = user.permissions && typeof user.permissions === 'object'
+        ? user.permissions
+        : getDefaultDashboardPermissions(normalizedRole);
+    return {
+        role: normalizedRole,
+        permissions
+    };
+}
+
+function hasDashboardPermission(entity, action) {
+    const context = getCurrentDashboardUserContext();
+    return Boolean(
+        context.permissions
+        && context.permissions[entity]
+        && context.permissions[entity][action]
+    );
+}
+
+function createDashboardPermissionError(entity, action) {
+    const labels = {
+        clients: 'manage clients',
+        invoices: 'manage invoices',
+        projects: 'manage projects',
+        services: 'manage services',
+        tasks: 'manage tasks',
+        team: 'manage team members'
+    };
+    const actionLabel = action === 'create'
+        ? 'create'
+        : (action === 'delete' ? 'delete' : 'update');
+    return new Error(`You do not have permission to ${actionLabel} ${labels[entity] || entity}. Sign in with an owner/admin account or update the user's role in Firestore.`);
+}
+
+function isFirebaseUserAuthenticated() {
+    return Boolean(typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser);
+}
+
+function isDashboardApiUnavailableError(error) {
+    return Boolean(error && (error.code === 'api/unavailable' || error.code === 'api/not-configured'));
+}
+
+async function getDashboardBearerToken() {
+    if (!isFirebaseUserAuthenticated()) {
+        const error = new Error('Please sign in again to continue.');
+        error.code = 'auth/not-authenticated';
+        throw error;
+    }
+    return firebase.auth().currentUser.getIdToken();
+}
+
+function normalizeDashboardApiError(error, entity, action) {
+    const rawMessage = String(error && error.message ? error.message : '').toLowerCase();
+    const status = Number(error && error.status);
+    if (status === 401 || rawMessage.includes('bearer token')) {
+        return new Error('Your login session expired. Please sign in again and retry.');
+    }
+    if (status === 403 || rawMessage.includes('insufficient permissions') || rawMessage.includes('permission')) {
+        return createDashboardPermissionError(entity, action);
+    }
+    return error;
+}
+
+async function dashboardApiRequest(method, collectionId, docId = '', payload = null) {
+    if (!isFirebaseUserAuthenticated()) {
+        const error = new Error('Dashboard API requires a signed-in Firebase user.');
+        error.code = 'api/not-configured';
+        throw error;
+    }
+
+    const token = await getDashboardBearerToken();
+    const path = docId
+        ? `/api/dashboard/${encodeURIComponent(collectionId)}/${encodeURIComponent(docId)}`
+        : `/api/dashboard/${encodeURIComponent(collectionId)}`;
+
+    let response;
+    try {
+        response = await fetch(path, {
+            method,
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: payload !== null ? JSON.stringify(payload) : undefined
+        });
+    } catch (error) {
+        const wrapped = new Error('Dashboard API is unavailable.');
+        wrapped.code = 'api/unavailable';
+        throw wrapped;
+    }
+
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    let data = null;
+    if (contentType.includes('application/json')) {
+        try {
+            data = await response.json();
+        } catch (error) {
+            data = null;
+        }
+    }
+
+    if (!response.ok) {
+        if (!contentType.includes('application/json') && (response.status === 404 || response.status === 405)) {
+            const unavailable = new Error('Dashboard API is unavailable.');
+            unavailable.code = 'api/unavailable';
+            throw unavailable;
+        }
+        const wrapped = new Error((data && (data.error || data.message)) || 'Dashboard request failed.');
+        wrapped.status = response.status;
+        throw wrapped;
+    }
+
+    return data && Object.prototype.hasOwnProperty.call(data, 'record') ? data.record : data;
+}
+
 function syncPlanUiVisibility() {
     const previewAccess = hasExpiredRestrictedPreviewAccess();
     const unrestrictedLinks = [...PLAN_ACCESS_CONFIG.individual.pages];
@@ -1094,6 +1273,16 @@ async function fetchClients() {
 async function addClient(d) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
     const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('clients', 'create')) throw createDashboardPermissionError('clients', 'create');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('POST', 'clients', '', doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'create');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('clients');
         const r = { ...doc, id: 'c' + Date.now() };
@@ -1108,6 +1297,16 @@ async function addClient(d) {
 async function updateClient(id, d) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
     const doc = withOwnerFields(d);
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('clients', 'update')) throw createDashboardPermissionError('clients', 'update');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('PATCH', 'clients', id, doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('clients');
         const i = records.findIndex(c => c.id === id);
@@ -1124,6 +1323,17 @@ async function updateClient(id, d) {
 
 async function deleteClient(id) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('clients', 'delete')) throw createDashboardPermissionError('clients', 'delete');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('DELETE', 'clients', id);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'delete');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('clients').filter(c => c.id !== id);
         setLocalEntityData('clients', records);
@@ -1163,7 +1373,18 @@ async function fetchProjects(clientId = null) {
 }
 
 async function addProject(d) {
+    if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const doc = sanitizeFirestoreData({ ...withOwnerFields(d), created_at: new Date().toISOString() });
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('projects', 'create')) throw createDashboardPermissionError('projects', 'create');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('POST', 'projects', '', doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'create');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('projects');
         const r = { ...doc, id: 'p' + Date.now() };
@@ -1176,12 +1397,23 @@ async function addProject(d) {
 }
 
 async function updateProject(id, d) {
+    if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const doc = sanitizeFirestoreData(withOwnerFields(d));
     if (Object.prototype.hasOwnProperty.call(doc, 'template_state')) {
         console.debug('[Nexlance] Saving sanitized template_state', {
             projectId: id,
             templateState: doc.template_state
         });
+    }
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('projects', 'update')) throw createDashboardPermissionError('projects', 'update');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('PATCH', 'projects', id, doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'update');
+            }
+        }
     }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('projects');
@@ -1226,6 +1458,22 @@ async function updateProject(id, d) {
 }
 
 async function deleteProject(id) {
+    if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('projects', 'delete')) throw createDashboardPermissionError('projects', 'delete');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('DELETE', 'projects', id);
+                const records = getLocalEntityData('projects').filter(p => p.id !== id);
+                setLocalEntityData('projects', records);
+                const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
+                setLegacyTemplateProjects(legacyRecords);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'delete');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('projects').filter(p => p.id !== id);
         setLocalEntityData('projects', records);
@@ -1270,7 +1518,18 @@ async function fetchTasks(projectId) {
 }
 
 async function addTask(d) {
+    if (!canAccessEntity('tasks')) throw createRestrictedAccessError('tasks');
     const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('tasks', 'create')) throw createDashboardPermissionError('tasks', 'create');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('POST', 'tasks', '', doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'create');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('tasks');
         const r = { ...doc, id: 't' + Date.now() };
@@ -1283,7 +1542,18 @@ async function addTask(d) {
 }
 
 async function updateTask(id, d) {
+    if (!canAccessEntity('tasks')) throw createRestrictedAccessError('tasks');
     const doc = withOwnerFields(d);
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('tasks', 'update')) throw createDashboardPermissionError('tasks', 'update');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('PATCH', 'tasks', id, doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'update');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('tasks');
         const i = records.findIndex(t => t.id === id);
@@ -1299,6 +1569,18 @@ async function updateTask(id, d) {
 }
 
 async function deleteTask(id) {
+    if (!canAccessEntity('tasks')) throw createRestrictedAccessError('tasks');
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('tasks', 'delete')) throw createDashboardPermissionError('tasks', 'delete');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('DELETE', 'tasks', id);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'delete');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('tasks').filter(t => t.id !== id);
         setLocalEntityData('tasks', records);
@@ -1321,6 +1603,16 @@ async function fetchInvoices() {
 async function addInvoice(d) {
     if (!canAccessEntity('invoices')) throw createRestrictedAccessError('invoices');
     const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('invoices', 'create')) throw createDashboardPermissionError('invoices', 'create');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('POST', 'invoices', '', doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'create');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('invoices');
         const r = { ...doc, id: 'i' + Date.now() };
@@ -1335,6 +1627,17 @@ async function addInvoice(d) {
 async function updateInvoiceStatus(id, status, paidDate = null) {
     if (!canAccessEntity('invoices')) throw createRestrictedAccessError('invoices');
     const upd = withOwnerFields({ status, ...(paidDate ? { paid_date: paidDate } : {}) });
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('invoices', 'update')) throw createDashboardPermissionError('invoices', 'update');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('PATCH', 'invoices', id, upd);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'update');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('invoices');
         const i = records.findIndex(inv => inv.id === id);
@@ -1349,6 +1652,17 @@ async function updateInvoiceStatus(id, status, paidDate = null) {
 
 async function deleteInvoice(id) {
     if (!canAccessEntity('invoices')) throw createRestrictedAccessError('invoices');
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('invoices', 'delete')) throw createDashboardPermissionError('invoices', 'delete');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('DELETE', 'invoices', id);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'delete');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
         setLocalEntityData('invoices', records);
@@ -1371,6 +1685,16 @@ async function fetchServices() {
 async function addService(d) {
     if (!canAccessEntity('services')) throw createRestrictedAccessError('services');
     const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('services', 'create')) throw createDashboardPermissionError('services', 'create');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('POST', 'services', '', doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'services', 'create');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('services');
         const r = { ...doc, id: 's' + Date.now() };
@@ -1385,6 +1709,16 @@ async function addService(d) {
 async function updateService(id, d) {
     if (!canAccessEntity('services')) throw createRestrictedAccessError('services');
     const doc = withOwnerFields(d);
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('services', 'update')) throw createDashboardPermissionError('services', 'update');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('PATCH', 'services', id, doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'services', 'update');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('services');
         const i = records.findIndex(s => s.id === id);
@@ -1401,6 +1735,17 @@ async function updateService(id, d) {
 
 async function deleteService(id) {
     if (!canAccessEntity('services')) throw createRestrictedAccessError('services');
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('services', 'delete')) throw createDashboardPermissionError('services', 'delete');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('DELETE', 'services', id);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'services', 'delete');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('services').filter(s => s.id !== id);
         setLocalEntityData('services', records);
@@ -1423,6 +1768,16 @@ async function fetchTeamMembers() {
 async function addTeamMember(d) {
     if (!canAccessEntity('team')) throw createRestrictedAccessError('team');
     const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('team', 'create')) throw createDashboardPermissionError('team', 'create');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('POST', 'team_members', '', doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'create');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('team_members');
         const r = { ...doc, id: 'm' + Date.now() };
@@ -1437,6 +1792,16 @@ async function addTeamMember(d) {
 async function updateTeamMember(id, d) {
     if (!canAccessEntity('team')) throw createRestrictedAccessError('team');
     const doc = withOwnerFields(d);
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('team', 'update')) throw createDashboardPermissionError('team', 'update');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                return await dashboardApiRequest('PATCH', 'team_members', id, doc);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('team_members');
         const i = records.findIndex(m => m.id === id);
@@ -1453,6 +1818,17 @@ async function updateTeamMember(id, d) {
 
 async function deleteTeamMember(id) {
     if (!canAccessEntity('team')) throw createRestrictedAccessError('team');
+    if (isFirebaseConfigured) {
+        if (!hasDashboardPermission('team', 'delete')) throw createDashboardPermissionError('team', 'delete');
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                await dashboardApiRequest('DELETE', 'team_members', id);
+                return;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'delete');
+            }
+        }
+    }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('team_members').filter(m => m.id !== id);
         setLocalEntityData('team_members', records);

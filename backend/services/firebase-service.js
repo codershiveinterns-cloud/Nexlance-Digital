@@ -352,6 +352,95 @@ async function upsertCollectionDocument(collectionId, docId, fields) {
     };
 }
 
+async function createCollectionDocument(collectionId, fields, docId = '') {
+    const accessToken = await getGoogleAccessToken();
+    const normalizedDocId = docId ? sanitizeDocumentId(docId) : '';
+    const url = normalizedDocId
+        ? `${FIRESTORE_BASE_URL}/${encodeURIComponent(collectionId)}?documentId=${encodeURIComponent(normalizedDocId)}`
+        : `${FIRESTORE_BASE_URL}/${encodeURIComponent(collectionId)}`;
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            fields: Object.fromEntries(
+                Object.entries(fields).map(([key, value]) => [key, encodeFirestoreValue(value)])
+            )
+        })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error((data.error && data.error.message) || `Could not create Firestore document in ${collectionId}.`);
+    }
+
+    return {
+        id: data.name.split('/').pop(),
+        ...decodeFirestoreDocument(data)
+    };
+}
+
+async function patchCollectionDocument(collectionId, docId, fields) {
+    const accessToken = await getGoogleAccessToken();
+    const normalizedDocId = sanitizeDocumentId(docId);
+    const updateMask = Object.keys(fields)
+        .map(key => `updateMask.fieldPaths=${encodeURIComponent(key)}`)
+        .join('&');
+
+    const response = await fetch(`${getDocumentEndpoint(collectionId, normalizedDocId)}?${updateMask}`, {
+        method: 'PATCH',
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            fields: Object.fromEntries(
+                Object.entries(fields).map(([key, value]) => [key, encodeFirestoreValue(value)])
+            )
+        })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error((data.error && data.error.message) || `Could not update Firestore document ${collectionId}/${normalizedDocId}.`);
+    }
+
+    return {
+        id: normalizedDocId,
+        ...decodeFirestoreDocument(data)
+    };
+}
+
+async function deleteCollectionDocument(collectionId, docId) {
+    const accessToken = await getGoogleAccessToken();
+    const normalizedDocId = sanitizeDocumentId(docId);
+    const response = await fetch(getDocumentEndpoint(collectionId, normalizedDocId), {
+        method: 'DELETE',
+        headers: {
+            Authorization: `Bearer ${accessToken}`
+        }
+    });
+
+    if (response.status === 404) {
+        return false;
+    }
+
+    if (!response.ok) {
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (error) {
+            data = null;
+        }
+        throw new Error((data && data.error && data.error.message) || `Could not delete Firestore document ${collectionId}/${normalizedDocId}.`);
+    }
+
+    return true;
+}
+
 async function updateUserByEmail(email, updatesOrResolver) {
     const userDoc = await findUserDocumentByEmail(email);
     if (!userDoc) {
@@ -496,10 +585,13 @@ async function recordTemplateEntitlement(record) {
 }
 
 module.exports = {
+    createCollectionDocument,
+    deleteCollectionDocument,
     findUserDocumentByEmail,
     getCollectionDocument,
     queryCollectionDocuments,
     listCollectionDocuments,
+    patchCollectionDocument,
     recordTemplateEntitlement,
     sanitizeDocumentId,
     updateUserByEmail,

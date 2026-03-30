@@ -52,6 +52,14 @@ const {
     verifyAdminCredentials
 } = require('./services/admin-auth');
 const { getAdminAnalytics } = require('./services/admin-analytics');
+const { authenticateDashboardRequest } = require('./services/dashboard-auth');
+const { canPerformCollectionAction, normalizeEmail } = require('./services/dashboard-rbac');
+const {
+    createCollectionDocument,
+    deleteCollectionDocument,
+    getCollectionDocument,
+    patchCollectionDocument
+} = require('./services/firebase-service');
 
 const PORT = Number(process.env.PORT || 4242);
 const MAX_PORT_ATTEMPTS = 10;
@@ -234,8 +242,169 @@ function applyCorsHeaders(req, res) {
     } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+}
+
+const DASHBOARD_COLLECTIONS = new Set([
+    'clients',
+    'invoices',
+    'projects',
+    'services',
+    'tasks',
+    'team_members'
+]);
+
+function parseDashboardRoute(pathname) {
+    const match = String(pathname || '').match(/^\/api\/dashboard\/([^/]+)(?:\/([^/]+))?$/);
+    if (!match) return null;
+    return {
+        collectionId: decodeURIComponent(match[1]),
+        documentId: match[2] ? decodeURIComponent(match[2]) : ''
+    };
+}
+
+function sanitizeDashboardPayload(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return {};
+    }
+
+    const next = { ...payload };
+    delete next.id;
+    delete next.owner_key;
+    delete next.owner_email;
+    delete next.created_at;
+    delete next.updated_at;
+    return next;
+}
+
+function buildDashboardDocument(payload, ownerEmail, isCreate = false) {
+    const now = new Date().toISOString();
+    return {
+        ...sanitizeDashboardPayload(payload),
+        owner_key: ownerEmail,
+        owner_email: ownerEmail,
+        updated_at: now,
+        ...(isCreate ? { created_at: now } : {})
+    };
+}
+
+function ensureOwnedDocument(record, ownerEmail) {
+    const recordOwner = normalizeEmail(record && record.owner_key ? record.owner_key : record && record.owner_email ? record.owner_email : '');
+    return recordOwner && recordOwner === normalizeEmail(ownerEmail);
+}
+
+async function handleDashboardApi(req, res, url) {
+    const route = parseDashboardRoute(url.pathname);
+    if (!route) {
+        sendJson(res, 404, { error: 'Dashboard resource not found.' });
+        return;
+    }
+
+    const { authUser, userProfile } = await authenticateDashboardRequest(req);
+    const ownerEmail = normalizeEmail(authUser.email);
+
+    if (req.method === 'GET' && route.collectionId === 'session') {
+        sendJson(res, 200, {
+            ok: true,
+            authUser,
+            userProfile
+        });
+        return;
+    }
+
+    if (!DASHBOARD_COLLECTIONS.has(route.collectionId)) {
+        sendJson(res, 404, { error: 'Dashboard resource not found.' });
+        return;
+    }
+
+    if (req.method === 'POST') {
+        if (!canPerformCollectionAction({
+            collectionId: route.collectionId,
+            action: 'create',
+            authUser,
+            userProfile
+        })) {
+            sendJson(res, 403, { error: 'Missing or insufficient permissions.' });
+            return;
+        }
+
+        const body = await readBody(req);
+        const record = await createCollectionDocument(
+            route.collectionId,
+            buildDashboardDocument(body, ownerEmail, true),
+            route.documentId || ''
+        );
+        sendJson(res, 200, { ok: true, record });
+        return;
+    }
+
+    if (req.method === 'PATCH') {
+        if (!route.documentId) {
+            sendJson(res, 400, { error: 'Document ID is required.' });
+            return;
+        }
+        if (!canPerformCollectionAction({
+            collectionId: route.collectionId,
+            action: 'update',
+            authUser,
+            userProfile
+        })) {
+            sendJson(res, 403, { error: 'Missing or insufficient permissions.' });
+            return;
+        }
+
+        const existing = await getCollectionDocument(route.collectionId, route.documentId);
+        if (!existing) {
+            sendJson(res, 404, { error: 'Document not found.' });
+            return;
+        }
+        if (!ensureOwnedDocument(existing.data, ownerEmail)) {
+            sendJson(res, 403, { error: 'You do not have access to modify this record.' });
+            return;
+        }
+
+        const body = await readBody(req);
+        const record = await patchCollectionDocument(
+            route.collectionId,
+            route.documentId,
+            buildDashboardDocument(body, ownerEmail, false)
+        );
+        sendJson(res, 200, { ok: true, record });
+        return;
+    }
+
+    if (req.method === 'DELETE') {
+        if (!route.documentId) {
+            sendJson(res, 400, { error: 'Document ID is required.' });
+            return;
+        }
+        if (!canPerformCollectionAction({
+            collectionId: route.collectionId,
+            action: 'delete',
+            authUser,
+            userProfile
+        })) {
+            sendJson(res, 403, { error: 'Missing or insufficient permissions.' });
+            return;
+        }
+
+        const existing = await getCollectionDocument(route.collectionId, route.documentId);
+        if (!existing) {
+            sendJson(res, 404, { error: 'Document not found.' });
+            return;
+        }
+        if (!ensureOwnedDocument(existing.data, ownerEmail)) {
+            sendJson(res, 403, { error: 'You do not have access to delete this record.' });
+            return;
+        }
+
+        await deleteCollectionDocument(route.collectionId, route.documentId);
+        sendJson(res, 200, { ok: true });
+        return;
+    }
+
+    sendJson(res, 405, { error: 'Method not allowed' });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -410,6 +579,17 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/template-download') {
         await templateDownloadHandler(req, augmentResponse(res));
+        return;
+    }
+
+    if (url.pathname.startsWith('/api/dashboard/')) {
+        try {
+            await handleDashboardApi(req, res, url);
+        } catch (error) {
+            sendJson(res, error.statusCode || 500, {
+                error: error.message || 'Dashboard request failed.'
+            });
+        }
         return;
     }
 
