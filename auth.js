@@ -475,6 +475,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'auth/invalid-api-key':
       case 'auth/api-key-service-disabled':
         return 'Firebase API key error. Check console and Firebase Console settings.';
+      case 'permission-denied':
+      case 'firestore/permission-denied':
+        return 'Login succeeded, but Firestore blocked access to your account data. Check your Firestore security rules for users/{uid}.';
       default:
         return `Error (${code}). Check the browser console for details.`;
     }
@@ -652,9 +655,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (isFirebaseConfigured) {
       try {
+        console.info('[Auth] Starting Firebase email/password sign-in', { email });
         const { user } = await auth.signInWithEmailAndPassword(email, password);
+        console.info('[Auth] Firebase Auth sign-in succeeded', {
+          uid: user && user.uid,
+          email: user && user.email
+        });
         const userRef = db.collection('users').doc(user.uid);
-        const userDoc = await userRef.get();
+        let userDoc = null;
+        try {
+          userDoc = await userRef.get();
+          console.info('[Auth] Firestore profile lookup completed', {
+            path: `users/${user.uid}`,
+            exists: userDoc.exists
+          });
+        } catch (profileError) {
+          console.error('[Auth] Firestore profile lookup failed after successful sign-in', {
+            code: profileError && profileError.code,
+            message: profileError && profileError.message,
+            path: `users/${user.uid}`
+          });
+          throw profileError;
+        }
 
         persistSession({
           name: user.displayName || user.email,
@@ -695,7 +717,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 700);
       } catch (error) {
         setLoading('loginBtn', false, 'Sign In');
-        console.error('Firebase Login Error:', error);
+        console.error('Firebase Login Error:', {
+          code: error && error.code,
+          message: error && error.message,
+          name: error && error.name
+        }, error);
         const msg = friendlyFirebaseError(error.code);
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           showFieldError('loginEmail', msg);
