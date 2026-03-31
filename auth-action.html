@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Action - Nexlance</title>
+  <link rel="stylesheet" href="login.css">
+  <style>
+    .action-page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(99, 102, 241, 0.14), transparent 28%),
+        linear-gradient(135deg, #f6f5ff 0%, #ffffff 100%);
+    }
+    .action-card {
+      width: min(100%, 460px);
+      background: #fff;
+      border-radius: 24px;
+      padding: 36px 32px;
+      box-shadow: 0 18px 60px rgba(76, 29, 149, 0.12);
+      border: 1px solid rgba(167, 139, 250, 0.2);
+    }
+    .action-card h1 {
+      margin: 0 0 8px;
+      color: #5b43d6;
+      font-size: 1.7rem;
+    }
+    .action-card p {
+      margin: 0 0 18px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .action-state {
+      display: none;
+    }
+    .action-state.active {
+      display: block;
+    }
+    .action-message {
+      min-height: 24px;
+      margin-top: 14px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .action-message.success {
+      color: #047857;
+    }
+    .action-message.error {
+      color: #dc2626;
+    }
+    .action-links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .action-links a {
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="action-page">
+    <div class="action-card">
+      <div class="action-state active" id="loadingState">
+        <h1>Checking link...</h1>
+        <p>Please wait while we verify this Firebase action link.</p>
+      </div>
+
+      <div class="action-state" id="verifySuccessState">
+        <h1>Email verified</h1>
+        <p>Email verified successfully. You can now sign in to your account.</p>
+        <div class="action-links">
+          <a class="btn-primary btn-block" id="verifyLoginLink" href="login.html">Go to Login</a>
+        </div>
+      </div>
+
+      <div class="action-state" id="resetState">
+        <h1>Reset your password</h1>
+        <p>Choose a strong new password for your account.</p>
+        <label>
+          New Password
+          <div class="password-row">
+            <input id="newPassword" type="password" placeholder="Min 8 characters" autocomplete="new-password">
+            <button type="button" id="toggleNewPassword" class="small-btn">Show</button>
+          </div>
+          <span class="field-error" id="newPasswordError"></span>
+        </label>
+        <label>
+          Confirm Password
+          <div class="password-row">
+            <input id="confirmPassword" type="password" placeholder="Re-enter password" autocomplete="new-password">
+            <button type="button" id="toggleConfirmPassword" class="small-btn">Show</button>
+          </div>
+          <span class="field-error" id="confirmPasswordError"></span>
+        </label>
+        <button class="btn-primary btn-block" id="resetPasswordBtn" type="button">Update Password</button>
+        <div class="action-message" id="resetMessage"></div>
+      </div>
+
+      <div class="action-state" id="recoverState">
+        <h1>Email restored</h1>
+        <p id="recoverDescription">Your email address has been restored successfully.</p>
+        <div class="action-links">
+          <a class="btn-primary btn-block" href="login.html">Go to Login</a>
+        </div>
+      </div>
+
+      <div class="action-state" id="errorState">
+        <h1>Invalid or expired link</h1>
+        <p id="errorDescription">This Firebase action link is invalid, expired, or has already been used.</p>
+        <div class="action-links">
+          <a class="btn-primary btn-block" href="login.html">Back to Login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js"
+      }
+    }
+  </script>
+  <script type="module" src="auth-action.js"></script>
+</body>
+</html>
