@@ -219,6 +219,14 @@
       </div>
     </div>
 
+    <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 14px;">Project Access</h4>
+    <div class="form-grid single">
+      <div class="form-group">
+        <label>Assigned Project Access</label>
+        <select id="fAssignedProjects" multiple size="5"></select>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveClient()">Save Client</button>
@@ -226,10 +234,12 @@
   </div>
 </div>
 
+<script src="rbac.js"></script>
 <script src="supabase-config.js"></script>
 <script src="dashboard-shell.js"></script>
 <script>
 let clients = [];
+let availableProjects = [];
 let editingId = null;
 function ensureDataAccess() {
   if (!isUpgradeRequiredForData()) return true;
@@ -238,9 +248,41 @@ function ensureDataAccess() {
 }
 
 async function init() {
-  clients = await fetchClients();
+  [clients, availableProjects] = await Promise.all([
+    fetchClients(),
+    fetchProjects().catch(() => [])
+  ]);
+  renderProjectAccessOptions();
+  applyClientUiPermissions();
   renderStats();
   renderTable(clients);
+}
+
+function applyClientUiPermissions() {
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  const canInvite = Boolean(accessControl && currentUser && accessControl.canAccessInvitationControl(currentUser));
+  const addButton = document.querySelector('.page-header-actions .btn.btn-primary');
+  if (addButton) addButton.style.display = canInvite ? '' : 'none';
+}
+
+function renderProjectAccessOptions(selectedIds = []) {
+  const select = document.getElementById('fAssignedProjects');
+  if (!select) return;
+  const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(String));
+  if (!availableProjects.length) {
+    select.innerHTML = '<option value="">No projects available yet</option>';
+    return;
+  }
+  select.innerHTML = availableProjects.map(project => `
+    <option value="${project.id}" ${selected.has(String(project.id)) ? 'selected' : ''}>${project.name}</option>
+  `).join('');
+}
+
+function getSelectedProjectIds() {
+  const select = document.getElementById('fAssignedProjects');
+  if (!select) return [];
+  return Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
 }
 
 function renderStats() {
@@ -324,6 +366,12 @@ document.getElementById('filterType').addEventListener('change', filterClients);
 document.getElementById('filterPlan').addEventListener('change', filterClients);
 
 function openAddModal() {
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  if (accessControl && currentUser && !accessControl.canAccessInvitationControl(currentUser)) {
+    showToast('Only the workspace owner can send client invitations', 'error');
+    return;
+  }
   if (!ensureDataAccess()) return;
   editingId = null;
   document.getElementById('modalTitle').textContent = 'Add New Client';
@@ -332,6 +380,7 @@ function openAddModal() {
   document.getElementById('fPlatform').value = '';
   document.getElementById('fMaintenance').value = 'None';
   document.getElementById('fPlanType').value = 'Basic';
+  renderProjectAccessOptions();
   document.getElementById('clientModal').classList.add('active');
 }
 
@@ -355,6 +404,7 @@ function openEditModal(id) {
   document.getElementById('fPlanType').value = c.plan_type || 'Basic';
   document.getElementById('fContractValue').value = c.total_contract_value || '';
   document.getElementById('fPaidAmount').value = c.paid_amount || '';
+  renderProjectAccessOptions(c.assigned_project_ids || c.assignedProjectIds || []);
   document.getElementById('clientModal').classList.add('active');
 }
 
@@ -364,13 +414,16 @@ async function saveClient() {
   if (!ensureDataAccess()) return;
   const name = document.getElementById('fName').value.trim();
   if (!name) { showToast('Client name is required', 'error'); return; }
+  const email = document.getElementById('fEmail').value.trim();
+  if (!editingId && !email) { showToast('Client email is required to send the invitation', 'error'); return; }
   const he = document.getElementById('fHostingExpiry').value;
   const se = document.getElementById('fSslExpiry').value;
   if (he && !isValidDate(he)) { markDateError('fHostingExpiry', 'Invalid hosting expiry date'); showToast('Enter a valid hosting expiry date', 'error'); return; }
   if (se && !isValidDate(se)) { markDateError('fSslExpiry', 'Invalid SSL expiry date'); showToast('Enter a valid SSL expiry date', 'error'); return; }
   clearDateError('fHostingExpiry'); clearDateError('fSslExpiry');
+  const assignedProjectIds = getSelectedProjectIds();
   const data = {
-    name, email: document.getElementById('fEmail').value.trim(),
+    name, email,
     phone: document.getElementById('fPhone').value.trim(),
     company: document.getElementById('fCompany').value.trim(),
     domain_name: document.getElementById('fDomain').value.trim(),
@@ -382,7 +435,8 @@ async function saveClient() {
     maintenance_plan: document.getElementById('fMaintenance').value,
     plan_type: document.getElementById('fPlanType').value,
     total_contract_value: Number(document.getElementById('fContractValue').value) || 0,
-    paid_amount: Number(document.getElementById('fPaidAmount').value) || 0
+    paid_amount: Number(document.getElementById('fPaidAmount').value) || 0,
+    assigned_project_ids: assignedProjectIds
   };
   try {
     if (editingId) {
@@ -391,9 +445,14 @@ async function saveClient() {
       if (idx > -1) clients[idx] = updated;
       showToast('Client updated successfully!', 'success');
     } else {
-      const created = await addClient(data);
-      clients.unshift(created);
-      showToast('Client added successfully!', 'success');
+      const created = await inviteClient({
+        name,
+        email,
+        assignedProjectIds,
+        metadata: data
+      });
+      clients.unshift(created.record);
+      showToast('Client invited successfully!', 'success');
     }
     closeModal(); renderStats(); filterClients();
   } catch (e) { showToast('Error: ' + e.message, 'error'); }

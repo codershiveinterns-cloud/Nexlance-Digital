@@ -91,6 +91,27 @@ const DEFAULT_PLAN_CURRENCY = (function () {
     return normalized || 'GBP';
 })();
 const RESTRICTED_PAGE_NAMES = ['dashboard.html', 'clients.html', 'team.html', 'invoices.html', 'invoice-create.html', 'services.html', 'access-roles.html', 'reports.html', 'client-detail.html'];
+const AUTHENTICATED_APP_PAGE_NAMES = [
+    'dashboard.html',
+    'clients.html',
+    'client-detail.html',
+    'team.html',
+    'projects.html',
+    'project-detail.html',
+    'invoices.html',
+    'invoice-create.html',
+    'services.html',
+    'access-roles.html',
+    'owner-control.html',
+    'settings.html',
+    'developer-info.html',
+    'reports.html',
+    'unauthorized.html'
+];
+
+function getAccessControl() {
+    return window.NexlanceAccessControl || null;
+}
 
 function _snap(querySnap) {
     return querySnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -139,7 +160,42 @@ function getPlanAccessConfig(planCode) {
     };
 }
 
+function getRoleBasedAccessConfig() {
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
+    if (!accessControl || !currentUser || !currentUser.workspaceId) {
+        return null;
+    }
+
+    const permissionMatrix = accessControl.getPermissionMatrix(currentUser);
+    const allowedPages = accessControl.getAllowedPages(currentUser);
+    const entities = [];
+
+    if (permissionMatrix.projects && permissionMatrix.projects.read) entities.push('projects');
+    if (permissionMatrix.tasks && permissionMatrix.tasks.read) entities.push('tasks');
+    if (permissionMatrix.clients && permissionMatrix.clients.read) entities.push('clients');
+    if (permissionMatrix.invoices && permissionMatrix.invoices.read) entities.push('invoices');
+    if (permissionMatrix.services && permissionMatrix.services.read) entities.push('services');
+    if (permissionMatrix.team && permissionMatrix.team.read) entities.push('team');
+    if (permissionMatrix.invoices && permissionMatrix.invoices.read && !entities.includes('reports')) {
+        entities.push('reports');
+    }
+
+    return {
+        pages: [...new Set(allowedPages)],
+        entities: [...new Set(entities)],
+        dashboardAccess: accessControl.canViewDashboard(currentUser),
+        allTemplatesAccess: false,
+        templateLimit: 0
+    };
+}
+
 function getCurrentAccessConfig() {
+    const roleBasedConfig = getRoleBasedAccessConfig();
+    if (roleBasedConfig) {
+        return roleBasedConfig;
+    }
+
     if (isTrialStillActive()) {
         return {
             pages: [...TRIAL_ACCESS_CONFIG.pages],
@@ -155,6 +211,11 @@ function getCurrentAccessConfig() {
 }
 
 function canAccessPage(pageName = getCurrentPageName()) {
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
+    if (accessControl && currentUser && currentUser.workspaceId) {
+        return accessControl.canAccessPage(currentUser, pageName);
+    }
     return getCurrentAccessConfig().pages.includes(pageName);
 }
 
@@ -520,20 +581,13 @@ function activateIndividualPlanAccess(options = {}) {
 
 function getCurrentOwnerKey() {
     const user = getCurrentSessionUser();
-    return normalizeEmail(user && user.email);
+    return normalizeEmail(user && (user.workspaceOwnerEmail || user.ownerEmail || user.email));
 }
 
 function isAdminUser() {
-    if (getCurrentOwnerKey() === 'mehrahinal113@gmail.com') {
-        return true;
-    }
-
-    try {
-        const adminUiSession = JSON.parse(localStorage.getItem('nexlance_admin_ui') || 'null');
-        return Boolean(adminUiSession && normalizeEmail(adminUiSession.email) === 'mehrahinal113@gmail.com');
-    } catch (error) {
-        return false;
-    }
+    const accessControl = getAccessControl();
+    const user = getCurrentSessionUser();
+    return Boolean(accessControl && user && accessControl.canAccessAdminPanel(user));
 }
 
 function syncAdminUiVisibility() {
@@ -594,75 +648,43 @@ function canAccessEntity(entity) {
     return getCurrentAccessConfig().entities.includes(String(entity || '').trim().toLowerCase());
 }
 
-const DASHBOARD_ROLE_PERMISSIONS = {
-    owner: {
-        clients: { create: true, update: true, delete: true },
-        invoices: { create: true, update: true, delete: true },
-        projects: { create: true, update: true, delete: true },
-        services: { create: true, update: true, delete: true },
-        tasks: { create: true, update: true, delete: true },
-        team: { create: true, update: true, delete: true }
-    },
-    admin: {
-        clients: { create: true, update: true, delete: true },
-        invoices: { create: true, update: true, delete: true },
-        projects: { create: true, update: true, delete: true },
-        services: { create: true, update: true, delete: true },
-        tasks: { create: true, update: true, delete: true },
-        team: { create: true, update: true, delete: true }
-    },
-    project_manager: {
-        clients: { create: false, update: true, delete: false },
-        invoices: { create: true, update: true, delete: false },
-        projects: { create: true, update: true, delete: false },
-        services: { create: true, update: true, delete: false },
-        tasks: { create: true, update: true, delete: false },
-        team: { create: false, update: false, delete: false }
-    },
-    developer: {
-        clients: { create: false, update: false, delete: false },
-        invoices: { create: false, update: false, delete: false },
-        projects: { create: false, update: false, delete: false },
-        services: { create: false, update: false, delete: false },
-        tasks: { create: false, update: true, delete: false },
-        team: { create: false, update: false, delete: false }
-    },
-    designer: {
-        clients: { create: false, update: false, delete: false },
-        invoices: { create: false, update: false, delete: false },
-        projects: { create: false, update: false, delete: false },
-        services: { create: false, update: false, delete: false },
-        tasks: { create: false, update: true, delete: false },
-        team: { create: false, update: false, delete: false }
-    },
-    client: {
-        clients: { create: false, update: false, delete: false },
-        invoices: { create: false, update: false, delete: false },
-        projects: { create: false, update: false, delete: false },
-        services: { create: false, update: false, delete: false },
-        tasks: { create: false, update: false, delete: false },
-        team: { create: false, update: false, delete: false }
-    }
-};
-
 function normalizeDashboardRole(role) {
-    return String(role || 'owner').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const accessControl = getAccessControl();
+    if (accessControl) {
+        return accessControl.normalizeRole(role || 'admin');
+    }
+    return String(role || 'admin').trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
 
-function getDefaultDashboardPermissions(role = 'owner') {
-    const normalizedRole = normalizeDashboardRole(role);
-    const source = DASHBOARD_ROLE_PERMISSIONS[normalizedRole] || DASHBOARD_ROLE_PERMISSIONS.owner;
-    return JSON.parse(JSON.stringify(source));
+function getDefaultDashboardPermissions(role = 'admin', isWorkspaceOwner = false) {
+    const accessControl = getAccessControl();
+    if (accessControl) {
+        return accessControl.getPermissionMatrix({
+            role,
+            isWorkspaceOwner
+        });
+    }
+    return {
+        clients: { create: true, update: true, delete: true, read: true },
+        invoices: { create: true, update: true, delete: true, read: true },
+        projects: { create: true, update: true, delete: true, read: true },
+        services: { create: true, update: true, delete: true, read: true },
+        tasks: { create: true, update: true, delete: true, read: true },
+        team: { create: isWorkspaceOwner, update: isWorkspaceOwner, delete: isWorkspaceOwner, read: isWorkspaceOwner }
+    };
 }
 
 function getCurrentDashboardUserContext() {
     const user = getCurrentSessionUser() || {};
-    const normalizedRole = normalizeDashboardRole(user.role || user.dashboardRole || 'owner');
+    const accessControl = getAccessControl();
+    const normalizedRole = normalizeDashboardRole(user.role || user.workspaceRole || user.dashboardRole || 'admin');
     const permissions = user.permissions && typeof user.permissions === 'object'
         ? user.permissions
-        : getDefaultDashboardPermissions(normalizedRole);
+        : getDefaultDashboardPermissions(normalizedRole, Boolean(user.isWorkspaceOwner));
     return {
         role: normalizedRole,
+        permissionKeys: accessControl ? accessControl.getAuthenticatedPermissionKeys(user) : [],
+        isWorkspaceOwner: Boolean(user.isWorkspaceOwner),
         permissions
     };
 }
@@ -706,6 +728,35 @@ async function getDashboardBearerToken() {
         throw error;
     }
     return firebase.auth().currentUser.getIdToken();
+}
+
+async function refreshCurrentSessionUserFromApi() {
+    if (!isFirebaseUserAuthenticated()) return null;
+
+    try {
+        const token = await getDashboardBearerToken();
+        const response = await fetch('/api/me', {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`
+            },
+            credentials: 'same-origin'
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload || !payload.user) {
+            return null;
+        }
+
+        const currentUser = getCurrentSessionUser() || {};
+        const nextUser = {
+            ...currentUser,
+            ...payload.user
+        };
+        localStorage.setItem('nexlance_user', JSON.stringify(nextUser));
+        return nextUser;
+    } catch (error) {
+        return null;
+    }
 }
 
 function normalizeDashboardApiError(error, entity, action) {
@@ -770,7 +821,78 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
         throw wrapped;
     }
 
-    return data && Object.prototype.hasOwnProperty.call(data, 'record') ? data.record : data;
+    if (data && Object.prototype.hasOwnProperty.call(data, 'record')) return data.record;
+    if (data && Object.prototype.hasOwnProperty.call(data, 'records')) return data.records;
+    return data;
+}
+
+async function authorizedApiRequest(path, method = 'GET', payload = null) {
+    if (!isFirebaseUserAuthenticated()) {
+        const error = new Error('You need to sign in to continue.');
+        error.code = 'auth/not-authenticated';
+        throw error;
+    }
+
+    const token = await getDashboardBearerToken();
+    const response = await fetch(path, {
+        method,
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: payload !== null ? JSON.stringify(payload) : undefined
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const error = new Error(data.error || data.message || 'Request failed.');
+        error.status = response.status;
+        throw error;
+    }
+    return data;
+}
+
+async function inviteClient(payload) {
+    return authorizedApiRequest('/api/invitations/client', 'POST', payload);
+}
+
+async function inviteTeamMember(payload) {
+    return authorizedApiRequest('/api/invitations/team', 'POST', payload);
+}
+
+async function resendWorkspaceInvitation(invitationId) {
+    return authorizedApiRequest(`/api/invitations/${encodeURIComponent(invitationId)}/resend`, 'POST', {});
+}
+
+async function fetchCurrentUserProfile() {
+    return authorizedApiRequest('/api/me', 'GET');
+}
+
+async function fetchCurrentUserPermissions() {
+    return authorizedApiRequest('/api/me/permissions', 'GET');
+}
+
+async function fetchWorkspaceInvitations() {
+    return authorizedApiRequest('/api/invitations', 'GET');
+}
+
+async function resolveWorkspaceInvitation(token) {
+    const response = await fetch(`/api/invitations/resolve?token=${encodeURIComponent(token)}`, {
+        method: 'GET',
+        credentials: 'same-origin'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const error = new Error(data.error || 'Invitation could not be loaded.');
+        error.status = response.status;
+        throw error;
+    }
+    return data;
+}
+
+async function acceptWorkspaceInvitation(token) {
+    return authorizedApiRequest('/api/invitations/accept', 'POST', { token });
 }
 
 function syncPlanUiVisibility() {
@@ -788,15 +910,29 @@ function syncPlanUiVisibility() {
     });
 }
 
+function isAuthenticatedAppPage(pageName = getCurrentPageName()) {
+    return AUTHENTICATED_APP_PAGE_NAMES.includes(pageName);
+}
+
+function redirectToUnauthorized(pageName = getCurrentPageName()) {
+    const target = `unauthorized.html?from=${encodeURIComponent(pageName)}`;
+    if (window.location.pathname.endsWith('/unauthorized.html') || pageName === 'unauthorized.html') return;
+    window.location.href = target;
+}
+
 function enforcePlanPageAccess() {
     const pageName = getCurrentPageName();
     if (pageName === 'admin.html') {
         return;
     }
+    if (isAuthenticatedAppPage(pageName) && !getCurrentSessionUser()) {
+        window.location.href = `login.html?redirect=${encodeURIComponent(pageName)}`;
+        return;
+    }
     if (shouldShowRestrictedPreview(pageName)) return;
     if (canAccessPage(pageName)) return;
     if (pageName.endsWith('.html') && RESTRICTED_PAGE_NAMES.includes(pageName)) {
-        window.location.href = 'projects.html';
+        redirectToUnauthorized(pageName);
     }
 }
 
@@ -1003,6 +1139,12 @@ function syncAccessUiState() {
     syncAdminUiVisibility();
     enforcePlanPageAccess();
     applyRestrictedPreviewOverlay();
+    refreshCurrentSessionUserFromApi().then(nextUser => {
+        if (!nextUser) return;
+        syncPlanUiVisibility();
+        syncAdminUiVisibility();
+        enforcePlanPageAccess();
+    });
 }
 
 function getEntityStorageKey(entity) {
@@ -1288,6 +1430,14 @@ async function fetchClients() {
     if (!canAccessEntity('clients')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('clients', sampleClients);
     try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const records = await dashboardApiRequest('GET', 'clients');
+                return Array.isArray(records) ? records : [];
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
+            }
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('clients').where('owner_key', '==', ownerKey).get();
@@ -1399,6 +1549,19 @@ async function fetchProjects(clientId = null) {
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     }
     try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const records = await dashboardApiRequest('GET', 'projects');
+                const combinedApiRecords = sortProjectsByRecent(mergeProjectCollections(
+                    Array.isArray(records) ? records : [],
+                    scopedProjects,
+                    templateProjects
+                ));
+                return clientId ? combinedApiRecords.filter(p => p.client_id === clientId) : combinedApiRecords;
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'update');
+            }
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) {
             const combinedWithoutOwner = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
@@ -1570,6 +1733,14 @@ async function fetchTasks(projectId) {
         return createAccessFilteredDataset('tasks', sampleTasks).filter(t => t.project_id === projectId);
     }
     try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const records = await dashboardApiRequest('GET', 'tasks');
+                return (Array.isArray(records) ? records : []).filter(t => t.project_id === projectId);
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'update');
+            }
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('tasks')
@@ -1676,6 +1847,14 @@ async function fetchInvoices() {
     if (!canAccessEntity('invoices')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('invoices', sampleInvoices);
     try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const records = await dashboardApiRequest('GET', 'invoices');
+                return Array.isArray(records) ? records : [];
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'update');
+            }
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('invoices').where('owner_key', '==', ownerKey).get();
@@ -1778,6 +1957,14 @@ async function fetchServices() {
     if (!canAccessEntity('services')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('services', sampleServices);
     try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const records = await dashboardApiRequest('GET', 'services');
+                return Array.isArray(records) ? records : [];
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'services', 'update');
+            }
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('services').where('owner_key', '==', ownerKey).get();
@@ -1878,6 +2065,14 @@ async function fetchTeamMembers() {
     if (!canAccessEntity('team')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('team_members', sampleTeamMembers);
     try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const records = await dashboardApiRequest('GET', 'team_members');
+                return Array.isArray(records) ? records : [];
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
+            }
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('team_members').where('owner_key', '==', ownerKey).get();

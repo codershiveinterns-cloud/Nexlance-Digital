@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Denied - Nexlance</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="container" style="min-height:100vh;display:grid;place-items:center;">
+    <div class="white-card" style="max-width:560px;text-align:center;">
+      <h1 style="margin-bottom:12px;">Access denied</h1>
+      <p style="color:#666;line-height:1.7;">Your account does not have permission to open this page. Settings, Support Info, and Sign out remain available to all authenticated users.</p>
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:24px;">
+        <a href="projects.html" class="btn btn-primary">Go to Projects</a>
+        <a href="settings.html" class="btn btn-secondary">Open Settings</a>
+        <a href="developer-info.html" class="btn btn-secondary">Support Info</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="rbac.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="dashboard-shell.js"></script>
+</body>
+</html>

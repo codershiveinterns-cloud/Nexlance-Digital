@@ -220,6 +220,7 @@ async function findUserDocumentByEmail(email) {
     }
 
     return {
+        id: documentEntry.document.name.split('/').pop(),
         name: documentEntry.document.name,
         data: decodeFirestoreDocument(documentEntry.document)
     };
@@ -265,6 +266,7 @@ async function queryCollectionDocuments(collectionId, options = {}) {
     return (Array.isArray(data) ? data : [])
         .filter(entry => entry && entry.document)
         .map(entry => ({
+            id: entry.document.name.split('/').pop(),
             name: entry.document.name,
             data: decodeFirestoreDocument(entry.document)
         }));
@@ -289,6 +291,7 @@ async function getCollectionDocument(collectionId, docId) {
     }
 
     return {
+        id: data.name.split('/').pop(),
         name: data.name,
         data: decodeFirestoreDocument(data)
     };
@@ -404,7 +407,7 @@ async function patchCollectionDocument(collectionId, docId, fields) {
 
     const data = await response.json();
     if (!response.ok) {
-        throw new Error((data.error && data.error.message) || `Could not update Firestore document ${collectionId}/${normalizedDocId}.`);
+        throw new Error((data.error && data.error.message) || `Could not update Firestore document ${collectionId}/${docId}.`);
     }
 
     return {

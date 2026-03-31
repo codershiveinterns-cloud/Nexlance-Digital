@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner Control - Nexlance</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="app.css">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container">
+  <aside class="sidebar">
+    <h2 class="logo">Nexlance</h2>
+    <ul class="nav">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="projects.html">Projects</a></li>
+      <li><a href="team.html">Team</a></li>
+      <li><a href="access-roles.html">Access / Roles</a></li>
+      <li class="active"><a href="owner-control.html">Owner Panel</a></li>
+      <li><a href="settings.html">Settings</a></li>
+      <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
+      <li><a href="developer-info.html">Support Info</a></li>
+    </ul>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <input type="text" placeholder="Search owner controls...">
+      <div class="profile">Account</div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-header-left">
+        <h1>Owner Control</h1>
+        <p>Workspace owner controls for billing, team access, invitations, and system management.</p>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h4>Invitation Control</h4>
+        <h2>Access / Roles</h2>
+        <p class="card-meta">Send, review, and control secure client and team invitations.</p>
+        <p style="margin-top:12px;"><a href="access-roles.html" class="btn btn-primary btn-sm">Open</a></p>
+      </div>
+      <div class="card">
+        <h4>Team Management</h4>
+        <h2>Team Workspace</h2>
+        <p class="card-meta">Review team members, assigned roles, and project access.</p>
+        <p style="margin-top:12px;"><a href="team.html" class="btn btn-primary btn-sm">Open</a></p>
+      </div>
+      <div class="card">
+        <h4>Payment Management</h4>
+        <h2>Billing</h2>
+        <p class="card-meta">Review invoices, payment status, and workspace billing actions.</p>
+        <p style="margin-top:12px;"><a href="invoices.html" class="btn btn-primary btn-sm">Open</a></p>
+      </div>
+      <div class="card">
+        <h4>System Settings</h4>
+        <h2>Workspace Settings</h2>
+        <p class="card-meta">Access owner-level settings and protected workspace controls.</p>
+        <p style="margin-top:12px;"><a href="settings.html" class="btn btn-primary btn-sm">Open</a></p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="rbac.js"></script>
+<script src="supabase-config.js"></script>
+<script src="dashboard-shell.js"></script>
+</body>
+</html>

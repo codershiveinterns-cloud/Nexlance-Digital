@@ -293,13 +293,13 @@
   </div>
 </div>
 
+<script src="rbac.js"></script>
 <script src="supabase-config.js"></script>
 <script src="dashboard-shell.js"></script>
 <script>
 let members = [];
+let invitations = [];
 let editingMemberId = null;
-let verifyingInviteId = null;
-let lastGeneratedCode = '';
 
 /* ============================================================
    PERMISSIONS DATA
@@ -376,7 +376,7 @@ function renderTeamRoles() {
     tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">🧑‍💼</div><h3>No team members</h3><p><a href="team.html" style="color:#6c5ce7;">Add team members</a></p></div></td></tr>`;
     return;
   }
-  const roleColors = {Admin:'badge-red','Project Manager':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
+  const roleColors = {Admin:'badge-red','PM':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
   const check = v => v ? '<span style="color:#00b894;">✓</span>' : '<span style="color:#ddd;">✗</span>';
   tbody.innerHTML = members.map(m => `<tr>
     <td><strong>${m.name}</strong></td>
@@ -442,14 +442,14 @@ document.getElementById('erRole').addEventListener('change', function() {
 /* ============================================================
    INVITE SYSTEM (localStorage-based with email code)
 ============================================================ */
-function getInvites() {
-  try { return JSON.parse(localStorage.getItem('nexlance_invites') || '[]'); } catch(e) { return []; }
-}
-function saveInvites(arr) {
-  localStorage.setItem('nexlance_invites', JSON.stringify(arr));
-}
-function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+async function loadInvitations() {
+  try {
+    const response = await fetchWorkspaceInvitations();
+    invitations = Array.isArray(response.records) ? response.records : [];
+  } catch (error) {
+    invitations = [];
+  }
+  renderPendingInvites();
 }
 
 function openInviteModal() {
@@ -459,46 +459,36 @@ function openInviteModal() {
   document.getElementById('inviteModal').classList.add('active');
 }
 
-function sendInvite() {
+async function sendInvite() {
   const name  = document.getElementById('invName').value.trim();
   const email = document.getElementById('invEmail').value.trim();
   const role  = document.getElementById('invRole').value;
   if (!name)  { showToast('Name is required', 'error'); return; }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Enter a valid email', 'error'); return; }
-
-  const invites = getInvites();
-  if (invites.find(i => i.email.toLowerCase() === email.toLowerCase() && i.status === 'pending')) {
-    showToast('An invite is already pending for this email', 'error'); return;
+  try {
+    const response = await inviteTeamMember({ name, email, role });
+    closeModal('inviteModal');
+    document.getElementById('invitedName').textContent = name;
+    document.getElementById('displayCode').textContent = 'Email sent';
+    const mailtoLink = document.getElementById('mailtoLink');
+    if (mailtoLink) mailtoLink.style.display = 'none';
+    document.getElementById('inviteSentModal').classList.add('active');
+    if (response && response.record) {
+      members.push(response.record);
+      renderTeamRoles();
+    }
+    await loadInvitations();
+    showToast('Invitation email sent successfully!', 'success');
+  } catch (error) {
+    showToast(error.message || 'Could not send the invitation.', 'error');
   }
-
-  const code = genCode();
-  lastGeneratedCode = code;
-  const invite = { id: 'inv_' + Date.now(), name, email, role, code, status: 'pending', created_at: new Date().toISOString() };
-  invites.push(invite);
-  saveInvites(invites);
-
-  closeModal('inviteModal');
-
-  // Show the code to the admin
-  document.getElementById('invitedName').textContent = name;
-  document.getElementById('displayCode').textContent = code;
-  const subject = encodeURIComponent('You have been invited to Nexlance Dashboard');
-  const body    = encodeURIComponent(`Hi ${name},\n\nYou have been invited to join the Nexlance dashboard as a ${role}.\n\nYour confirmation code is: ${code}\n\nPlease visit the Access & Roles page and enter this code to activate your account.\n\nBest regards,\nNexlance Admin`);
-  document.getElementById('mailtoLink').href = `mailto:${email}?subject=${subject}&body=${body}`;
-
-  document.getElementById('inviteSentModal').classList.add('active');
-  renderPendingInvites();
-}
-
-function copyCode() {
-  navigator.clipboard.writeText(lastGeneratedCode).then(() => showToast('Code copied!', 'success'));
 }
 
 /* ============================================================
    PENDING INVITATIONS TABLE
 ============================================================ */
 function renderPendingInvites() {
-  const invites = getInvites().filter(i => i.status === 'pending');
+  const invites = invitations.filter(i => i.status === 'pending');
   const section = document.getElementById('pendingSection');
   const list    = document.getElementById('pendingList');
   if (!invites.length) { section.style.display = 'none'; return; }
@@ -506,10 +496,10 @@ function renderPendingInvites() {
   const roleColors = {Admin:'badge-red','Project Manager':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
   list.innerHTML = invites.map(inv => `
     <div class="pending-row">
-      <span style="font-weight:600;color:#333;">${inv.name}</span>
+      <span style="font-weight:600;color:#333;">${inv.inviteeName || inv.name}</span>
       <span style="color:#888;font-size:0.82rem;">${inv.email}</span>
-      <span><span class="badge ${roleColors[inv.role]||'badge-gray'}" style="font-size:0.75rem;">${inv.role}</span></span>
-      <span><span class="invite-code-chip">${inv.code}</span></span>
+      <span><span class="badge ${roleColors[window.NexlanceAccessControl ? window.NexlanceAccessControl.getRoleDisplayLabel(inv.role) : inv.role]||'badge-gray'}" style="font-size:0.75rem;">${window.NexlanceAccessControl ? window.NexlanceAccessControl.getRoleDisplayLabel(inv.role) : inv.role}</span></span>
+      <span><span class="invite-code-chip">${new Date(inv.createdAt || inv.created_at || Date.now()).toLocaleDateString('en-IN')}</span></span>
       <span style="display:flex;gap:6px;">
         <button class="action-btn action-edit" title="Verify code" onclick="openVerify('${inv.id}')">🔑 Verify</button>
         <button class="action-btn action-delete" title="Cancel invite" onclick="cancelInvite('${inv.id}')">✕</button>
@@ -517,17 +507,13 @@ function renderPendingInvites() {
     </div>`).join('');
 }
 
-function openVerify(inviteId) {
-  verifyingInviteId = inviteId;
-  const inv = getInvites().find(i => i.id === inviteId);
-  if (!inv) return;
-  document.getElementById('verifyEmail').textContent = inv.email;
-  document.getElementById('verifyCodeInput').value = '';
-  document.getElementById('verifyError').textContent = '';
-  document.getElementById('verifyModal').classList.add('active');
+async function openVerify(inviteId) {
+  await handleResendInvite(inviteId);
 }
 
 async function verifyCode() {
+  showToast('Invitation acceptance now happens through the secure email link.', 'info');
+  return;
   const entered = document.getElementById('verifyCodeInput').value.trim();
   const invites = getInvites();
   const inv     = invites.find(i => i.id === verifyingInviteId);
@@ -569,7 +555,19 @@ async function verifyCode() {
   } catch(e) { showToast('Error adding member: ' + e.message, 'error'); }
 }
 
+async function handleResendInvite(inviteId) {
+  try {
+    await resendWorkspaceInvitation(inviteId);
+    await loadInvitations();
+    showToast('Invitation resent successfully!', 'success');
+  } catch (error) {
+    showToast(error.message || 'Could not resend the invitation.', 'error');
+  }
+}
+
 function cancelInvite(inviteId) {
+  showToast('Invitation cancellation is not enabled in this page. Use resend or manage the member from the team page.', 'info');
+  return;
   if (!confirm('Cancel this invite?')) return;
   const invites = getInvites().filter(i => i.id !== inviteId);
   saveInvites(invites);
@@ -599,7 +597,7 @@ async function init() {
   members = await fetchTeamMembers();
   renderPermissionsMatrix();
   renderTeamRoles();
-  renderPendingInvites();
+  await loadInvitations();
 }
 init();
 </script>

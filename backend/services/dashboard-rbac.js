@@ -1,105 +1,44 @@
-const PRIVILEGED_EMAILS = new Set([
-    'vijaypratap@nexlancedigital.com',
-    'mehrahinal113@gmail.com'
-]);
+const AccessControl = require('../../rbac.js');
 
 const COLLECTION_PERMISSION_MAP = {
-    clients: { create: 'clients.create', update: 'clients.update', delete: 'clients.delete' },
-    invoices: { create: 'invoices.create', update: 'invoices.update', delete: 'invoices.delete' },
-    projects: { create: 'projects.create', update: 'projects.update', delete: 'projects.delete' },
-    services: { create: 'services.create', update: 'services.update', delete: 'services.delete' },
-    tasks: { create: 'tasks.create', update: 'tasks.update', delete: 'tasks.delete' },
-    team_members: { create: 'team.create', update: 'team.update', delete: 'team.delete' }
+    clients: { create: 'clients.create', read: 'clients.read', update: 'clients.update', delete: 'clients.delete' },
+    invoices: { create: 'invoices.create', read: 'invoices.read', update: 'invoices.update', delete: 'invoices.delete' },
+    projects: { create: 'projects.create', read: 'projects.read', update: 'projects.update', delete: 'projects.delete' },
+    services: { create: 'services.create', read: 'services.read', update: 'services.update', delete: 'services.delete' },
+    tasks: { create: 'tasks.create', read: 'tasks.read', update: 'tasks.update', delete: 'tasks.delete' },
+    team_members: { create: 'team.create', read: 'team.read', update: 'team.update', delete: 'team.delete' }
 };
 
 function normalizeEmail(email) {
-    return String(email || '').trim().toLowerCase();
+    return AccessControl.normalizeEmail(email);
 }
 
 function normalizeRole(role) {
-    return String(role || 'owner')
-        .trim()
-        .toLowerCase()
-        .replace(/[\s-]+/g, '_');
+    return AccessControl.normalizeRole(role);
 }
 
-function createPermissionSet(role) {
-    const normalizedRole = normalizeRole(role);
-    const all = {
-        clients: { create: true, update: true, delete: true },
-        invoices: { create: true, update: true, delete: true },
-        projects: { create: true, update: true, delete: true },
-        services: { create: true, update: true, delete: true },
-        tasks: { create: true, update: true, delete: true },
-        team: { create: true, update: true, delete: true }
-    };
-
-    switch (normalizedRole) {
-        case 'owner':
-        case 'admin':
-            return all;
-        case 'project_manager':
-            return {
-                clients: { create: false, update: true, delete: false },
-                invoices: { create: true, update: true, delete: false },
-                projects: { create: true, update: true, delete: false },
-                services: { create: true, update: true, delete: false },
-                tasks: { create: true, update: true, delete: false },
-                team: { create: false, update: false, delete: false }
-            };
-        case 'developer':
-        case 'designer':
-            return {
-                clients: { create: false, update: false, delete: false },
-                invoices: { create: false, update: false, delete: false },
-                projects: { create: false, update: false, delete: false },
-                services: { create: false, update: false, delete: false },
-                tasks: { create: false, update: true, delete: false },
-                team: { create: false, update: false, delete: false }
-            };
-        case 'client':
-        default:
-            return {
-                clients: { create: false, update: false, delete: false },
-                invoices: { create: false, update: false, delete: false },
-                projects: { create: false, update: false, delete: false },
-                services: { create: false, update: false, delete: false },
-                tasks: { create: false, update: false, delete: false },
-                team: { create: false, update: false, delete: false }
-            };
-    }
-}
-
-function mergePermissionSets(basePermissions, overridePermissions) {
-    const next = JSON.parse(JSON.stringify(basePermissions || {}));
-    if (!overridePermissions || typeof overridePermissions !== 'object') {
-        return next;
-    }
-
-    Object.keys(overridePermissions).forEach(section => {
-        const sourceSection = overridePermissions[section];
-        if (!sourceSection || typeof sourceSection !== 'object') {
-            return;
-        }
-        next[section] = { ...(next[section] || {}) };
-        Object.keys(sourceSection).forEach(action => {
-            next[section][action] = Boolean(sourceSection[action]);
-        });
-    });
-
-    return next;
+function createPermissionSet(userOrRole = {}) {
+    const user = typeof userOrRole === 'string'
+        ? { role: userOrRole }
+        : (userOrRole || {});
+    return AccessControl.getPermissionMatrix(user);
 }
 
 function getResolvedAccessProfile(userProfile = {}, authUser = {}) {
-    const email = normalizeEmail(authUser.email || userProfile.email);
-    const role = PRIVILEGED_EMAILS.has(email)
-        ? 'owner'
-        : normalizeRole(userProfile.role || userProfile.dashboardRole || 'owner');
-    const basePermissions = createPermissionSet(role);
-    const permissions = mergePermissionSets(basePermissions, userProfile.permissions);
+    const mergedUser = {
+        ...userProfile,
+        email: normalizeEmail(userProfile.email || authUser.email),
+        uid: authUser.uid || userProfile.uid || userProfile.userId || '',
+        role: normalizeRole(userProfile.role || userProfile.workspaceRole || userProfile.dashboardRole || 'admin')
+    };
+
+    const accessProfile = AccessControl.getAccessProfile(mergedUser);
     return {
-        role,
-        permissions
+        ...mergedUser,
+        role: accessProfile.role,
+        isWorkspaceOwner: accessProfile.isWorkspaceOwner,
+        permissionKeys: accessProfile.permissionKeys,
+        permissions: accessProfile.permissionMatrix
     };
 }
 
@@ -127,6 +66,7 @@ module.exports = {
     COLLECTION_PERMISSION_MAP,
     canPerformCollectionAction,
     createPermissionSet,
+    getPermissionPathForCollection,
     getResolvedAccessProfile,
     normalizeEmail,
     normalizeRole

@@ -1,13 +1,5 @@
-const {
-    findUserDocumentByEmail,
-    getCollectionDocument,
-    patchCollectionDocument
-} = require('./firebase-service');
-const {
-    createPermissionSet,
-    normalizeEmail,
-    normalizeRole
-} = require('./dashboard-rbac');
+const AccessControl = require('../../rbac.js');
+const { ensureWorkspaceAccessProfile, buildSessionUser } = require('./workspace-access');
 
 const FIREBASE_WEB_API_KEY = String(
     process.env.FIREBASE_WEB_API_KEY
@@ -49,8 +41,9 @@ async function verifyFirebaseIdToken(idToken) {
 
     return {
         uid: String(account.localId),
-        email: normalizeEmail(account.email),
-        emailVerified: Boolean(account.emailVerified)
+        email: AccessControl.normalizeEmail(account.email),
+        emailVerified: Boolean(account.emailVerified),
+        displayName: String(account.displayName || '').trim()
     };
 }
 
@@ -58,47 +51,6 @@ function getBearerToken(req) {
     const header = req && req.headers ? req.headers.authorization || '' : '';
     const match = String(header).match(/^Bearer\s+(.+)$/i);
     return match ? match[1].trim() : '';
-}
-
-async function ensureDashboardUserProfile(authUser) {
-    let profileDocument = await getCollectionDocument('users', authUser.uid);
-
-    if (!profileDocument && authUser.email) {
-        const emailDocument = await findUserDocumentByEmail(authUser.email);
-        if (emailDocument && emailDocument.id) {
-            profileDocument = {
-                name: emailDocument.name || '',
-                data: emailDocument.data || {},
-                id: emailDocument.id
-            };
-        }
-    }
-
-    const existingProfile = profileDocument && profileDocument.data ? profileDocument.data : {};
-    const role = normalizeRole(existingProfile.role || existingProfile.dashboardRole || 'owner');
-    const permissions = existingProfile.permissions && typeof existingProfile.permissions === 'object'
-        ? existingProfile.permissions
-        : createPermissionSet(role);
-
-    if (profileDocument && (!existingProfile.role || !existingProfile.permissions)) {
-        try {
-            await patchCollectionDocument('users', profileDocument.id || authUser.uid, {
-                role,
-                permissions,
-                updatedAt: new Date().toISOString()
-            });
-        } catch (error) {
-            // Avoid blocking the request if the profile cannot be backfilled.
-        }
-    }
-
-    return {
-        id: profileDocument ? (profileDocument.id || authUser.uid) : authUser.uid,
-        ...existingProfile,
-        email: normalizeEmail(existingProfile.email || authUser.email),
-        role,
-        permissions
-    };
 }
 
 async function authenticateDashboardRequest(req) {
@@ -110,13 +62,18 @@ async function authenticateDashboardRequest(req) {
     }
 
     const authUser = await verifyFirebaseIdToken(idToken);
-    const userProfile = await ensureDashboardUserProfile(authUser);
+    const userProfile = await ensureWorkspaceAccessProfile(authUser);
+    const sessionUser = buildSessionUser(userProfile, authUser);
+
     return {
         authUser,
-        userProfile
+        userProfile,
+        sessionUser
     };
 }
 
 module.exports = {
-    authenticateDashboardRequest
+    authenticateDashboardRequest,
+    getBearerToken,
+    verifyFirebaseIdToken
 };

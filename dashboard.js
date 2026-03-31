@@ -105,6 +105,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function applyRoleAwareUi() {
+        const accessControl = window.NexlanceAccessControl;
+        const currentUser = getCurrentUser();
+        if (!accessControl || !currentUser) return;
+
+        document.querySelectorAll('.quick-links a[href], .page-header-actions a[href]').forEach(link => {
+            const href = link.getAttribute('href');
+            if (!href || /^https?:/i.test(href)) return;
+            link.style.display = accessControl.canAccessPage(currentUser, href) ? '' : 'none';
+        });
+    }
+
     function getScopedStorageKey(baseKey) {
         const currentUser = getCurrentUser();
         const email = normalizeEmail(currentUser && currentUser.email);
@@ -398,16 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function syncAdminAccessUi() {
         if (!adminNavItem && !adminQuickLink) return;
 
-        let isAdminSessionActive = false;
-        try {
-            const response = await fetch(getAdminApiUrl('/api/admin/session'), {
-                credentials: 'include'
-            });
-            const session = await response.json().catch(() => ({}));
-            isAdminSessionActive = Boolean(response.ok && session.authenticated && normalizeEmail(session.email) === 'mehrahinal113@gmail.com');
-        } catch (error) {
-            isAdminSessionActive = false;
-        }
+        const accessControl = window.NexlanceAccessControl;
+        const currentUser = getCurrentUser();
+        const isAdminSessionActive = Boolean(accessControl && currentUser && accessControl.canAccessAdminPanel(currentUser));
 
         if (adminNavItem) adminNavItem.style.display = isAdminSessionActive ? '' : 'none';
         if (adminQuickLink) adminQuickLink.style.display = isAdminSessionActive ? '' : 'none';
@@ -1080,6 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
     populateSettingsControls(currentSettings);
     renderDashboardGreeting();
     syncProfileButtonVisibility();
+    applyRoleAwareUi();
     resolveHashRoute();
     hydrateProfileUi().catch(error => {
         console.error('Could not load settings profile:', error);

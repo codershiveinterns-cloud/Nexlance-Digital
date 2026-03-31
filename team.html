@@ -93,6 +93,13 @@
       </div>
     </div>
 
+    <div class="form-grid single" style="margin-top:18px;">
+      <div class="form-group">
+        <label>Assigned Projects</label>
+        <select id="fAssignedProjects" multiple size="5"></select>
+      </div>
+    </div>
+
     <div style="margin-top:18px;">
       <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Permissions</h4>
       <div style="display:flex;flex-direction:column;gap:12px;">
@@ -122,10 +129,12 @@
   </div>
 </div>
 
+<script src="rbac.js"></script>
 <script src="supabase-config.js"></script>
 <script src="dashboard-shell.js"></script>
 <script>
 let members = [];
+let availableProjects = [];
 let editingId = null;
 function ensureDataAccess() {
   if (!isUpgradeRequiredForData()) return true;
@@ -146,9 +155,41 @@ const roleGradients = {
 };
 
 async function init() {
-  members = await fetchTeamMembers();
+  [members, availableProjects] = await Promise.all([
+    fetchTeamMembers(),
+    fetchProjects().catch(() => [])
+  ]);
+  renderProjectAccessOptions();
+  applyTeamUiPermissions();
   renderStats();
   renderGrid(members);
+}
+
+function applyTeamUiPermissions() {
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  const canInvite = Boolean(accessControl && currentUser && accessControl.canAccessInvitationControl(currentUser));
+  const addButton = document.querySelector('.page-header-actions .btn.btn-primary');
+  if (addButton) addButton.style.display = canInvite ? '' : 'none';
+}
+
+function renderProjectAccessOptions(selectedIds = []) {
+  const select = document.getElementById('fAssignedProjects');
+  if (!select) return;
+  const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(String));
+  if (!availableProjects.length) {
+    select.innerHTML = '<option value="">No projects available yet</option>';
+    return;
+  }
+  select.innerHTML = availableProjects.map(project => `
+    <option value="${project.id}" ${selected.has(String(project.id)) ? 'selected' : ''}>${project.name}</option>
+  `).join('');
+}
+
+function getSelectedProjectIds() {
+  const select = document.getElementById('fAssignedProjects');
+  if (!select) return [];
+  return Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
 }
 
 function renderStats() {
@@ -201,6 +242,12 @@ document.getElementById('searchInput').addEventListener('input', filterMembers);
 document.getElementById('filterRole').addEventListener('change', filterMembers);
 
 function openAddModal() {
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  if (accessControl && currentUser && !accessControl.canAccessInvitationControl(currentUser)) {
+    showToast('Only the workspace owner can send team invitations', 'error');
+    return;
+  }
   if (!ensureDataAccess()) return;
   editingId = null;
   document.getElementById('modalTitle').textContent = 'Add Team Member';
@@ -208,6 +255,7 @@ function openAddModal() {
   document.getElementById('fEmail').value = '';
   document.getElementById('fRole').value = 'Developer';
   ['pTasks','pRevenue','pInvoice','pUpload'].forEach(id => document.getElementById(id).checked = false);
+  renderProjectAccessOptions();
   document.getElementById('memberModal').classList.add('active');
 }
 
@@ -224,6 +272,7 @@ function openEditModal(id) {
   document.getElementById('pRevenue').checked = m.can_see_revenue;
   document.getElementById('pInvoice').checked = m.can_create_invoices;
   document.getElementById('pUpload').checked = m.can_upload_files;
+  renderProjectAccessOptions(m.assigned_project_ids || m.assignedProjectIds || []);
   document.getElementById('memberModal').classList.add('active');
 }
 function closeModal() { document.getElementById('memberModal').classList.remove('active'); }
@@ -233,13 +282,15 @@ async function saveMember() {
   const name = document.getElementById('fName').value.trim();
   const email = document.getElementById('fEmail').value.trim();
   if (!name || !email) { showToast('Name and email are required', 'error'); return; }
+  const assignedProjectIds = getSelectedProjectIds();
   const data = {
     name, email,
     role: document.getElementById('fRole').value,
     can_edit_tasks: document.getElementById('pTasks').checked,
     can_see_revenue: document.getElementById('pRevenue').checked,
     can_create_invoices: document.getElementById('pInvoice').checked,
-    can_upload_files: document.getElementById('pUpload').checked
+    can_upload_files: document.getElementById('pUpload').checked,
+    assigned_project_ids: assignedProjectIds
   };
   try {
     if (editingId) {
@@ -248,9 +299,15 @@ async function saveMember() {
       if (idx > -1) members[idx] = upd;
       showToast('Member updated!', 'success');
     } else {
-      const created = await addTeamMember(data);
-      members.push(created);
-      showToast('Member added!', 'success');
+      const created = await inviteTeamMember({
+        name,
+        email,
+        role: document.getElementById('fRole').value,
+        assignedProjectIds,
+        metadata: data
+      });
+      members.push(created.record);
+      showToast('Invitation sent successfully!', 'success');
     }
     closeModal(); renderStats(); filterMembers();
   } catch(e) { showToast('Error: ' + e.message, 'error'); }

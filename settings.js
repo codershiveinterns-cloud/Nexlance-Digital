@@ -262,16 +262,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function syncAdminAccessUi() {
         if (!adminNavItem) return;
 
-        let isAdminSessionActive = false;
-        try {
-            const response = await fetch(getAdminApiUrl('/api/admin/session'), {
-                credentials: 'include'
-            });
-            const session = await response.json().catch(() => ({}));
-            isAdminSessionActive = Boolean(response.ok && session.authenticated && normalizeEmail(session.email) === 'mehrahinal113@gmail.com');
-        } catch (error) {
-            isAdminSessionActive = false;
-        }
+        const accessControl = window.NexlanceAccessControl;
+        const currentUser = getCurrentUser();
+        const isAdminSessionActive = Boolean(accessControl && currentUser && accessControl.canAccessAdminPanel(currentUser));
 
         adminNavItem.style.display = isAdminSessionActive ? '' : 'none';
     }

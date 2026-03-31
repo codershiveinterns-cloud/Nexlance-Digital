@@ -271,6 +271,7 @@
   </div>
 </div>
 
+<script src="rbac.js"></script>
 <script src="supabase-config.js"></script>
 <script src="dashboard-shell.js"></script>
 <script src="template-registry.js"></script>
@@ -367,6 +368,9 @@ function renderStats() {
 function renderTable(data) {
   const tbody = document.getElementById('projectsBody');
   document.getElementById('tableCount').textContent = data.length + ' projects';
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  const canManageProjectsUi = !accessControl || !currentUser || accessControl.canManageProjects(currentUser);
   if (isUpgradeRequiredForData()) {
     tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></td></tr>`;
     return;
@@ -393,7 +397,7 @@ function renderTable(data) {
       <td style="color:#666;font-size:0.85rem;">${p.assigned_team || '—'}</td>
       <td>
         <div class="table-actions">
-          <button class="action-btn action-delete" onclick="handleDelete('${p.id}')" title="Delete">🗑</button>
+          ${canManageProjectsUi ? `<button class="action-btn action-delete" onclick="handleDelete('${p.id}')" title="Delete">🗑</button>` : ''}
         </div>
       </td>
     </tr>`;

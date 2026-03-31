@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accept Invitation - Nexlance</title>
+  <link rel="stylesheet" href="login.css">
+  <style>
+    .invite-page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(99, 102, 241, 0.14), transparent 28%),
+        linear-gradient(135deg, #f6f5ff 0%, #ffffff 100%);
+    }
+    .invite-card {
+      width: min(100%, 520px);
+      background: #fff;
+      border-radius: 24px;
+      padding: 36px 32px;
+      box-shadow: 0 18px 60px rgba(76, 29, 149, 0.12);
+      border: 1px solid rgba(167, 139, 250, 0.2);
+    }
+    .invite-state { display: none; }
+    .invite-state.active { display: block; }
+    .invite-summary {
+      margin: 16px 0 24px;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: #f8f5ff;
+      color: #4b3fbf;
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+    .invite-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .invite-actions button {
+      flex: 1 1 160px;
+    }
+    .invite-form { display: none; }
+    .invite-form.active { display: block; }
+    .invite-message {
+      min-height: 22px;
+      margin-top: 14px;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+    .invite-message.error { color: #dc2626; }
+    .invite-message.success { color: #047857; }
+  </style>
+</head>
+<body>
+  <div class="invite-page">
+    <div class="invite-card">
+      <div class="invite-state active" id="loadingState">
+        <h1>Checking invitation...</h1>
+        <p>Please wait while we validate your secure invite link.</p>
+      </div>
+
+      <div class="invite-state" id="acceptState">
+        <h1>Join Workspace</h1>
+        <p>Accept your invitation to continue with your allowed workspace access.</p>
+        <div class="invite-summary" id="inviteSummary"></div>
+        <div class="invite-actions">
+          <button type="button" class="btn-secondary btn-block" id="showSignupBtn">Create password</button>
+          <button type="button" class="btn-primary btn-block" id="showLoginBtn">I already have an account</button>
+        </div>
+
+        <div class="invite-form" id="signupFormWrap">
+          <label>
+            Full Name
+            <input id="inviteName" type="text" placeholder="Your name">
+          </label>
+          <label>
+            Password
+            <input id="invitePassword" type="password" placeholder="Create a password">
+          </label>
+          <button class="btn-primary btn-block" type="button" id="createAccountBtn">Create account and accept</button>
+        </div>
+
+        <div class="invite-form" id="loginFormWrap">
+          <label>
+            Email
+            <input id="existingEmail" type="email" readonly>
+          </label>
+          <label>
+            Password
+            <input id="existingPassword" type="password" placeholder="Enter your password">
+          </label>
+          <button class="btn-primary btn-block" type="button" id="signInAcceptBtn">Sign in and accept</button>
+        </div>
+
+        <button class="btn-primary btn-block" type="button" id="acceptCurrentSessionBtn" style="display:none;">Accept with current session</button>
+        <div class="invite-message" id="inviteMessage"></div>
+      </div>
+
+      <div class="invite-state" id="successState">
+        <h1>Invitation accepted</h1>
+        <p>Your workspace access is ready. Redirecting you now.</p>
+      </div>
+
+      <div class="invite-state" id="errorState">
+        <h1>Invitation unavailable</h1>
+        <p id="errorDescription">This invitation is invalid, expired, or has already been used.</p>
+        <a class="btn-primary btn-block" href="login.html">Go to Login</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="rbac.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js"
+      }
+    }
+  </script>
+  <script type="module" src="invite-accept.js"></script>
+</body>
+</html>

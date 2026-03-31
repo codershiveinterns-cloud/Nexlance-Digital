@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
+const AccessControl = require('../rbac.js');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const ENV_PATH = path.join(PROJECT_ROOT, '.env');
@@ -55,10 +56,24 @@ const { getAdminAnalytics } = require('./services/admin-analytics');
 const { authenticateDashboardRequest } = require('./services/dashboard-auth');
 const { canPerformCollectionAction, normalizeEmail } = require('./services/dashboard-rbac');
 const {
+    requireAuth,
+    requireOwnerOnly,
+    requirePermission
+} = require('./services/request-guards');
+  const {
+      acceptInvitation,
+      assertInvitationUsable,
+      createInvitation,
+      resendInvitation,
+      resolveInvitationByToken
+} = require('./services/invitations');
+const {
     createCollectionDocument,
     deleteCollectionDocument,
     getCollectionDocument,
-    patchCollectionDocument
+    listCollectionDocuments,
+    patchCollectionDocument,
+    queryCollectionDocuments
 } = require('./services/firebase-service');
 
 const PORT = Number(process.env.PORT || 4242);
@@ -273,25 +288,94 @@ function sanitizeDashboardPayload(payload) {
     delete next.id;
     delete next.owner_key;
     delete next.owner_email;
+    delete next.workspace_id;
     delete next.created_at;
     delete next.updated_at;
     return next;
 }
 
-function buildDashboardDocument(payload, ownerEmail, isCreate = false) {
+function getWorkspaceOwnerKey(sessionUser = {}) {
+    return normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email);
+}
+
+function buildDashboardDocument(payload, sessionUser, isCreate = false) {
+    const ownerEmail = getWorkspaceOwnerKey(sessionUser);
     const now = new Date().toISOString();
     return {
         ...sanitizeDashboardPayload(payload),
         owner_key: ownerEmail,
         owner_email: ownerEmail,
+        workspace_id: String(sessionUser.workspaceId || '').trim(),
+        created_by_user_id: String(sessionUser.uid || '').trim(),
+        created_by_email: normalizeEmail(sessionUser.email),
         updated_at: now,
         ...(isCreate ? { created_at: now } : {})
     };
 }
 
-function ensureOwnedDocument(record, ownerEmail) {
+function ensureOwnedDocument(record, sessionUser) {
+    const ownerEmail = getWorkspaceOwnerKey(sessionUser);
     const recordOwner = normalizeEmail(record && record.owner_key ? record.owner_key : record && record.owner_email ? record.owner_email : '');
-    return recordOwner && recordOwner === normalizeEmail(ownerEmail);
+    const recordWorkspaceId = String(record && record.workspace_id ? record.workspace_id : '').trim();
+    return Boolean(
+        (recordOwner && recordOwner === normalizeEmail(ownerEmail))
+        || (recordWorkspaceId && recordWorkspaceId === String(sessionUser.workspaceId || '').trim())
+    );
+}
+
+async function listDashboardCollectionRecords(collectionId, sessionUser) {
+    const ownerKey = getWorkspaceOwnerKey(sessionUser);
+    if (!ownerKey) return [];
+
+    const queried = await queryCollectionDocuments(collectionId, {
+        fieldPath: 'owner_key',
+        op: 'EQUAL',
+        value: ownerKey,
+        limit: 500
+    }).catch(async () => {
+        const all = await listCollectionDocuments(collectionId, { pageSize: 500 });
+        return all
+            .filter(record => normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
+            .map(record => ({
+                id: record.id,
+                data: record
+            }));
+    });
+
+    return (Array.isArray(queried) ? queried : []).map(record => ({
+        id: record.id || (record.name ? record.name.split('/').pop() : ''),
+        data: record.data || record
+    }));
+}
+
+function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
+    const assignedProjectIds = new Set(AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds));
+    const isOwner = AccessControl.isWorkspaceOwner(sessionUser);
+    const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
+    const hasExplicitProjectScope = !isOwner && assignedProjectIds.size > 0;
+    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
+
+    if (!shouldRestrictProjects) {
+        return records;
+    }
+
+    if (collectionId === 'projects') {
+        return records.filter(record => assignedProjectIds.has(String(record.data.id || record.id || '').trim()));
+    }
+
+    if (collectionId === 'tasks') {
+        return records.filter(record => assignedProjectIds.has(String(record.data.project_id || '').trim()));
+    }
+
+    if (collectionId === 'clients') {
+        return records.filter(record => assignedProjectIds.has(String(record.data.project_id || record.data.primary_project_id || '').trim()));
+    }
+
+    return records;
+}
+
+function filterDashboardRecordForSession(collectionId, record, sessionUser) {
+    return filterDashboardRecordsForSession(collectionId, [record], sessionUser)[0] || null;
 }
 
 async function handleDashboardApi(req, res, url) {
@@ -301,20 +385,64 @@ async function handleDashboardApi(req, res, url) {
         return;
     }
 
-    const { authUser, userProfile } = await authenticateDashboardRequest(req);
-    const ownerEmail = normalizeEmail(authUser.email);
+    const session = await authenticateDashboardRequest(req);
+    const { authUser, userProfile, sessionUser } = session;
 
     if (req.method === 'GET' && route.collectionId === 'session') {
         sendJson(res, 200, {
             ok: true,
             authUser,
-            userProfile
+            userProfile,
+            sessionUser
         });
         return;
     }
 
     if (!DASHBOARD_COLLECTIONS.has(route.collectionId)) {
         sendJson(res, 404, { error: 'Dashboard resource not found.' });
+        return;
+    }
+
+    if (req.method === 'GET') {
+        if (!canPerformCollectionAction({
+            collectionId: route.collectionId,
+            action: 'read',
+            authUser,
+            userProfile
+        })) {
+            sendJson(res, 403, { error: 'Missing or insufficient permissions.' });
+            return;
+        }
+
+        if (route.documentId) {
+            const existing = await getCollectionDocument(route.collectionId, route.documentId);
+            if (!existing) {
+                sendJson(res, 404, { error: 'Document not found.' });
+                return;
+            }
+            if (!ensureOwnedDocument(existing.data, sessionUser)) {
+                sendJson(res, 403, { error: 'You do not have access to this record.' });
+                return;
+            }
+
+            const filteredRecord = filterDashboardRecordForSession(route.collectionId, {
+                id: existing.id || route.documentId,
+                data: existing.data
+            }, sessionUser);
+
+            if (!filteredRecord) {
+                sendJson(res, 403, { error: 'You do not have access to this record.' });
+                return;
+            }
+
+            sendJson(res, 200, { ok: true, record: { id: filteredRecord.id, ...filteredRecord.data } });
+            return;
+        }
+
+        const records = await listDashboardCollectionRecords(route.collectionId, sessionUser);
+        const filteredRecords = filterDashboardRecordsForSession(route.collectionId, records, sessionUser)
+            .map(record => ({ id: record.id, ...record.data }));
+        sendJson(res, 200, { ok: true, records: filteredRecords });
         return;
     }
 
@@ -332,7 +460,7 @@ async function handleDashboardApi(req, res, url) {
         const body = await readBody(req);
         const record = await createCollectionDocument(
             route.collectionId,
-            buildDashboardDocument(body, ownerEmail, true),
+            buildDashboardDocument(body, sessionUser, true),
             route.documentId || ''
         );
         sendJson(res, 200, { ok: true, record });
@@ -359,7 +487,7 @@ async function handleDashboardApi(req, res, url) {
             sendJson(res, 404, { error: 'Document not found.' });
             return;
         }
-        if (!ensureOwnedDocument(existing.data, ownerEmail)) {
+        if (!ensureOwnedDocument(existing.data, sessionUser)) {
             sendJson(res, 403, { error: 'You do not have access to modify this record.' });
             return;
         }
@@ -368,7 +496,7 @@ async function handleDashboardApi(req, res, url) {
         const record = await patchCollectionDocument(
             route.collectionId,
             route.documentId,
-            buildDashboardDocument(body, ownerEmail, false)
+            buildDashboardDocument(body, sessionUser, false)
         );
         sendJson(res, 200, { ok: true, record });
         return;
@@ -394,7 +522,7 @@ async function handleDashboardApi(req, res, url) {
             sendJson(res, 404, { error: 'Document not found.' });
             return;
         }
-        if (!ensureOwnedDocument(existing.data, ownerEmail)) {
+        if (!ensureOwnedDocument(existing.data, sessionUser)) {
             sendJson(res, 403, { error: 'You do not have access to delete this record.' });
             return;
         }
@@ -430,6 +558,242 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/me') {
+        try {
+            const session = await requireAuth(req);
+            sendJson(res, 200, {
+                ok: true,
+                user: session.sessionUser
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/me/permissions') {
+        try {
+            const session = await requireAuth(req);
+            sendJson(res, 200, {
+                ok: true,
+                role: session.sessionUser.role,
+                isWorkspaceOwner: session.sessionUser.isWorkspaceOwner,
+                permissionKeys: session.sessionUser.permissionKeys,
+                permissions: session.sessionUser.permissions,
+                allowedPages: AccessControl.getAllowedPages(session.sessionUser)
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/invitations/resolve') {
+        try {
+            const token = String(url.searchParams.get('token') || '').trim();
+            if (!token) {
+                sendJson(res, 400, { error: 'Invitation token is required.' });
+                return;
+            }
+
+              const invitation = await resolveInvitationByToken(token);
+              const record = assertInvitationUsable(invitation);
+              sendJson(res, 200, {
+                  ok: true,
+                  invitation: {
+                    id: invitation.id,
+                    inviteType: record.inviteType,
+                    inviteeName: record.inviteeName,
+                    email: record.email,
+                    role: record.role,
+                    workspaceId: record.workspaceId,
+                    expiresAt: record.expiresAt,
+                    status: record.status,
+                    assignedProjectIds: record.assignedProjectIds || []
+                }
+            });
+        } catch (error) {
+            sendJson(res, 400, { error: error.message || 'Invitation is invalid or has expired.' });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/invitations') {
+        try {
+            const session = await requireAuth(req);
+            requireOwnerOnly(session);
+            const invites = await queryCollectionDocuments('invitations', {
+                fieldPath: 'workspaceId',
+                op: 'EQUAL',
+                value: String(session.sessionUser.workspaceId || '').trim(),
+                limit: 500
+            }).catch(() => []);
+
+            sendJson(res, 200, {
+                ok: true,
+                records: (Array.isArray(invites) ? invites : []).map(record => ({
+                    id: record.id,
+                    ...(record.data || {})
+                }))
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Invitations could not be loaded.' });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/invitations/accept') {
+        try {
+            const session = await requireAuth(req);
+            const body = await readBody(req);
+            const token = String(body.token || '').trim();
+            if (!token) {
+                sendJson(res, 400, { error: 'Invitation token is required.' });
+                return;
+            }
+
+            const result = await acceptInvitation({
+                session,
+                token
+            });
+            sendJson(res, 200, {
+                ok: true,
+                ...result
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Invitation could not be accepted.' });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/invitations/client') {
+        try {
+            const session = await requireAuth(req);
+            requireOwnerOnly(session);
+            const body = await readBody(req);
+            const result = await createInvitation({
+                session,
+                inviteType: 'client',
+                inviteeName: String(body.name || body.clientName || '').trim(),
+                email: String(body.email || body.clientEmail || '').trim(),
+                role: 'client',
+                assignedProjectIds: body.assignedProjectIds || [],
+                origin: req.headers.origin || `http://${req.headers.host}`,
+                metadata: body.metadata || {}
+            });
+            sendJson(res, 200, {
+                ok: true,
+                invitation: result.invitation,
+                record: result.targetRecord
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Client invitation could not be sent.' });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/invitations/team') {
+        try {
+            const session = await requireAuth(req);
+            requireOwnerOnly(session);
+            const body = await readBody(req);
+            const result = await createInvitation({
+                session,
+                inviteType: 'team',
+                inviteeName: String(body.name || body.memberName || '').trim(),
+                email: String(body.email || body.memberEmail || '').trim(),
+                role: String(body.role || '').trim(),
+                assignedProjectIds: body.assignedProjectIds || [],
+                origin: req.headers.origin || `http://${req.headers.host}`,
+                metadata: body.metadata || {}
+            });
+            sendJson(res, 200, {
+                ok: true,
+                invitation: result.invitation,
+                record: result.targetRecord
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Team invitation could not be sent.' });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && /^\/api\/invitations\/[^/]+\/resend$/.test(url.pathname)) {
+        try {
+            const session = await requireAuth(req);
+            requireOwnerOnly(session);
+            const invitationId = decodeURIComponent(url.pathname.split('/')[3] || '');
+            const invitation = await resendInvitation({
+                invitationId,
+                session,
+                origin: req.headers.origin || `http://${req.headers.host}`
+            });
+            sendJson(res, 200, {
+                ok: true,
+                invitation
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Invitation could not be resent.' });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/projects') {
+        try {
+            const session = await requireAuth(req);
+            requirePermission(session, AccessControl.PERMISSIONS.VIEW_PROJECTS);
+            const records = await listDashboardCollectionRecords('projects', session.sessionUser);
+            const filteredRecords = filterDashboardRecordsForSession('projects', records, session.sessionUser)
+                .map(record => ({ id: record.id, ...record.data }));
+            sendJson(res, 200, {
+                ok: true,
+                records: filteredRecords
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Projects could not be loaded.' });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/team/members') {
+        try {
+            const session = await requireAuth(req);
+            requirePermission(session, AccessControl.PERMISSIONS.MANAGE_TEAM_MEMBERS);
+            const records = await listDashboardCollectionRecords('team_members', session.sessionUser);
+            sendJson(res, 200, {
+                ok: true,
+                records: records.map(record => ({ id: record.id, ...record.data }))
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Team members could not be loaded.' });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/payments/summary') {
+        try {
+            const session = await requireAuth(req);
+            requireOwnerOnly(session);
+            const ownerEmail = getWorkspaceOwnerKey(session.sessionUser);
+            const payments = await queryCollectionDocuments('payments', {
+                fieldPath: 'userEmail',
+                op: 'EQUAL',
+                value: ownerEmail,
+                limit: 500
+            }).catch(() => []);
+            sendJson(res, 200, {
+                ok: true,
+                records: (Array.isArray(payments) ? payments : []).map(record => ({
+                    id: record.id,
+                    ...(record.data || {})
+                }))
+            });
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, { error: error.message || 'Payments could not be loaded.' });
+        }
         return;
     }
 

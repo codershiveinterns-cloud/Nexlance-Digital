@@ -19,20 +19,18 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
-function buildAbsoluteUrl(path) {
-  return new URL(path, window.location.href).toString();
-}
+const AUTH_ACTION_URL = "https://nexlancedigital.com/auth-action.html";
+const LOGIN_URL = "https://nexlancedigital.com/login.html";
+const actionCodeSettings = {
+  url: "https://nexlancedigital.com/auth-action.html",
+  handleCodeInApp: true,
+};
 
 export function getAuthActionConfig() {
   return {
-    actionHandlerUrl: buildAbsoluteUrl("./auth-action.html"),
-    loginUrl: buildAbsoluteUrl("./login.html"),
-    actionCodeSettings: {
-      // Firebase appends this as continueUrl to the action link.
-      // The actual handler page URL must be configured in Firebase Console templates.
-      url: buildAbsoluteUrl("./login.html"),
-      handleCodeInApp: false,
-    },
+    actionHandlerUrl: AUTH_ACTION_URL,
+    loginUrl: LOGIN_URL,
+    actionCodeSettings,
   };
 }
 
@@ -78,6 +76,15 @@ function buildFailure(error, extras = {}) {
   };
 }
 
+function canSkipEmailVerification(profile = {}) {
+  return Boolean(
+    profile
+    && profile.workspaceId
+    && profile.membershipStatus === "active"
+    && (profile.inviteAcceptedAt || profile.inviteType)
+  );
+}
+
 async function ensureUserProfile(uid, defaults = {}) {
   const userRef = doc(db, "users", uid);
   const snapshot = await getDoc(userRef);
@@ -120,6 +127,8 @@ export async function signUpWithEmail({
   password,
   displayName = "",
   profileData = {},
+  skipEmailVerification = false,
+  keepSignedIn = false,
 }) {
   try {
     await authReady;
@@ -154,17 +163,38 @@ export async function signUpWithEmail({
       });
     }
 
-    await sendEmailVerification(user, getAuthActionConfig().actionCodeSettings);
-    await signOut(auth);
+    if (!skipEmailVerification) {
+      await sendEmailVerification(user, getAuthActionConfig().actionCodeSettings);
+    }
+
+    if (!keepSignedIn) {
+      await signOut(auth);
+    }
 
     return {
       success: true,
-      user,
+      user: auth.currentUser || user,
       message: "Account created. Please verify your email before signing in.",
     };
   } catch (error) {
     return buildFailure(error);
   }
+}
+
+export async function createInvitedAccountSession({
+  email,
+  password,
+  displayName = "",
+  profileData = {},
+}) {
+  return signUpWithEmail({
+    email,
+    password,
+    displayName,
+    profileData,
+    skipEmailVerification: true,
+    keepSignedIn: true,
+  });
 }
 
 export async function loginWithEmail(email, password, profileDefaults = {}) {
@@ -177,14 +207,6 @@ export async function loginWithEmail(email, password, profileDefaults = {}) {
 
     await reload(user);
 
-    if (!auth.currentUser?.emailVerified) {
-      await signOut(auth);
-      return buildFailure(
-        { code: "auth/email-not-verified" },
-        { requiresEmailVerification: true }
-      );
-    }
-
     let profile = null;
     try {
       profile = await ensureUserProfile(user.uid, profileDefaults);
@@ -196,6 +218,14 @@ export async function loginWithEmail(email, password, profileDefaults = {}) {
             ? "Login succeeded, but Firestore blocked reading or updating users/{uid}. Update your Firestore rules so each signed-in user can access their own profile document."
             : undefined,
       });
+    }
+
+    if (!auth.currentUser?.emailVerified && !canSkipEmailVerification(profile)) {
+      await signOut(auth);
+      return buildFailure(
+        { code: "auth/email-not-verified" },
+        { requiresEmailVerification: true }
+      );
     }
 
     return {

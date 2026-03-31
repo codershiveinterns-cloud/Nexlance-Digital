@@ -192,6 +192,7 @@
 </div>
 
 <script src="billing-catalog.js"></script>
+<script src="rbac.js"></script>
 <script src="supabase-config.js"></script>
 <script src="dashboard-shell.js"></script>
 <script src="payment.js"></script>
@@ -212,6 +213,24 @@ const columns = [
   { id: 'completed',   label: 'Completed' }
 ];
 const statusBadges = { 'Live':'badge-green','Development':'badge-blue','Design':'badge-purple','Testing':'badge-teal','Planning':'badge-gray','On Hold':'badge-orange' };
+
+function getRoleAccessState() {
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  return {
+    canManageProjects: !accessControl || !currentUser || accessControl.canManageProjects(currentUser),
+    canEditTasks: !accessControl || !currentUser || accessControl.canEditTasks(currentUser),
+    canDeleteTasks: !accessControl || !currentUser || accessControl.canDeleteTasks(currentUser)
+  };
+}
+
+function applyPermissionUi() {
+  const access = getRoleAccessState();
+  const editProjectBtn = document.querySelector('.page-header-actions .btn-primary');
+  const addTaskBtn = document.querySelector('#tab-kanban .btn-primary.btn-sm');
+  if (editProjectBtn) editProjectBtn.style.display = access.canManageProjects ? '' : 'none';
+  if (addTaskBtn) addTaskBtn.style.display = access.canEditTasks ? '' : 'none';
+}
 
 function getActiveProjectId() {
   return project && project.id ? project.id : projectId;
@@ -293,6 +312,7 @@ function populateOverview() {
 
 function renderKanban() {
   const board = document.getElementById('kanbanBoard');
+  const access = getRoleAccessState();
   board.innerHTML = columns.map(col => {
     const colTasks = tasks.filter(t => t.status === col.id);
     const cards = colTasks.map(t => `
@@ -307,8 +327,8 @@ function renderKanban() {
           <span>${t.due_date ? '📅 ' + formatDate(t.due_date) : ''}</span>
           <div style="display:flex;gap:6px;align-items:center;">
             ${t.assignee ? `<span class="assignee-chip">${t.assignee}</span>` : ''}
-            <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:#bbb;" onclick="openEditTaskModal('${t.id}')" title="Edit">✏️</button>
-            <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:#bbb;" onclick="deleteTaskCard('${t.id}')" title="Delete">🗑</button>
+            ${access.canEditTasks ? `<button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:#bbb;" onclick="openEditTaskModal('${t.id}')" title="Edit">✏️</button>` : ''}
+            ${access.canDeleteTasks ? `<button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:#bbb;" onclick="deleteTaskCard('${t.id}')" title="Delete">🗑</button>` : ''}
           </div>
         </div>
       </div>
@@ -324,7 +344,7 @@ function renderKanban() {
           <span class="col-count">${colTasks.length}</span>
         </div>
         ${cards}
-        <button class="kanban-add-btn" onclick="openAddTaskModal('${col.id}')">+ Add task</button>
+        ${access.canEditTasks ? `<button class="kanban-add-btn" onclick="openAddTaskModal('${col.id}')">+ Add task</button>` : ''}
       </div>
     `;
   }).join('');
@@ -357,6 +377,7 @@ async function onDrop(e) {
 
 // Task Modal
 function openAddTaskModal(defaultStatus = 'todo') {
+  if (!getRoleAccessState().canEditTasks) { showToast('You do not have permission to edit tasks', 'error'); return; }
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   editingTaskId = null;
   document.getElementById('taskModalTitle').textContent = 'Add Task';
@@ -369,6 +390,7 @@ function openAddTaskModal(defaultStatus = 'todo') {
   document.getElementById('taskModal').classList.add('active');
 }
 function openEditTaskModal(id) {
+  if (!getRoleAccessState().canEditTasks) { showToast('You do not have permission to edit tasks', 'error'); return; }
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   const t = tasks.find(x => x.id === id);
   if (!t) return;
@@ -385,6 +407,7 @@ function openEditTaskModal(id) {
 function closeTaskModal() { document.getElementById('taskModal').classList.remove('active'); }
 
 async function saveTask() {
+  if (!getRoleAccessState().canEditTasks) { showToast('You do not have permission to edit tasks', 'error'); return; }
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   const title = document.getElementById('tTitle').value.trim();
   if (!title) { showToast('Task title is required', 'error'); return; }
@@ -413,6 +436,7 @@ async function saveTask() {
 }
 
 async function deleteTaskCard(id) {
+  if (!getRoleAccessState().canDeleteTasks) { showToast('You do not have permission to delete tasks', 'error'); return; }
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   if (!confirm('Delete this task?')) return;
   try {
@@ -424,6 +448,7 @@ async function deleteTaskCard(id) {
 
 // Edit Project
 function openEditProjectModal() {
+  if (!getRoleAccessState().canManageProjects) { showToast('You do not have permission to manage projects', 'error'); return; }
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   if (!project) return;
   document.getElementById('epName').value = project.name || '';
@@ -439,6 +464,7 @@ function openEditProjectModal() {
 }
 function closeEditProject() { document.getElementById('editProjModal').classList.remove('active'); }
 async function saveEditProject() {
+  if (!getRoleAccessState().canManageProjects) { showToast('You do not have permission to manage projects', 'error'); return; }
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   const name = document.getElementById('epName').value.trim();
   if (!name) { showToast('Name required', 'error'); return; }
@@ -491,6 +517,7 @@ document.getElementById('taskModal').addEventListener('click', function(e){ if(e
 document.getElementById('editProjModal').addEventListener('click', function(e){ if(e.target===this) closeEditProject(); });
 
 init();
+applyPermissionUi();
 </script>
 <script src="project-template-workspace.js"></script>
 </body>

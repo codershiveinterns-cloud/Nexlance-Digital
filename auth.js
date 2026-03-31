@@ -40,6 +40,11 @@ function getPostLoginRedirect() {
     return target;
   }
 
+  const currentUser = getStoredSessionUser();
+  if (window.NexlanceAccessControl && currentUser && !window.NexlanceAccessControl.canViewDashboard(currentUser)) {
+    return "projects.html";
+  }
+
   return "dashboard.html";
 }
 
@@ -76,72 +81,52 @@ function buildActiveRecord() {
 }
 
 function normalizeDashboardRole(role) {
-  return String(role || "owner").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (window.NexlanceAccessControl) {
+    return window.NexlanceAccessControl.normalizeRole(role || "admin");
+  }
+  return String(role || "admin").trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function getDefaultDashboardPermissions(role = "owner") {
+function getDefaultDashboardPermissions(role = "admin", isWorkspaceOwner = false) {
+  if (window.NexlanceAccessControl) {
+    return window.NexlanceAccessControl.getPermissionMatrix({
+      role,
+      isWorkspaceOwner,
+    });
+  }
   const normalizedRole = normalizeDashboardRole(role);
-  const permissionMatrix = {
-    owner: {
-      clients: { create: true, update: true, delete: true },
-      invoices: { create: true, update: true, delete: true },
-      projects: { create: true, update: true, delete: true },
-      services: { create: true, update: true, delete: true },
-      tasks: { create: true, update: true, delete: true },
-      team: { create: true, update: true, delete: true },
-    },
-    admin: {
-      clients: { create: true, update: true, delete: true },
-      invoices: { create: true, update: true, delete: true },
-      projects: { create: true, update: true, delete: true },
-      services: { create: true, update: true, delete: true },
-      tasks: { create: true, update: true, delete: true },
-      team: { create: true, update: true, delete: true },
-    },
-    project_manager: {
-      clients: { create: false, update: true, delete: false },
-      invoices: { create: true, update: true, delete: false },
-      projects: { create: true, update: true, delete: false },
-      services: { create: true, update: true, delete: false },
-      tasks: { create: true, update: true, delete: false },
-      team: { create: false, update: false, delete: false },
-    },
-    developer: {
-      clients: { create: false, update: false, delete: false },
-      invoices: { create: false, update: false, delete: false },
-      projects: { create: false, update: false, delete: false },
-      services: { create: false, update: false, delete: false },
-      tasks: { create: false, update: true, delete: false },
-      team: { create: false, update: false, delete: false },
-    },
-    designer: {
-      clients: { create: false, update: false, delete: false },
-      invoices: { create: false, update: false, delete: false },
-      projects: { create: false, update: false, delete: false },
-      services: { create: false, update: false, delete: false },
-      tasks: { create: false, update: true, delete: false },
-      team: { create: false, update: false, delete: false },
-    },
-    client: {
-      clients: { create: false, update: false, delete: false },
-      invoices: { create: false, update: false, delete: false },
-      projects: { create: false, update: false, delete: false },
-      services: { create: false, update: false, delete: false },
-      tasks: { create: false, update: false, delete: false },
-      team: { create: false, update: false, delete: false },
-    },
-  };
-
-  return JSON.parse(
-    JSON.stringify(permissionMatrix[normalizedRole] || permissionMatrix.owner)
-  );
+  return normalizedRole === "client"
+    ? {
+        clients: { create: false, update: false, delete: false, read: false },
+        invoices: { create: false, update: false, delete: false, read: false },
+        projects: { create: false, update: false, delete: false, read: true },
+        services: { create: false, update: false, delete: false, read: false },
+        tasks: { create: false, update: false, delete: false, read: false },
+        team: { create: false, update: false, delete: false, read: false },
+      }
+    : {
+        clients: { create: true, update: true, delete: true, read: true },
+        invoices: { create: true, update: true, delete: true, read: true },
+        projects: { create: true, update: true, delete: true, read: true },
+        services: { create: true, update: true, delete: true, read: true },
+        tasks: { create: true, update: true, delete: true, read: true },
+        team: { create: isWorkspaceOwner, update: isWorkspaceOwner, delete: isWorkspaceOwner, read: isWorkspaceOwner },
+      };
 }
 
-function buildDefaultDashboardAccessFields(role = "owner") {
+function buildDefaultDashboardAccessFields(role = "admin", isWorkspaceOwner = false) {
   const normalizedRole = normalizeDashboardRole(role);
   return {
     role: normalizedRole,
-    permissions: getDefaultDashboardPermissions(normalizedRole),
+    workspaceRole: normalizedRole,
+    isWorkspaceOwner,
+    permissions: getDefaultDashboardPermissions(normalizedRole, isWorkspaceOwner),
+    permissionKeys: window.NexlanceAccessControl
+      ? window.NexlanceAccessControl.getAuthenticatedPermissionKeys({
+          role: normalizedRole,
+          isWorkspaceOwner,
+        })
+      : [],
   };
 }
 
@@ -547,7 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setLoading("loginBtn", true, "Sign In", "Signing in...");
 
-    const accessFields = buildDefaultDashboardAccessFields("owner");
+    const accessFields = buildDefaultDashboardAccessFields("admin", false);
     const result = await loginWithEmail(email, password, {
       role: accessFields.role,
       permissions: accessFields.permissions,
@@ -574,6 +559,15 @@ document.addEventListener("DOMContentLoaded", () => {
       email: user.email,
       emailVerified: Boolean(user.emailVerified),
       role,
+      workspaceRole: profile?.workspaceRole || role,
+      workspaceId: profile?.workspaceId || "",
+      workspaceOwnerEmail: profile?.workspaceOwnerEmail || profile?.ownerEmail || user.email,
+      workspaceOwnerUserId: profile?.workspaceOwnerUserId || profile?.ownerUserId || user.uid,
+      isWorkspaceOwner: Boolean(profile?.isWorkspaceOwner),
+      permissionKeys: profile?.permissionKeys || accessFields.permissionKeys,
+      assignedProjectIds: profile?.assignedProjectIds || [],
+      membershipStatus: profile?.membershipStatus || "active",
+      inviteType: profile?.inviteType || "",
       permissions,
     });
 
@@ -687,7 +681,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setLoading("registerBtn", true, "Create Account", "Creating account...");
 
-    const accessFields = buildDefaultDashboardAccessFields("owner");
+    const accessFields = buildDefaultDashboardAccessFields("admin", true);
     const vip = isVipEmail(email);
     const trialRecord = vip ? buildActiveRecord() : buildTrialRecord();
 
@@ -713,6 +707,11 @@ document.addEventListener("DOMContentLoaded", () => {
         planCode: vip ? "business" : "individual",
         planPaid: vip,
         role: accessFields.role,
+        workspaceRole: accessFields.workspaceRole,
+        isWorkspaceOwner: true,
+        workspaceOwnerEmail: email,
+        workspaceOwnerUserId: "",
+        permissionKeys: accessFields.permissionKeys,
         permissions: accessFields.permissions,
       },
     });

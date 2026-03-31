@@ -18,7 +18,7 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN || '';
 const POLAR_API_BASE_URL = String(process.env.POLAR_API_BASE_URL || '').trim().replace(/\/+$/, '')
     || 'https://api.polar.sh';
-const POLAR_TEMPLATE_PRODUCT_ID = process.env.POLAR_TEMPLATE_PRODUCT_ID || '';
+const POLAR_TEMPLATE_PRODUCT_ID = process.env.POLAR_TEMPLATE_PRODUCT_ID || process.env.POLAR_PRODUCT_SINGLE_TEMPLATE || '';
 
 const TEMPLATE_PRICE = {
     amount: 19900,
