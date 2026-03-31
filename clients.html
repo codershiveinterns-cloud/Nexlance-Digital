@@ -410,52 +410,165 @@ function openEditModal(id) {
 
 function closeModal() { document.getElementById('clientModal').classList.remove('active'); }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function normalizeDateForApi(value) {
+  const safeValue = String(value || '').trim();
+  if (!safeValue) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(safeValue)) return safeValue;
+  const match = safeValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (match) {
+    return `${match[3]}-${match[2]}-${match[1]}`;
+  }
+  return '';
+}
+
+function parseCurrencyField(fieldId, label) {
+  const rawValue = document.getElementById(fieldId).value.trim();
+  if (!rawValue) return 0;
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a valid non-negative number`);
+  }
+  return value;
+}
+
+function getClientRequestDiagnostics(error, requestConfig = {}) {
+  return {
+    url: requestConfig.url || error?.response?.url || '/api/invitations/client',
+    method: requestConfig.method || error?.response?.method || 'POST',
+    payload: requestConfig.payload || error?.response?.payload || null,
+    status: error?.response?.status || error?.status || null,
+    backendMessage: error?.response?.data?.error
+      || error?.response?.data?.message
+      || error?.message
+      || 'Request failed.'
+  };
+}
+
+function buildClientFormPayload() {
+  const name = document.getElementById('fName').value.trim();
+  const email = document.getElementById('fEmail').value.trim().toLowerCase();
+  const hostingExpiry = normalizeDateForApi(document.getElementById('fHostingExpiry').value);
+  const sslExpiry = normalizeDateForApi(document.getElementById('fSslExpiry').value);
+  const assignedProjectIds = getSelectedProjectIds();
+  const totalContractValue = parseCurrencyField('fContractValue', 'Total contract value');
+  const paidAmount = parseCurrencyField('fPaidAmount', 'Paid amount');
+
+  if (!name) {
+    throw new Error('Client name is required');
+  }
+  if (!editingId && !email) {
+    throw new Error('Client email is required to send the invitation');
+  }
+  if (email && !isValidEmail(email)) {
+    throw new Error('Enter a valid client email address');
+  }
+  if (document.getElementById('fHostingExpiry').value && !hostingExpiry) {
+    throw new Error('Hosting expiry must use YYYY-MM-DD format');
+  }
+  if (document.getElementById('fSslExpiry').value && !sslExpiry) {
+    throw new Error('SSL expiry must use YYYY-MM-DD format');
+  }
+  if (paidAmount > totalContractValue && totalContractValue > 0) {
+    throw new Error('Paid amount cannot be greater than total contract value');
+  }
+  if (!Array.isArray(assignedProjectIds)) {
+    throw new Error('Assigned project access must be sent as a list of project IDs');
+  }
+
+  return {
+    requestPayload: {
+      name,
+      email,
+      assignedProjectIds,
+      metadata: {
+        name,
+        email,
+        phone: document.getElementById('fPhone').value.trim(),
+        company: document.getElementById('fCompany').value.trim(),
+        domain_name: document.getElementById('fDomain').value.trim(),
+        hosting_provider: document.getElementById('fHostingProvider').value.trim(),
+        project_type: document.getElementById('fProjectType').value,
+        platform: document.getElementById('fPlatform').value,
+        hosting_expiry: hostingExpiry,
+        ssl_expiry: sslExpiry,
+        maintenance_plan: document.getElementById('fMaintenance').value,
+        plan_type: document.getElementById('fPlanType').value,
+        total_contract_value: totalContractValue,
+        paid_amount: paidAmount,
+        assigned_project_ids: assignedProjectIds
+      }
+    },
+    updatePayload: {
+      name,
+      email,
+      phone: document.getElementById('fPhone').value.trim(),
+      company: document.getElementById('fCompany').value.trim(),
+      domain_name: document.getElementById('fDomain').value.trim(),
+      hosting_provider: document.getElementById('fHostingProvider').value.trim(),
+      project_type: document.getElementById('fProjectType').value,
+      platform: document.getElementById('fPlatform').value,
+      hosting_expiry: hostingExpiry,
+      ssl_expiry: sslExpiry,
+      maintenance_plan: document.getElementById('fMaintenance').value,
+      plan_type: document.getElementById('fPlanType').value,
+      total_contract_value: totalContractValue,
+      paid_amount: paidAmount,
+      assigned_project_ids: assignedProjectIds
+    }
+  };
+}
+
 async function saveClient() {
   if (!ensureDataAccess()) return;
-  const name = document.getElementById('fName').value.trim();
-  if (!name) { showToast('Client name is required', 'error'); return; }
-  const email = document.getElementById('fEmail').value.trim();
-  if (!editingId && !email) { showToast('Client email is required to send the invitation', 'error'); return; }
-  const he = document.getElementById('fHostingExpiry').value;
-  const se = document.getElementById('fSslExpiry').value;
-  if (he && !isValidDate(he)) { markDateError('fHostingExpiry', 'Invalid hosting expiry date'); showToast('Enter a valid hosting expiry date', 'error'); return; }
-  if (se && !isValidDate(se)) { markDateError('fSslExpiry', 'Invalid SSL expiry date'); showToast('Enter a valid SSL expiry date', 'error'); return; }
-  clearDateError('fHostingExpiry'); clearDateError('fSslExpiry');
-  const assignedProjectIds = getSelectedProjectIds();
-  const data = {
-    name, email,
-    phone: document.getElementById('fPhone').value.trim(),
-    company: document.getElementById('fCompany').value.trim(),
-    domain_name: document.getElementById('fDomain').value.trim(),
-    hosting_provider: document.getElementById('fHostingProvider').value.trim(),
-    project_type: document.getElementById('fProjectType').value,
-    platform: document.getElementById('fPlatform').value,
-    hosting_expiry: he || null,
-    ssl_expiry: se || null,
-    maintenance_plan: document.getElementById('fMaintenance').value,
-    plan_type: document.getElementById('fPlanType').value,
-    total_contract_value: Number(document.getElementById('fContractValue').value) || 0,
-    paid_amount: Number(document.getElementById('fPaidAmount').value) || 0,
-    assigned_project_ids: assignedProjectIds
-  };
+  let payloads;
   try {
+    payloads = buildClientFormPayload();
+    clearDateError('fHostingExpiry');
+    clearDateError('fSslExpiry');
+
     if (editingId) {
-      const updated = await updateClient(editingId, data);
+      console.groupCollapsed('[Clients] Save Client request');
+      console.log('request URL', `/api/dashboard/clients/${editingId}`);
+      console.log('HTTP method', 'PATCH');
+      console.log('request payload', payloads.updatePayload);
+      console.groupEnd();
+      const updated = await updateClient(editingId, payloads.updatePayload);
       const idx = clients.findIndex(c => c.id === editingId);
       if (idx > -1) clients[idx] = updated;
       showToast('Client updated successfully!', 'success');
     } else {
-      const created = await inviteClient({
-        name,
-        email,
-        assignedProjectIds,
-        metadata: data
-      });
+      console.groupCollapsed('[Clients] Save Client request');
+      console.log('request URL', '/api/invitations/client');
+      console.log('HTTP method', 'POST');
+      console.log('request payload', payloads.requestPayload);
+      console.groupEnd();
+      const created = await inviteClient(payloads.requestPayload);
       clients.unshift(created.record);
       showToast('Client invited successfully!', 'success');
     }
     closeModal(); renderStats(); filterClients();
-  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  } catch (e) {
+    const diagnostics = getClientRequestDiagnostics(e, {
+      url: editingId ? `/api/dashboard/clients/${editingId}` : '/api/invitations/client',
+      method: editingId ? 'PATCH' : 'POST',
+      payload: editingId ? payloads?.updatePayload : payloads?.requestPayload
+    });
+    console.group('[Clients] Save Client failed');
+    console.log('request URL', diagnostics.url);
+    console.log('HTTP method', diagnostics.method);
+    console.log('request payload', diagnostics.payload);
+    console.log('response status code', diagnostics.status);
+    console.log('exact backend error message', diagnostics.backendMessage);
+    console.log('error.response?.data', e?.response?.data || null);
+    console.log('error.message', e?.message || '');
+    console.error(e);
+    console.groupEnd();
+    showToast(diagnostics.backendMessage, 'error');
+  }
 }
 
 async function handleDelete(id) {

@@ -801,13 +801,16 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
     }
 
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const rawText = await response.text().catch(() => '');
     let data = null;
-    if (contentType.includes('application/json')) {
+    if (contentType.includes('application/json') && rawText) {
         try {
-            data = await response.json();
+            data = JSON.parse(rawText);
         } catch (error) {
             data = null;
         }
+    } else if (rawText) {
+        data = { message: rawText };
     }
 
     if (!response.ok) {
@@ -816,8 +819,16 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
             unavailable.code = 'api/unavailable';
             throw unavailable;
         }
-        const wrapped = new Error((data && (data.error || data.message)) || 'Dashboard request failed.');
+        const wrapped = new Error((data && (data.error || data.message)) || (rawText ? rawText.trim() : '') || 'Dashboard request failed.');
         wrapped.status = response.status;
+        wrapped.response = {
+            status: response.status,
+            data,
+            text: rawText,
+            url: path,
+            method,
+            payload
+        };
         throw wrapped;
     }
 
@@ -844,10 +855,31 @@ async function authorizedApiRequest(path, method = 'GET', payload = null) {
         body: payload !== null ? JSON.stringify(payload) : undefined
     });
 
-    const data = await response.json().catch(() => ({}));
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const rawText = await response.text().catch(() => '');
+    let data = {};
+    if (contentType.includes('application/json') && rawText) {
+        try {
+            data = JSON.parse(rawText);
+        } catch (error) {
+            data = {};
+        }
+    } else if (rawText) {
+        data = { message: rawText };
+    }
+
     if (!response.ok) {
-        const error = new Error(data.error || data.message || 'Request failed.');
+        const errorMessage = data.error || data.message || (rawText ? rawText.trim() : '') || 'Request failed.';
+        const error = new Error(errorMessage);
         error.status = response.status;
+        error.response = {
+            status: response.status,
+            data,
+            text: rawText,
+            url: path,
+            method,
+            payload
+        };
         throw error;
     }
     return data;
