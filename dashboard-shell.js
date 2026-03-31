@@ -2,6 +2,7 @@
     const THEME_STORAGE_KEY = 'nexlance_dashboard_theme';
     const SETTINGS_STORAGE_KEY = 'nexlance_dashboard_settings';
     const MOBILE_SIDEBAR_BREAKPOINT = '(max-width: 768px)';
+    const AUTH_NOTICE_KEY = 'nexlance_auth_notice';
 
     function normalizeEmail(email) {
         return String(email || '').trim().toLowerCase();
@@ -13,6 +14,20 @@
         } catch (error) {
             return null;
         }
+    }
+
+    function enforceVerifiedSession() {
+        const currentUser = getCurrentUser();
+        if (!currentUser || currentUser.emailVerified !== false) {
+            return true;
+        }
+
+        sessionStorage.setItem(AUTH_NOTICE_KEY, 'Please verify your email before accessing the dashboard.');
+        localStorage.removeItem('nexlance_auth');
+        localStorage.removeItem('nexlance_user');
+        localStorage.removeItem('nexlance_trial');
+        window.location.href = 'login.html';
+        return false;
     }
 
     function getScopedStorageKey(baseKey) {
@@ -283,12 +298,14 @@
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
+            if (!enforceVerifiedSession()) return;
             applySettingsToPage();
             removeDashboardSearchBars();
             ensureSidebarSignOutButton();
             ensureMobileSidebarToggle();
         });
     } else {
+        if (!enforceVerifiedSession()) return;
         applySettingsToPage();
         removeDashboardSearchBars();
         ensureSidebarSignOutButton();

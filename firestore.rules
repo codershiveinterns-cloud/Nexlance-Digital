@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isVerified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    /*
+      Basic per-user profile rules.
+      Use this first if you want signup to create users/{uid} immediately,
+      even before the user has verified their email.
+    */
+    match /users/{userId} {
+      allow create: if isOwner(userId);
+      allow read, update, delete: if isOwner(userId);
+    }
+
+    /*
+      Optional stricter version for protected profile data.
+      If you enable this instead of the block above, make sure create is still
+      allowed before verification, or signup will fail when it writes users/{uid}.
+
+      match /users/{userId} {
+        allow create: if isOwner(userId);
+        allow read, update, delete: if isOwner(userId) && isVerified();
+      }
+    */
+  }
+}

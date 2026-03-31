@@ -45,13 +45,6 @@ const PRIVILEGED_EMAILS = [
     'vijaypratap@nexlancedigital.com',
     'mehrahinal113@gmail.com'
 ];
-const EMAILJS_CONFIG = {
-    publicKey: '5UAtxwDsYDz1wJJBL',
-    serviceId: 'service_9f3cook',
-    templateId: 'template_69wbe5g',
-    fromName: 'Nexlance',
-    otpExpiryMinutes: 10
-};
 const PLAN_ACCESS_CONFIG = {
     individual: {
         pages: ['projects.html', 'project-detail.html', 'developer-info.html', 'settings.html'],
@@ -1385,7 +1378,13 @@ async function deleteClient(id) {
         setLocalEntityData('clients', records);
         return;
     }
-    await db.collection('clients').doc(id).delete();
+    try {
+        await db.collection('clients').doc(id).delete();
+    } catch (error) {
+        if (!shouldUseLocalEntityFallback(error)) throw error;
+    }
+    const records = getLocalEntityData('clients').filter(c => c.id !== id);
+    setLocalEntityData('clients', records);
 }
 
 async function fetchProjects(clientId = null) {
@@ -1547,6 +1546,13 @@ async function deleteProject(id) {
             || message.toLowerCase().includes('no document to delete')
             || code === 'not-found'
             || code === 5;
+        if (shouldUseLocalEntityFallback(error)) {
+            const records = getLocalEntityData('projects').filter(p => p.id !== id);
+            setLocalEntityData('projects', records);
+            const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
+            setLegacyTemplateProjects(legacyRecords);
+            return;
+        }
         if (!isMissingDocumentError) {
             throw error;
         }
@@ -1657,7 +1663,13 @@ async function deleteTask(id) {
         setLocalEntityData('tasks', records);
         return;
     }
-    await db.collection('tasks').doc(id).delete();
+    try {
+        await db.collection('tasks').doc(id).delete();
+    } catch (error) {
+        if (!shouldUseLocalEntityFallback(error)) throw error;
+    }
+    const records = getLocalEntityData('tasks').filter(t => t.id !== id);
+    setLocalEntityData('tasks', records);
 }
 
 async function fetchInvoices() {
@@ -1753,7 +1765,13 @@ async function deleteInvoice(id) {
         setLocalEntityData('invoices', records);
         return;
     }
-    await db.collection('invoices').doc(id).delete();
+    try {
+        await db.collection('invoices').doc(id).delete();
+    } catch (error) {
+        if (!shouldUseLocalEntityFallback(error)) throw error;
+    }
+    const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
+    setLocalEntityData('invoices', records);
 }
 
 async function fetchServices() {
@@ -1847,7 +1865,13 @@ async function deleteService(id) {
         setLocalEntityData('services', records);
         return;
     }
-    await db.collection('services').doc(id).delete();
+    try {
+        await db.collection('services').doc(id).delete();
+    } catch (error) {
+        if (!shouldUseLocalEntityFallback(error)) throw error;
+    }
+    const records = getLocalEntityData('services').filter(s => s.id !== id);
+    setLocalEntityData('services', records);
 }
 
 async function fetchTeamMembers() {
@@ -1941,7 +1965,13 @@ async function deleteTeamMember(id) {
         setLocalEntityData('team_members', records);
         return;
     }
-    await db.collection('team_members').doc(id).delete();
+    try {
+        await db.collection('team_members').doc(id).delete();
+    } catch (error) {
+        if (!shouldUseLocalEntityFallback(error)) throw error;
+    }
+    const records = getLocalEntityData('team_members').filter(m => m.id !== id);
+    setLocalEntityData('team_members', records);
 }
 
 async function logActivity(description, userName = 'Admin') {
@@ -2130,9 +2160,6 @@ const sampleTeamMembers = [
 document.addEventListener("DOMContentLoaded", () => {
     migrateLocalCurrencyToGbp();
     syncAccessUiState();
-    if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG && EMAILJS_CONFIG.publicKey) {
-        try { emailjs.init(EMAILJS_CONFIG.publicKey); } catch (e) { /* will use per-call key */ }
-    }
 });
 
 window.addEventListener('pageshow', syncAccessUiState);

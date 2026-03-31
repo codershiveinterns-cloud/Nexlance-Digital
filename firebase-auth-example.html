@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Auth Example</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(59, 130, 246, 0.16), transparent 28%),
+        linear-gradient(135deg, #eef4ff 0%, #fdfefe 100%);
+      color: #10233f;
+    }
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 16px;
+    }
+    .auth-card {
+      width: min(100%, 540px);
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(10px);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.9rem;
+    }
+    p {
+      margin: 0 0 20px;
+      color: #51627c;
+      line-height: 1.6;
+    }
+    .form-grid {
+      display: grid;
+      gap: 14px;
+    }
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid #c8d4e4;
+      font: inherit;
+      background: #fff;
+    }
+    input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+    .button-row {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    button {
+      border: none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+    }
+    .primary {
+      background: #2563eb;
+      color: #fff;
+    }
+    .secondary {
+      background: #e9f0ff;
+      color: #1d4ed8;
+    }
+    .ghost {
+      background: #f5f7fb;
+      color: #334155;
+    }
+    .message {
+      min-height: 24px;
+      margin-top: 14px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .message.success {
+      color: #047857;
+    }
+    .message.error {
+      color: #dc2626;
+    }
+    .session-box {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 16px;
+      background: #f8fbff;
+      border: 1px solid #dbe6f4;
+      font-size: 0.9rem;
+      color: #475569;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-shell">
+    <div class="auth-card">
+      <h1>Firebase Auth Demo</h1>
+      <p>Create an account, verify your email, sign in, resend verification, and request a password reset.</p>
+
+      <div class="form-grid">
+        <label>
+          Full Name
+          <input id="fullName" type="text" placeholder="Rahul Sharma">
+        </label>
+
+        <label>
+          Email
+          <input id="email" type="email" placeholder="you@example.com">
+        </label>
+
+        <label>
+          Mobile Number
+          <input id="mobile" type="tel" placeholder="9876543210">
+        </label>
+
+        <label>
+          Password
+          <input id="password" type="password" placeholder="Strong password">
+        </label>
+
+        <label>
+          Confirm Password
+          <input id="confirmPassword" type="password" placeholder="Confirm password">
+        </label>
+      </div>
+
+      <div class="button-row">
+        <button class="primary" id="signupBtn" type="button">Create Account</button>
+        <button class="secondary" id="loginBtn" type="button">Login</button>
+        <button class="ghost" id="forgotPasswordBtn" type="button">Forgot Password</button>
+        <button class="ghost" id="resendVerificationBtn" type="button">Resend Verification Email</button>
+        <button class="ghost" id="logoutBtn" type="button">Logout</button>
+      </div>
+
+      <div class="message" id="message"></div>
+      <div class="session-box" id="authState">No active session.</div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js"
+      }
+    }
+  </script>
+  <script type="module" src="firebase-auth-example.js"></script>
+</body>
+</html>

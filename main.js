@@ -748,8 +748,4 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('%cBuild beautiful websites without code.', 'font-size: 14px; color: #6b7280;');
     console.log('%c----------------------------------------', 'color: #e5e7eb;');
     
-});          
-
-document.addEventListener("DOMContentLoaded", () => {
-    emailjs.init(EMAILJS_CONFIG.publicKey);
 });

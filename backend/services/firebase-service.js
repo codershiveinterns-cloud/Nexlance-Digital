@@ -385,12 +385,11 @@ async function createCollectionDocument(collectionId, fields, docId = '') {
 
 async function patchCollectionDocument(collectionId, docId, fields) {
     const accessToken = await getGoogleAccessToken();
-    const normalizedDocId = sanitizeDocumentId(docId);
     const updateMask = Object.keys(fields)
         .map(key => `updateMask.fieldPaths=${encodeURIComponent(key)}`)
         .join('&');
 
-    const response = await fetch(`${getDocumentEndpoint(collectionId, normalizedDocId)}?${updateMask}`, {
+    const response = await fetch(`${getDocumentEndpoint(collectionId, docId)}?${updateMask}`, {
         method: 'PATCH',
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -409,15 +408,14 @@ async function patchCollectionDocument(collectionId, docId, fields) {
     }
 
     return {
-        id: normalizedDocId,
+        id: docId,
         ...decodeFirestoreDocument(data)
     };
 }
 
 async function deleteCollectionDocument(collectionId, docId) {
     const accessToken = await getGoogleAccessToken();
-    const normalizedDocId = sanitizeDocumentId(docId);
-    const response = await fetch(getDocumentEndpoint(collectionId, normalizedDocId), {
+    const response = await fetch(getDocumentEndpoint(collectionId, docId), {
         method: 'DELETE',
         headers: {
             Authorization: `Bearer ${accessToken}`
@@ -435,7 +433,7 @@ async function deleteCollectionDocument(collectionId, docId) {
         } catch (error) {
             data = null;
         }
-        throw new Error((data && data.error && data.error.message) || `Could not delete Firestore document ${collectionId}/${normalizedDocId}.`);
+        throw new Error((data && data.error && data.error.message) || `Could not delete Firestore document ${collectionId}/${docId}.`);
     }
 
     return true;

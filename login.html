@@ -49,6 +49,16 @@
         </div>
 
         <div id="loginMessage" class="form-message" aria-live="polite"></div>
+        <div class="form-row" style="justify-content:flex-start;">
+          <button
+            class="small-btn"
+            id="resendVerificationBtn"
+            type="button"
+            style="display:none;"
+          >
+            Resend verification email
+          </button>
+        </div>
       </form>
 
       <!-- ====== REGISTER FORM ====== -->
@@ -129,7 +139,7 @@
       <!-- ====== FORGOT PASSWORD SECTION ====== -->
       <div id="forgotSection" style="display:none;">
         <p class="forgot-desc">
-          Enter your registered email address. We'll send a one-time OTP to your inbox so you can reset your password securely.
+          Enter your registered email address and Firebase will send you a password reset email.
         </p>
 
         <div class="form" style="gap:16px;">
@@ -141,39 +151,8 @@
           </label>
 
           <button class="btn-primary btn-block" type="button" id="sendResetBtn">
-            Send OTP
+            Send reset email
           </button>
-
-          <div id="forgotOtpFields" style="display:none;gap:16px;">
-            <label style="display:flex;flex-direction:column;gap:7px;font-size:.85rem;font-weight:600;color:#555;">
-              Enter OTP
-              <input id="forgotOtp" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit OTP"
-                style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid #e0d6ff;background:#faf9ff;font-size:.9rem;color:#333;outline:none;transition:border-color .2s,box-shadow .2s;font-family:'Segoe UI',sans-serif;">
-              <span class="field-error" id="forgotOtpError"></span>
-            </label>
-
-            <label>
-              New Password
-              <div class="password-row">
-                <input id="forgotNewPassword" type="password" placeholder="Min 8 characters" autocomplete="new-password">
-                <button type="button" id="toggleForgotNewPassword" class="small-btn">Show</button>
-              </div>
-              <span class="field-error" id="forgotNewPasswordError"></span>
-            </label>
-
-            <label>
-              Confirm New Password
-              <div class="password-row">
-                <input id="forgotConfirmPassword" type="password" placeholder="Re-enter password" autocomplete="new-password">
-                <button type="button" id="toggleForgotConfirmPassword" class="small-btn">Show</button>
-              </div>
-              <span class="field-error" id="forgotConfirmPasswordError"></span>
-            </label>
-
-            <button class="btn-primary btn-block" type="button" id="verifyOtpBtn">
-              Verify OTP & Save Password
-            </button>
-          </div>
 
           <div id="forgotMessage" class="form-message" aria-live="polite"></div>
 
@@ -193,15 +172,19 @@
     </aside>
   </div>
 
-  <!-- Firebase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js"
+      }
+    }
+  </script>
   <!-- App config (sets up `auth` + `db` clients) -->
   <script src="billing-catalog.js"></script>
   <script src="supabase-config.js"></script>
   <!-- Auth logic -->
-  <script src="auth.js"></script>
+  <script type="module" src="auth.js"></script>
 </body>
 </html>
