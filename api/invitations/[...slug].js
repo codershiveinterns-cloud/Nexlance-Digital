@@ -1,4 +1,3 @@
-const listInvitationsHandler = require('../../backend/api/invitations-list');
 const resolveInvitationHandler = require('../../backend/api/invitations-resolve');
 const acceptInvitationHandler = require('../../backend/api/invitations-accept');
 const createClientInvitationHandler = require('../../backend/api/invitations-client');
@@ -14,10 +13,6 @@ function getSlugParts(req) {
 
 module.exports = async function handler(req, res) {
     const slugParts = getSlugParts(req);
-
-    if (!slugParts.length) {
-        return listInvitationsHandler(req, res);
-    }
 
     if (slugParts.length === 1) {
         const [segment] = slugParts;

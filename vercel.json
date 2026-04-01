@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/polar-webhook",
+      "destination": "/api/webhooks/polar"
+    }
+  ]
+}
