@@ -4,9 +4,43 @@ const createClientInvitationHandler = require('../../backend/api/invitations-cli
 const createTeamInvitationHandler = require('../../backend/api/invitations-team');
 const resendInvitationHandler = require('../../backend/api/invitations-resend');
 
+function getRequestPathname(req) {
+    const directRequestUrl = String((req && req.url) || '').trim();
+    const matchedPathHeader = req && req.headers
+        ? (req.headers['x-matched-path'] || req.headers['x-invoke-path'])
+        : '';
+    const requestUrl = directRequestUrl || String(matchedPathHeader || '').trim();
+
+    if (!requestUrl) {
+        return '';
+    }
+
+    try {
+        return new URL(requestUrl, 'https://nexlance.local').pathname;
+    } catch (error) {
+        return requestUrl.split('?')[0].trim();
+    }
+}
+
 function getSlugParts(req) {
     const source = req && req.query ? req.query.slug : [];
-    return (Array.isArray(source) ? source : [source])
+    const slugFromQuery = (Array.isArray(source) ? source : [source])
+        .map(entry => String(entry || '').trim())
+        .filter(Boolean);
+
+    if (slugFromQuery.length) {
+        return slugFromQuery;
+    }
+
+    const pathname = getRequestPathname(req);
+    const routePrefix = '/api/invitations/';
+    if (!pathname.startsWith(routePrefix)) {
+        return [];
+    }
+
+    return pathname
+        .slice(routePrefix.length)
+        .split('/')
         .map(entry => String(entry || '').trim())
         .filter(Boolean);
 }
