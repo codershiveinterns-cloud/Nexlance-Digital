@@ -26,7 +26,21 @@ function normalizeBody(body) {
 }
 
 function getRequestOrigin(req) {
-    return req.headers.origin || `https://${req.headers.host}`;
+    if (req.headers.origin) return req.headers.origin;
+
+    const forwardedProtoHeader = Array.isArray(req.headers['x-forwarded-proto'])
+        ? req.headers['x-forwarded-proto'][0]
+        : req.headers['x-forwarded-proto'];
+    const forwardedHostHeader = Array.isArray(req.headers['x-forwarded-host'])
+        ? req.headers['x-forwarded-host'][0]
+        : req.headers['x-forwarded-host'];
+    const protocol = String(
+        forwardedProtoHeader
+        || (req.socket && req.socket.encrypted ? 'https' : 'http')
+    ).split(',')[0].trim() || 'http';
+    const host = String(forwardedHostHeader || req.headers.host || 'localhost:4242').split(',')[0].trim();
+
+    return `${protocol}://${host}`;
 }
 
 function sendApiError(res, error, fallbackMessage, fallbackStatusCode = 400) {

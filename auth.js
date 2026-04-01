@@ -244,14 +244,6 @@ function validateEmail(email) {
   return null;
 }
 
-function validateMobile(mobile) {
-  if (!mobile.trim()) return "Mobile number is required.";
-  if (!/^[6-9][0-9]{9}$/.test(mobile.trim())) {
-    return "Enter a valid 10-digit mobile number.";
-  }
-  return null;
-}
-
 function validatePassword(password) {
   if (!password) return "Password is required.";
   if (password.length < 8) return "Password must be at least 8 characters.";
@@ -356,7 +348,6 @@ document.addEventListener("DOMContentLoaded", () => {
       "loginPassword",
       "regName",
       "regEmail",
-      "regMobile",
       "regAccountType",
       "regBusinessEmail",
       "regBusinessName",
@@ -604,7 +595,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const name = getInputValue("regName").trim();
     const email = normalizeEmail(getInputValue("regEmail"));
-    const mobile = getInputValue("regMobile").trim();
     const accountType = getInputValue("regAccountType");
     const businessEmail = normalizeEmail(getInputValue("regBusinessEmail"));
     const businessName = getInputValue("regBusinessName").trim();
@@ -622,12 +612,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const emailError = validateEmail(email);
     if (emailError) {
       showFieldError("regEmail", emailError);
-      isValid = false;
-    }
-
-    const mobileError = validateMobile(mobile);
-    if (mobileError) {
-      showFieldError("regMobile", mobileError);
       isValid = false;
     }
 
@@ -692,7 +676,6 @@ document.addEventListener("DOMContentLoaded", () => {
       profileData: {
         name,
         email,
-        mobile,
         accountType,
         businessEmail: accountType === "business" ? businessEmail : "",
         businessName: accountType === "business" ? businessName : "",
@@ -780,15 +763,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("regEmail").addEventListener("blur", () => {
     const error = validateEmail(getInputValue("regEmail"));
     error ? showFieldError("regEmail", error) : clearFieldError("regEmail");
-  });
-
-  document.getElementById("regMobile").addEventListener("blur", () => {
-    const error = validateMobile(getInputValue("regMobile"));
-    error ? showFieldError("regMobile", error) : clearFieldError("regMobile");
-  });
-
-  document.getElementById("regMobile").addEventListener("input", function () {
-    this.value = this.value.replace(/\D/g, "");
   });
 
   document.getElementById("regAccountType").addEventListener("change", () => {

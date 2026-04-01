@@ -314,6 +314,24 @@ function getRequestIp(req) {
     return req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : 'unknown';
 }
 
+function getRequestOrigin(req) {
+    if (req.headers.origin) return req.headers.origin;
+
+    const forwardedProtoHeader = Array.isArray(req.headers['x-forwarded-proto'])
+        ? req.headers['x-forwarded-proto'][0]
+        : req.headers['x-forwarded-proto'];
+    const forwardedHostHeader = Array.isArray(req.headers['x-forwarded-host'])
+        ? req.headers['x-forwarded-host'][0]
+        : req.headers['x-forwarded-host'];
+    const protocol = String(
+        forwardedProtoHeader
+        || (req.socket && req.socket.encrypted ? 'https' : 'http')
+    ).split(',')[0].trim() || 'http';
+    const host = String(forwardedHostHeader || req.headers.host || 'localhost:4242').split(',')[0].trim();
+
+    return `${protocol}://${host}`;
+}
+
 function getLoginAttemptState(ip) {
     const now = Date.now();
     const existing = adminLoginAttempts.get(ip);
@@ -771,7 +789,7 @@ const server = http.createServer(async (req, res) => {
                 email: normalizedPayload.email,
                 role: 'client',
                 assignedProjectIds: normalizedPayload.assignedProjectIds,
-                origin: req.headers.origin || `http://${req.headers.host}`,
+                origin: getRequestOrigin(req),
                 metadata: normalizedPayload.metadata
             });
             sendJson(res, 200, {
@@ -797,7 +815,7 @@ const server = http.createServer(async (req, res) => {
                 email: String(body.email || body.memberEmail || '').trim(),
                 role: String(body.role || '').trim(),
                 assignedProjectIds: body.assignedProjectIds || [],
-                origin: req.headers.origin || `http://${req.headers.host}`,
+                origin: getRequestOrigin(req),
                 metadata: body.metadata || {}
             });
             sendJson(res, 200, {
@@ -819,7 +837,7 @@ const server = http.createServer(async (req, res) => {
             const invitation = await resendInvitation({
                 invitationId,
                 session,
-                origin: req.headers.origin || `http://${req.headers.host}`
+                origin: getRequestOrigin(req)
             });
             sendJson(res, 200, {
                 ok: true,

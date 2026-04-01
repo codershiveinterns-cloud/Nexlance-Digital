@@ -346,12 +346,21 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--color-secondary);
 }
 
+.nav-item > a[aria-current="page"] {
+    color: var(--color-secondary);
+    font-weight: 600;
+}
+
 .nav-item .arrow {
     font-size: 10px;
     transition: transform var(--transition-fast);
 }
 
 .nav-item:hover .arrow {
+    transform: rotate(180deg);
+}
+
+.nav-item.is-open .arrow {
     transform: rotate(180deg);
 }
 
@@ -446,6 +455,38 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--color-secondary);
     border-top: 1px solid var(--color-border);
     margin-top: 0.5rem;
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .logo {
+    color: #fff;
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .logo-icon {
+    color: #a5b4fc;
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .nav-item > a,
+.navbar.navbar-theme-dark:not(.scrolled) .btn-text {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .nav-item > a[aria-current="page"],
+.navbar.navbar-theme-dark:not(.scrolled) .nav-item > a:hover,
+.navbar.navbar-theme-dark:not(.scrolled) .btn-text:hover {
+    color: #fff;
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .btn-primary {
+    background: #6366f1;
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .btn-primary:hover {
+    background: #4f46e5;
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+}
+
+.navbar.navbar-theme-dark:not(.scrolled) .mobile-toggle span {
+    background: #fff;
 }
 
 .nav-actions {
@@ -1726,6 +1767,36 @@ section {
         background: #fff;
         padding: 1rem;
         box-shadow: var(--shadow-lg);
+    }
+
+    .nav-menu.active .nav-item {
+        width: 100%;
+    }
+
+    .nav-menu.active .nav-item > a {
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .nav-menu.active .dropdown {
+        position: static;
+        left: auto;
+        transform: none;
+        min-width: 0;
+        display: none;
+        opacity: 1;
+        visibility: visible;
+        margin-top: 0.5rem;
+        border: 1px solid var(--color-border);
+        box-shadow: none;
+    }
+
+    .nav-menu.active .nav-item.is-open .dropdown {
+        display: block;
+    }
+
+    .nav-menu.active .dropdown-templates {
+        min-width: 0;
     }
     
     .hero {

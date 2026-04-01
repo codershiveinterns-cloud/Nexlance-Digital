@@ -363,14 +363,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Navbar Scroll Effect
     // =========================================
     const navbar = document.getElementById('navbar');
+    const navbarManagedBySharedComponent = Boolean(
+        window.NexlanceSiteNavbar && window.NexlanceSiteNavbar.managesBehavior
+    );
 
-    window.addEventListener('scroll', function() {
-        if (window.pageYOffset > 50) {
-            navbar.classList.add('scrolled');
-        } else {
-            navbar.classList.remove('scrolled');
-        }
-    });
+    if (navbar && !navbarManagedBySharedComponent) {
+        window.addEventListener('scroll', function() {
+            if (window.pageYOffset > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    }
     
     // =========================================
     // Mobile Navigation Toggle
@@ -378,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const mobileToggle = document.getElementById('mobile-toggle');
     const navMenu = document.getElementById('nav-menu');
     
-    if (mobileToggle) {
+    if (mobileToggle && navMenu && !navbarManagedBySharedComponent) {
         mobileToggle.addEventListener('click', function() {
             navMenu.classList.toggle('active');
             this.classList.toggle('active');
@@ -403,8 +408,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 
                 // Close mobile menu
-                navMenu.classList.remove('active');
-                mobileToggle.classList.remove('active');
+                if (navMenu) {
+                    navMenu.classList.remove('active');
+                }
+                if (mobileToggle) {
+                    mobileToggle.classList.remove('active');
+                }
             }
         });
     });

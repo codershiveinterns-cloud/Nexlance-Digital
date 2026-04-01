@@ -25,14 +25,6 @@ function validateEmail(email) {
   return null;
 }
 
-function validateMobile(mobile) {
-  if (!mobile) return "Mobile number is required.";
-  if (!/^[6-9][0-9]{9}$/.test(mobile)) {
-    return "Enter a valid 10-digit mobile number.";
-  }
-  return null;
-}
-
 function validatePassword(password) {
   if (!password) return "Password is required.";
   if (password.length < 8) return "Password must be at least 8 characters.";
@@ -49,7 +41,6 @@ function getFormValues() {
   return {
     fullName: document.getElementById("fullName").value.trim(),
     email: normalizeEmail(document.getElementById("email").value),
-    mobile: document.getElementById("mobile").value.trim(),
     password: document.getElementById("password").value,
     confirmPassword: document.getElementById("confirmPassword").value,
   };
@@ -70,7 +61,7 @@ function updateAuthState(user) {
 }
 
 document.getElementById("signupBtn").addEventListener("click", async () => {
-  const { fullName, email, mobile, password, confirmPassword } = getFormValues();
+  const { fullName, email, password, confirmPassword } = getFormValues();
 
   if (!fullName) {
     setMessage("Full name is required.", "error");
@@ -80,12 +71,6 @@ document.getElementById("signupBtn").addEventListener("click", async () => {
   const emailError = validateEmail(email);
   if (emailError) {
     setMessage(emailError, "error");
-    return;
-  }
-
-  const mobileError = validateMobile(mobile);
-  if (mobileError) {
-    setMessage(mobileError, "error");
     return;
   }
 
@@ -107,7 +92,6 @@ document.getElementById("signupBtn").addEventListener("click", async () => {
     profileData: {
       name: fullName,
       email,
-      mobile,
       createdAt: new Date().toISOString(),
     },
   });

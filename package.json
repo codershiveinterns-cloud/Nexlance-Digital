@@ -1,7 +1,8 @@
 {
   "scripts": {
     "start": "node backend/server.js",
-    "start:compat": "node server.js"
+    "start:compat": "node server.js",
+    "test:email": "node backend/scripts/test-resend.js"
   },
   "dependencies": {
     "firebase": "^12.10.0"

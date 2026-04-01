@@ -80,7 +80,6 @@
           <div class="info-grid">
             <div class="info-item"><div class="info-label">Full Name</div><div class="info-value" id="iName">—</div></div>
             <div class="info-item"><div class="info-label">Email</div><div class="info-value" id="iEmail">—</div></div>
-            <div class="info-item"><div class="info-label">Phone</div><div class="info-value" id="iPhone">—</div></div>
             <div class="info-item"><div class="info-label">Company</div><div class="info-value" id="iCompany">—</div></div>
             <div class="info-item"><div class="info-label">Domain Name</div><div class="info-value" id="iDomain">—</div></div>
             <div class="info-item"><div class="info-label">Hosting Provider</div><div class="info-value" id="iHostingProvider">—</div></div>
@@ -178,7 +177,6 @@
     <div class="form-grid">
       <div class="form-group"><label>Full Name *</label><input type="text" id="eName"></div>
       <div class="form-group"><label>Email</label><input type="email" id="eEmail"></div>
-      <div class="form-group"><label>Phone</label><input type="tel" id="ePhone"></div>
       <div class="form-group"><label>Company</label><input type="text" id="eCompany"></div>
       <div class="form-group"><label>Domain Name</label><input type="text" id="eDomain"></div>
       <div class="form-group"><label>Hosting Provider</label><input type="text" id="eHostingProvider"></div>
@@ -242,7 +240,6 @@ function populatePage() {
   // Basic info
   document.getElementById('iName').textContent = client.name;
   document.getElementById('iEmail').textContent = client.email || '—';
-  document.getElementById('iPhone').textContent = client.phone || '—';
   document.getElementById('iCompany').textContent = client.company || '—';
   document.getElementById('iDomain').innerHTML = client.domain_name ? `<a href="https://${client.domain_name}" target="_blank" style="color:#6c5ce7;">${client.domain_name} ↗</a>` : '—';
   document.getElementById('iHostingProvider').textContent = client.hosting_provider || '—';
@@ -324,8 +321,8 @@ function switchTab(el, name) {
 function openEditModal() {
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); return; }
   if (!client) return;
-  ['eName','eEmail','ePhone','eCompany','eDomain','eHostingProvider','eProjectType','ePlatform','eHostingExpiry','eSslExpiry','eMaintenance','ePlanType'].forEach(id => {
-    const map = { eName:'name',eEmail:'email',ePhone:'phone',eCompany:'company',eDomain:'domain_name',eHostingProvider:'hosting_provider',eProjectType:'project_type',ePlatform:'platform',eHostingExpiry:'hosting_expiry',eSslExpiry:'ssl_expiry',eMaintenance:'maintenance_plan',ePlanType:'plan_type' };
+  ['eName','eEmail','eCompany','eDomain','eHostingProvider','eProjectType','ePlatform','eHostingExpiry','eSslExpiry','eMaintenance','ePlanType'].forEach(id => {
+    const map = { eName:'name',eEmail:'email',eCompany:'company',eDomain:'domain_name',eHostingProvider:'hosting_provider',eProjectType:'project_type',ePlatform:'platform',eHostingExpiry:'hosting_expiry',eSslExpiry:'ssl_expiry',eMaintenance:'maintenance_plan',ePlanType:'plan_type' };
     document.getElementById(id).value = client[map[id]] || '';
   });
   document.getElementById('eContract').value = client.total_contract_value || '';
@@ -339,7 +336,6 @@ async function saveEdit() {
   const data = {
     name: document.getElementById('eName').value.trim(),
     email: document.getElementById('eEmail').value.trim(),
-    phone: document.getElementById('ePhone').value.trim(),
     company: document.getElementById('eCompany').value.trim(),
     domain_name: document.getElementById('eDomain').value.trim(),
     hosting_provider: document.getElementById('eHostingProvider').value.trim(),

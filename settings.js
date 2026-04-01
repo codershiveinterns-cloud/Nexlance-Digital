@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsAccountTypeBadge = document.getElementById('settingsAccountTypeBadge');
     const settingsInfoName = document.getElementById('settingsInfoName');
     const settingsInfoEmail = document.getElementById('settingsInfoEmail');
-    const settingsInfoMobile = document.getElementById('settingsInfoMobile');
     const settingsInfoPlan = document.getElementById('settingsInfoPlan');
     const settingsInfoAccountType = document.getElementById('settingsInfoAccountType');
     const settingsInfoCreatedAt = document.getElementById('settingsInfoCreatedAt');
@@ -204,7 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             name: firebaseRecord.name || localRecord.name || (sessionUser && sessionUser.name) || 'Nexlance User',
             email: firebaseRecord.email || localRecord.email || (sessionUser && sessionUser.email) || 'Not available',
-            mobile: firebaseRecord.mobile || localRecord.mobile || 'Not added',
             accountType: firebaseRecord.accountType || localRecord.accountType || 'personal',
             createdAt: firebaseRecord.createdAt || localRecord.createdAt || null,
             avatar: authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL : '',
@@ -228,7 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settingsAccountTypeBadge) settingsAccountTypeBadge.textContent = accountTypeLabel;
         if (settingsInfoName) settingsInfoName.textContent = currentProfile.name;
         if (settingsInfoEmail) settingsInfoEmail.textContent = currentProfile.email;
-        if (settingsInfoMobile) settingsInfoMobile.textContent = currentProfile.mobile;
         if (settingsInfoPlan) settingsInfoPlan.textContent = planLabel;
         if (settingsInfoAccountType) settingsInfoAccountType.textContent = accountTypeLabel;
         if (settingsInfoCreatedAt) settingsInfoCreatedAt.textContent = formatInfoDate(currentProfile.createdAt);

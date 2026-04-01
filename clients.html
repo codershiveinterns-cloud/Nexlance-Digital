@@ -140,10 +140,6 @@
         <input type="email" id="fEmail" placeholder="client@company.com">
       </div>
       <div class="form-group">
-        <label>Phone Number</label>
-        <input type="tel" id="fPhone" placeholder="447735370098">
-      </div>
-      <div class="form-group">
         <label>Company Name</label>
         <input type="text" id="fCompany" placeholder="Company Pvt Ltd">
       </div>
@@ -375,7 +371,7 @@ function openAddModal() {
   if (!ensureDataAccess()) return;
   editingId = null;
   document.getElementById('modalTitle').textContent = 'Add New Client';
-  ['fName','fEmail','fPhone','fCompany','fDomain','fHostingProvider','fHostingExpiry','fSslExpiry','fContractValue','fPaidAmount'].forEach(id => document.getElementById(id).value = '');
+  ['fName','fEmail','fCompany','fDomain','fHostingProvider','fHostingExpiry','fSslExpiry','fContractValue','fPaidAmount'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fProjectType').value = '';
   document.getElementById('fPlatform').value = '';
   document.getElementById('fMaintenance').value = 'None';
@@ -392,7 +388,6 @@ function openEditModal(id) {
   document.getElementById('modalTitle').textContent = 'Edit Client';
   document.getElementById('fName').value = c.name || '';
   document.getElementById('fEmail').value = c.email || '';
-  document.getElementById('fPhone').value = c.phone || '';
   document.getElementById('fCompany').value = c.company || '';
   document.getElementById('fDomain').value = c.domain_name || '';
   document.getElementById('fHostingProvider').value = c.hosting_provider || '';
@@ -487,7 +482,6 @@ function buildClientFormPayload() {
       metadata: {
         name,
         email,
-        phone: document.getElementById('fPhone').value.trim(),
         company: document.getElementById('fCompany').value.trim(),
         domain_name: document.getElementById('fDomain').value.trim(),
         hosting_provider: document.getElementById('fHostingProvider').value.trim(),
@@ -505,7 +499,6 @@ function buildClientFormPayload() {
     updatePayload: {
       name,
       email,
-      phone: document.getElementById('fPhone').value.trim(),
       company: document.getElementById('fCompany').value.trim(),
       domain_name: document.getElementById('fDomain').value.trim(),
       hosting_provider: document.getElementById('fHostingProvider').value.trim(),

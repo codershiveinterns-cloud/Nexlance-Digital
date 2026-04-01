@@ -36,9 +36,20 @@ function getInvitationDocumentId(inviteId) {
 }
 
 function getAppBaseUrl(origin = '') {
+    const normalizedOrigin = String(origin || '').trim().replace(/\/+$/, '');
+    const environment = String(process.env.NODE_ENV || 'development').trim().toLowerCase();
     const configuredBaseUrl = String(process.env.APP_BASE_URL || '').trim().replace(/\/+$/, '');
+    const localBaseUrl = String(process.env.LOCAL_APP_BASE_URL || '').trim().replace(/\/+$/, '');
+    const isLocalOrigin = /^https?:\/\/(localhost|127(?:\.\d{1,3}){3})(:\d+)?$/i.test(normalizedOrigin);
+
+    if (environment !== 'production') {
+        if (localBaseUrl) return localBaseUrl;
+        if (isLocalOrigin) return normalizedOrigin;
+    }
+
     if (configuredBaseUrl) return configuredBaseUrl;
-    return String(origin || 'http://localhost:4242').trim().replace(/\/+$/, '');
+    if (normalizedOrigin) return normalizedOrigin;
+    return 'http://localhost:4242';
 }
 
 function buildInvitationLink(rawToken, origin = '') {

@@ -71,7 +71,6 @@ body {
 .form input[type="email"],
 .form input[type="password"],
 .form input[type="text"],
-.form input[type="tel"],
 .form select,
 .form textarea {
     width: 100%;
@@ -89,7 +88,6 @@ body {
 .form input[type="email"]:focus,
 .form input[type="password"]:focus,
 .form input[type="text"]:focus,
-.form input[type="tel"]:focus,
 .form select:focus,
 .form textarea:focus {
     border-color: #6c5ce7;
@@ -142,31 +140,14 @@ body {
     border-color: #6c5ce7;
 }
 
-/* ---- Form meta row (remember + terms) ---- */
+/* ---- Form meta row ---- */
 .form-row {
     display: flex;
     align-items: center;
 }
 
 .form-meta {
-    justify-content: space-between;
-}
-
-.form-row label.small {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 0.82rem;
-    color: #777;
-    font-weight: 400;
-    cursor: pointer;
-}
-
-.form-row input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: #6c5ce7;
-    cursor: pointer;
+    justify-content: flex-end;
 }
 
 .link-muted {
