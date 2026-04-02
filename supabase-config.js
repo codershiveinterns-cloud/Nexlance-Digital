@@ -678,9 +678,33 @@ function getCurrentDashboardUserContext() {
     const user = getCurrentSessionUser() || {};
     const accessControl = getAccessControl();
     const normalizedRole = normalizeDashboardRole(user.role || user.workspaceRole || user.dashboardRole || 'admin');
-    const permissions = user.permissions && typeof user.permissions === 'object'
-        ? user.permissions
+    const derivedPermissions = accessControl
+        ? accessControl.getPermissionMatrix({
+            ...user,
+            role: normalizedRole,
+            workspaceRole: normalizedRole
+        })
         : getDefaultDashboardPermissions(normalizedRole, Boolean(user.isWorkspaceOwner));
+    const mergePermissionGroup = (key) => {
+        const derivedGroup = derivedPermissions && typeof derivedPermissions[key] === 'object' ? derivedPermissions[key] : {};
+        const explicitGroup = user.permissions && typeof user.permissions[key] === 'object' ? user.permissions[key] : {};
+        const actions = new Set([...Object.keys(derivedGroup), ...Object.keys(explicitGroup)]);
+        return Array.from(actions).reduce((accumulator, action) => {
+            accumulator[action] = Boolean(derivedGroup[action] || explicitGroup[action]);
+            return accumulator;
+        }, {});
+    };
+    const permissions = user.permissions && typeof user.permissions === 'object'
+        ? {
+            ...derivedPermissions,
+            projects: mergePermissionGroup('projects'),
+            tasks: mergePermissionGroup('tasks'),
+            clients: mergePermissionGroup('clients'),
+            invoices: mergePermissionGroup('invoices'),
+            services: mergePermissionGroup('services'),
+            team: mergePermissionGroup('team')
+        }
+        : derivedPermissions;
     return {
         role: normalizedRole,
         permissionKeys: accessControl ? accessControl.getAuthenticatedPermissionKeys(user) : [],
@@ -700,16 +724,18 @@ function hasDashboardPermission(entity, action) {
 
 function createDashboardPermissionError(entity, action) {
     const labels = {
-        clients: 'manage clients',
-        invoices: 'manage invoices',
-        projects: 'manage projects',
-        services: 'manage services',
-        tasks: 'manage tasks',
-        team: 'manage team members'
+        clients: action === 'read' ? 'view clients' : 'manage clients',
+        invoices: action === 'read' ? 'view invoices' : 'manage invoices',
+        projects: action === 'read' ? 'view projects' : 'manage projects',
+        services: action === 'read' ? 'view services' : 'manage services',
+        tasks: action === 'read' ? 'view tasks' : 'manage tasks',
+        team: action === 'read' ? 'view team members' : 'manage team members'
     };
     const actionLabel = action === 'create'
         ? 'create'
-        : (action === 'delete' ? 'delete' : 'update');
+        : (action === 'delete'
+            ? 'delete'
+            : (action === 'read' ? 'view' : 'update'));
     return new Error(`You do not have permission to ${actionLabel} ${labels[entity] || entity}. Sign in with an owner/admin account or update the user's role in Firestore.`);
 }
 
@@ -1736,7 +1762,7 @@ async function fetchProjects(clientId = null) {
                 ));
                 return clientId ? combinedApiRecords.filter(p => p.client_id === clientId) : combinedApiRecords;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'update');
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'read');
             }
         }
         if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
@@ -1951,7 +1977,7 @@ async function fetchTasks(projectId) {
                 const records = await dashboardApiRequest('GET', 'tasks');
                 return (Array.isArray(records) ? records : []).filter(t => t.project_id === projectId);
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'update');
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'read');
             }
         }
         if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
