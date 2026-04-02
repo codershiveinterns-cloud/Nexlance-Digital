@@ -435,6 +435,7 @@ async function createPolarCheckoutSession(context) {
             customer_email: context.userEmail,
             external_customer_id: context.userEmail,
             locale: 'en',
+            allow_trial: context.product.billingType === 'subscription' ? false : true,
             metadata: context.metadata,
             success_url: urls.polarSuccessUrl,
             return_url: urls.cancelUrl
@@ -464,27 +465,14 @@ async function createPolarCheckoutSession(context) {
             productPriceId: data.product_price_id || '',
             productPriceType: data.product_price && data.product_price.type ? data.product_price.type : '',
             recurringInterval: data.product_price && data.product_price.recurring_interval ? data.product_price.recurring_interval : '',
+            allowTrial: data.allow_trial === true,
+            activeTrialInterval: data.active_trial_interval || '',
+            currency: data.currency || '',
             isPaymentRequired: data.is_payment_required === true,
             isPaymentSetupRequired: data.is_payment_setup_required === true,
             isPaymentFormRequired: data.is_payment_form_required === true
         }
     };
-}
-
-function isPolarSubscriptionSetupModeMismatch(context, payload) {
-    if (!context || !payload || payload.provider !== 'polar') {
-        return false;
-    }
-
-    const diagnostics = payload.diagnostics && typeof payload.diagnostics === 'object'
-        ? payload.diagnostics
-        : {};
-
-    return context.product
-        && context.product.billingType === 'subscription'
-        && diagnostics.paymentProcessor === 'stripe'
-        && diagnostics.isPaymentRequired === true
-        && diagnostics.isPaymentSetupRequired === true;
 }
 
 async function createHostedCheckout(options) {
@@ -532,16 +520,6 @@ async function createHostedCheckout(options) {
         const payload = selectedProvider === 'polar'
             ? await createPolarCheckoutSession(context)
             : await createStripeCheckoutSession(context);
-
-        if (isPolarSubscriptionSetupModeMismatch(context, payload)) {
-            const mismatchMessage = gatewayAvailability.stripe
-                ? 'Polar subscription checkout is temporarily unavailable right now. Please use Stripe checkout instead.'
-                : 'Polar subscription checkout is temporarily unavailable right now because Polar returned a setup-mode session that cannot complete the first subscription charge, and Stripe checkout is not configured on this site yet.';
-            const mismatchError = new Error(mismatchMessage);
-            mismatchError.code = 'polar/subscription-setup-mismatch';
-            mismatchError.diagnostics = payload.diagnostics || {};
-            throw mismatchError;
-        }
 
         await upsertPaymentAttempt({
             ...attemptBase,
