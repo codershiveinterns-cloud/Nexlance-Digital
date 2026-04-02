@@ -1,6 +1,46 @@
 {
   "rewrites": [
     {
+      "source": "/api/checkout-complete",
+      "destination": "/api/commerce/checkout-complete"
+    },
+    {
+      "source": "/api/checkout-start",
+      "destination": "/api/commerce/checkout-start"
+    },
+    {
+      "source": "/api/confirm-business-upgrade",
+      "destination": "/api/commerce/confirm-business-upgrade"
+    },
+    {
+      "source": "/api/create-payment-intent",
+      "destination": "/api/commerce/create-payment-intent"
+    },
+    {
+      "source": "/api/payment-config",
+      "destination": "/api/commerce/payment-config"
+    },
+    {
+      "source": "/api/project-template-download",
+      "destination": "/api/commerce/project-template-download"
+    },
+    {
+      "source": "/api/stripe-webhook",
+      "destination": "/api/commerce/stripe-webhook"
+    },
+    {
+      "source": "/api/template-access-complete",
+      "destination": "/api/commerce/template-access-complete"
+    },
+    {
+      "source": "/api/template-access-start",
+      "destination": "/api/commerce/template-access-start"
+    },
+    {
+      "source": "/api/template-download",
+      "destination": "/api/commerce/template-download"
+    },
+    {
       "source": "/api/polar-webhook",
       "destination": "/api/webhooks/polar"
     }
