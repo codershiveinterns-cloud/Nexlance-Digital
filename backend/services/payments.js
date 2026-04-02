@@ -471,12 +471,6 @@ async function createPolarCheckoutSession(context) {
     };
 }
 
-function getProviderFallbackOrder(requestedProvider) {
-    const normalized = String(requestedProvider || 'stripe').trim().toLowerCase();
-    if (normalized === 'polar') return ['polar', 'stripe'];
-    return ['stripe', 'polar'];
-}
-
 function isPolarSubscriptionSetupModeMismatch(context, payload) {
     if (!context || !payload || payload.provider !== 'polar') {
         return false;
@@ -497,26 +491,22 @@ async function createHostedCheckout(options) {
     const context = await resolveCheckoutContext(options);
     const explicitlyRequestedProvider = normalizeRequestedProvider(options.provider);
     const gatewayAvailability = getProductGatewayAvailability(context.product.productCode);
-    let providersToTry = [];
+    let selectedProvider = explicitlyRequestedProvider;
 
-    if (explicitlyRequestedProvider) {
-        if (!gatewayAvailability[explicitlyRequestedProvider]) {
-            throw new Error(getProviderConfigurationError(explicitlyRequestedProvider, context.product.productCode));
+    if (selectedProvider) {
+        if (!gatewayAvailability[selectedProvider]) {
+            throw new Error(getProviderConfigurationError(selectedProvider, context.product.productCode));
         }
-        providersToTry = explicitlyRequestedProvider === 'polar'
-            && context.product.billingType === 'subscription'
-            && gatewayAvailability.stripe
-            ? ['polar', 'stripe']
-            : [explicitlyRequestedProvider];
+    } else if (gatewayAvailability.stripe) {
+        selectedProvider = 'stripe';
+    } else if (gatewayAvailability.polar) {
+        selectedProvider = 'polar';
     } else {
-        providersToTry = getProviderFallbackOrder('stripe').filter(provider => gatewayAvailability[provider]);
-        if (!providersToTry.length) {
-            throw new Error('Hosted checkout is not configured right now. Please try again later.');
-        }
+        throw new Error('Hosted checkout is not configured right now. Please try again later.');
     }
 
-    const requestedProvider = providersToTry[0];
-    const fallbackProvider = providersToTry[1] || '';
+    const requestedProvider = selectedProvider;
+    const fallbackProvider = '';
     const attemptBase = {
         attemptId: crypto.randomUUID ? crypto.randomUUID() : `attempt_${Date.now()}`,
         requestedProvider,
@@ -538,56 +528,56 @@ async function createHostedCheckout(options) {
 
     let lastError = null;
 
-    for (let index = 0; index < providersToTry.length; index += 1) {
-        const provider = providersToTry[index];
-        try {
-            const payload = provider === 'polar'
-                ? await createPolarCheckoutSession(context)
-                : await createStripeCheckoutSession(context);
+    try {
+        const payload = selectedProvider === 'polar'
+            ? await createPolarCheckoutSession(context)
+            : await createStripeCheckoutSession(context);
 
-            if (isPolarSubscriptionSetupModeMismatch(context, payload)) {
-                const mismatchError = new Error('Polar recurring checkout returned a Stripe setup-mode session that is incompatible with immediate subscription payment confirmation.');
-                mismatchError.code = 'polar/subscription-setup-mismatch';
-                mismatchError.diagnostics = payload.diagnostics || {};
-                throw mismatchError;
-            }
-
-            await upsertPaymentAttempt({
-                ...attemptBase,
-                provider,
-                status: index === 0 ? 'checkout_created' : 'fallback_checkout_created',
-                redirectUrl: payload.redirectUrl,
-                providerReferenceId: payload.providerReferenceId,
-                metadata: {
-                    ...attemptBase.metadata,
-                    usedFallback: index > 0,
-                    paymentDiagnostics: payload.diagnostics || {}
-                }
-            });
-
-            return {
-                ok: true,
-                provider,
-                usedFallback: index > 0,
-                productCode: context.product.productCode,
-                redirectUrl: payload.redirectUrl,
-                sessionId: payload.sessionId || '',
-                checkoutId: payload.checkoutId || '',
-                successRedirect: context.successRedirect || context.product.successRedirect
-            };
-        } catch (error) {
-            lastError = error;
-            await upsertPaymentAttempt({
-                ...attemptBase,
-                provider,
-                status: index === 0 ? 'provider_failed' : 'fallback_failed',
-                metadata: {
-                    ...attemptBase.metadata,
-                    error: error.message || 'Checkout session creation failed.',
-                    paymentDiagnostics: error && error.diagnostics ? error.diagnostics : {}
-                }
-            });
+        if (isPolarSubscriptionSetupModeMismatch(context, payload)) {
+            const mismatchMessage = gatewayAvailability.stripe
+                ? 'Polar subscription checkout is temporarily unavailable right now. Please use Stripe checkout instead.'
+                : 'Polar subscription checkout is temporarily unavailable right now because Polar returned a setup-mode session that cannot complete the first subscription charge, and Stripe checkout is not configured on this site yet.';
+            const mismatchError = new Error(mismatchMessage);
+            mismatchError.code = 'polar/subscription-setup-mismatch';
+            mismatchError.diagnostics = payload.diagnostics || {};
+            throw mismatchError;
         }
+
+        await upsertPaymentAttempt({
+            ...attemptBase,
+            provider: selectedProvider,
+            status: 'checkout_created',
+            redirectUrl: payload.redirectUrl,
+            providerReferenceId: payload.providerReferenceId,
+            metadata: {
+                ...attemptBase.metadata,
+                usedFallback: false,
+                paymentDiagnostics: payload.diagnostics || {}
+            }
+        });
+
+        return {
+            ok: true,
+            provider: selectedProvider,
+            usedFallback: false,
+            productCode: context.product.productCode,
+            redirectUrl: payload.redirectUrl,
+            sessionId: payload.sessionId || '',
+            checkoutId: payload.checkoutId || '',
+            successRedirect: context.successRedirect || context.product.successRedirect
+        };
+    } catch (error) {
+        lastError = error;
+        await upsertPaymentAttempt({
+            ...attemptBase,
+            provider: selectedProvider,
+            status: 'provider_failed',
+            metadata: {
+                ...attemptBase.metadata,
+                error: error.message || 'Checkout session creation failed.',
+                paymentDiagnostics: error && error.diagnostics ? error.diagnostics : {}
+            }
+        });
     }
 
     throw lastError || new Error('No payment gateway could start checkout.');

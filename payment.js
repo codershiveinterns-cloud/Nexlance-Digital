@@ -489,10 +489,10 @@
             return 'Secure hosted checkout is not configured right now. Please try again later.';
         }
         if (availability.stripe === false) {
-            return 'Stripe checkout is unavailable right now. Please choose Polar.';
+            return 'Stripe checkout is not configured right now. Please choose Polar.';
         }
         if (availability.polar === false) {
-            return 'Polar checkout is unavailable right now. Please choose Stripe.';
+            return 'Polar checkout is not configured right now. Please choose Stripe.';
         }
         return '';
     }
