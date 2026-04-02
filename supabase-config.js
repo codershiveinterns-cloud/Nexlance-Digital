@@ -896,7 +896,13 @@ async function inviteClient(payload) {
 }
 
 async function inviteTeamMember(payload) {
-    return authorizedApiRequest('/api/invitations/team', 'POST', payload);
+    const response = await authorizedApiRequest('/api/invitations/team', 'POST', payload);
+    if (response && response.record) {
+        upsertLocalEntityRecord('team_members', response.record);
+    } else {
+        window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'team_members' } }));
+    }
+    return response;
 }
 
 async function resendWorkspaceInvitation(invitationId) {
@@ -2296,11 +2302,14 @@ async function addTeamMember(d) {
 async function updateTeamMember(id, d) {
     if (!canAccessEntity('team')) throw createRestrictedAccessError('team');
     const doc = withOwnerFields(d);
+    const existingLocalRecord = getLocalEntityData('team_members').find(member => String(member && member.id) === String(id)) || null;
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('team', 'update')) throw createDashboardPermissionError('team', 'update');
         if (isFirebaseUserAuthenticated()) {
             try {
-                return await dashboardApiRequest('PATCH', 'team_members', id, doc);
+                const record = await dashboardApiRequest('PATCH', 'team_members', id, doc);
+                if (record) upsertLocalEntityRecord('team_members', record);
+                return record;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
             }
@@ -2317,7 +2326,7 @@ async function updateTeamMember(id, d) {
         return null;
     }
     await db.collection('team_members').doc(id).update(doc);
-    return { id, ...doc };
+    return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc });
 }
 
 async function deleteTeamMember(id) {
@@ -2327,6 +2336,8 @@ async function deleteTeamMember(id) {
         if (isFirebaseUserAuthenticated()) {
             try {
                 await dashboardApiRequest('DELETE', 'team_members', id);
+                const remainingRecords = getLocalEntityData('team_members').filter(member => String(member && member.id) !== String(id));
+                setLocalEntityData('team_members', remainingRecords);
                 return;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'delete');

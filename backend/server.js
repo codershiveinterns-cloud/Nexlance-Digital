@@ -60,6 +60,7 @@ const {
     normalizeProjectAccess,
     syncClientAccessState
 } = require('./services/client-access');
+const { syncTeamMemberState } = require('./services/team-member-access');
 const {
     requireAuth,
     requireOwnerOnly,
@@ -611,10 +612,20 @@ async function handleDashboardApi(req, res, url) {
             buildDashboardDocument(body, sessionUser, true),
             route.documentId || ''
         );
+        let responseRecord = record;
         if (route.collectionId === 'clients') {
-            await syncClientAccessState({ id: record.id, data: record }).catch(() => undefined);
+            const syncedClientRecord = await syncClientAccessState({ id: record.id, data: record }).catch(() => null);
+            if (syncedClientRecord && syncedClientRecord.data) {
+                responseRecord = { id: syncedClientRecord.id, ...syncedClientRecord.data };
+            }
         }
-        sendJson(res, 200, { ok: true, record });
+        if (route.collectionId === 'team_members') {
+            const syncedTeamRecord = await syncTeamMemberState({ id: record.id, data: record }).catch(() => null);
+            if (syncedTeamRecord && syncedTeamRecord.data) {
+                responseRecord = { id: syncedTeamRecord.id, ...syncedTeamRecord.data };
+            }
+        }
+        sendJson(res, 200, { ok: true, record: responseRecord });
         return;
     }
 
@@ -649,10 +660,20 @@ async function handleDashboardApi(req, res, url) {
             route.documentId,
             buildDashboardDocument(body, sessionUser, false)
         );
+        let responseRecord = record;
         if (route.collectionId === 'clients') {
-            await syncClientAccessState({ id: route.documentId, data: record }).catch(() => undefined);
+            const syncedClientRecord = await syncClientAccessState({ id: route.documentId, data: record }).catch(() => null);
+            if (syncedClientRecord && syncedClientRecord.data) {
+                responseRecord = { id: syncedClientRecord.id, ...syncedClientRecord.data };
+            }
         }
-        sendJson(res, 200, { ok: true, record });
+        if (route.collectionId === 'team_members') {
+            const syncedTeamRecord = await syncTeamMemberState({ id: route.documentId, data: record }).catch(() => null);
+            if (syncedTeamRecord && syncedTeamRecord.data) {
+                responseRecord = { id: syncedTeamRecord.id, ...syncedTeamRecord.data };
+            }
+        }
+        sendJson(res, 200, { ok: true, record: responseRecord });
         return;
     }
 

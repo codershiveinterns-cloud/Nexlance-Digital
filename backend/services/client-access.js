@@ -199,5 +199,6 @@ module.exports = {
     buildInvitationAccessFields,
     buildProfileAccessFields,
     normalizeProjectAccess,
+    syncProjectAssignments,
     syncClientAccessState
 };

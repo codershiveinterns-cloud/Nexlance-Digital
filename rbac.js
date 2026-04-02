@@ -115,6 +115,28 @@
         PERMISSIONS.ACCESS_INVITATION_CONTROL
     ]);
 
+    const PERMISSION_CATALOG = Object.freeze([
+        Object.freeze({ key: PERMISSIONS.VIEW_DASHBOARD, label: 'View Dashboard' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_CLIENTS, label: 'View Clients' }),
+        Object.freeze({ key: PERMISSIONS.EDIT_CLIENT_INFO, label: 'Edit Client Info' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_PROJECTS, label: 'View Projects' }),
+        Object.freeze({ key: PERMISSIONS.MANAGE_PROJECTS, label: 'Manage Projects' }),
+        Object.freeze({ key: PERMISSIONS.EDIT_TASKS, label: 'Edit Tasks' }),
+        Object.freeze({ key: PERMISSIONS.DELETE_TASKS, label: 'Delete Tasks' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_REVENUE, label: 'View Revenue Data' }),
+        Object.freeze({ key: PERMISSIONS.CREATE_INVOICES, label: 'Create Invoices' }),
+        Object.freeze({ key: PERMISSIONS.MANAGE_PAYMENTS, label: 'Manage Payments' }),
+        Object.freeze({ key: PERMISSIONS.UPLOAD_FILES, label: 'Upload Files' }),
+        Object.freeze({ key: PERMISSIONS.MANAGE_TEAM_MEMBERS, label: 'Manage Team Members' }),
+        Object.freeze({ key: PERMISSIONS.ACCESS_SYSTEM_SETTINGS, label: 'System Settings' }),
+        Object.freeze({ key: PERMISSIONS.ACCESS_ADMIN_PANEL, label: 'Access Admin Panel' }),
+        Object.freeze({ key: PERMISSIONS.ACCESS_INVITATION_CONTROL, label: 'Invitation Control' }),
+        Object.freeze({ key: PERMISSIONS.ACCESS_SETTINGS, label: 'Access Settings' }),
+        Object.freeze({ key: PERMISSIONS.ACCESS_SUPPORT_INFO, label: 'Access Support Info' }),
+        Object.freeze({ key: PERMISSIONS.SIGN_OUT, label: 'Sign Out' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_SERVICES, label: 'View Services' })
+    ]);
+
     const PAGE_ACCESS_RULES = Object.freeze({
         'dashboard.html': PERMISSIONS.VIEW_DASHBOARD,
         'clients.html': PERMISSIONS.VIEW_CLIENTS,
@@ -251,12 +273,32 @@
         const normalizedRole = normalizeRole(role);
         const labels = {
             [ROLES.ADMIN]: 'Admin',
-            [ROLES.PM]: 'PM',
+            [ROLES.PM]: 'Project Manager',
             [ROLES.DEVELOPER]: 'Developer',
             [ROLES.DESIGNER]: 'Designer',
             [ROLES.CLIENT]: 'Client'
         };
         return labels[normalizedRole] || 'Admin';
+    }
+
+    function getRolePermissionKeys(role, options = {}) {
+        const normalizedRole = normalizeRole(role);
+        const pseudoUser = {
+            role: normalizedRole,
+            workspaceRole: normalizedRole,
+            isWorkspaceOwner: options.isWorkspaceOwner === true
+        };
+        return getAuthenticatedPermissionKeys(pseudoUser);
+    }
+
+    function getRoleTogglePermissions(role) {
+        const permissionSet = new Set(getRolePermissionKeys(role));
+        return {
+            canEditTasks: permissionSet.has(PERMISSIONS.EDIT_TASKS),
+            canSeeRevenue: permissionSet.has(PERMISSIONS.VIEW_REVENUE),
+            canCreateInvoices: permissionSet.has(PERMISSIONS.CREATE_INVOICES),
+            canUploadFiles: permissionSet.has(PERMISSIONS.UPLOAD_FILES)
+        };
     }
 
     function canAccessAdminPanel(user) {
@@ -351,12 +393,15 @@
         PERMISSIONS,
         ROLE_PERMISSION_MAP,
         OWNER_ONLY_PERMISSIONS,
+        PERMISSION_CATALOG,
         PAGE_ACCESS_RULES,
         GLOBAL_AUTHENTICATED_PERMISSIONS,
         normalizeEmail,
         normalizeRole,
         isWorkspaceOwner,
         getAuthenticatedPermissionKeys,
+        getRolePermissionKeys,
+        getRoleTogglePermissions,
         getPermissionMatrix,
         getAccessProfile,
         getRoleDisplayLabel,

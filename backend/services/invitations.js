@@ -9,6 +9,7 @@ const {
     buildProfileAccessFields,
     normalizeProjectAccess
 } = require('./client-access');
+const { buildTeamPermissionFields } = require('./team-member-access');
 const {
     createCollectionDocument,
     getCollectionDocument,
@@ -143,6 +144,7 @@ function buildTargetRecordPayload({ inviteType, inviteeName, email, role, assign
         collectionId: 'team_members',
         record: {
             ...baseRecord,
+            ...buildTeamPermissionFields(role),
             created_at: now
         }
     };

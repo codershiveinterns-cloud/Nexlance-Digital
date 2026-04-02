@@ -165,7 +165,7 @@
 <div class="modal-overlay" id="editRoleModal">
   <div class="modal">
     <div class="modal-header">
-      <h2>Edit Permissions — <span id="editRoleName"></span></h2>
+      <h2>Edit Role — <span id="editRoleName"></span></h2>
       <button class="modal-close" onclick="closeModal('editRoleModal')">✕</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:10px;">
@@ -176,21 +176,22 @@
           <option>Developer</option><option>Designer</option><option>Client</option>
         </select>
       </label>
+      <div style="font-size:0.78rem;color:#888;margin-top:-4px;">Permission toggles are read-only here and follow the selected role.</div>
       <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
         Can Edit Tasks
-        <label class="toggle"><input type="checkbox" id="erTasks"><span class="toggle-slider"></span></label>
+        <label class="toggle"><input type="checkbox" id="erTasks" disabled><span class="toggle-slider"></span></label>
       </label>
       <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
         Can See Revenue
-        <label class="toggle"><input type="checkbox" id="erRevenue"><span class="toggle-slider"></span></label>
+        <label class="toggle"><input type="checkbox" id="erRevenue" disabled><span class="toggle-slider"></span></label>
       </label>
       <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
         Can Create Invoices
-        <label class="toggle"><input type="checkbox" id="erInvoice"><span class="toggle-slider"></span></label>
+        <label class="toggle"><input type="checkbox" id="erInvoice" disabled><span class="toggle-slider"></span></label>
       </label>
       <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
         Can Upload Files
-        <label class="toggle"><input type="checkbox" id="erUpload"><span class="toggle-slider"></span></label>
+        <label class="toggle"><input type="checkbox" id="erUpload" disabled><span class="toggle-slider"></span></label>
       </label>
     </div>
     <div class="modal-footer">
@@ -304,22 +305,51 @@ let editingMemberId = null;
 /* ============================================================
    PERMISSIONS DATA
 ============================================================ */
-const permissions = [
-  { key:'view_dashboard',   label:'📊 View Dashboard',        roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:false}},
-  { key:'view_clients',     label:'👥 View Clients',           roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
-  { key:'edit_clients',     label:'✏️ Edit Client Info',       roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
-  { key:'view_projects',    label:'📁 View All Projects',      roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:true}},
-  { key:'manage_projects',  label:'⚙️ Manage Projects',        roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
-  { key:'edit_tasks',       label:'✅ Edit Tasks',              roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:false}},
-  { key:'delete_tasks',     label:'🗑 Delete Tasks',            roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
-  { key:'see_revenue',      label:'💰 View Revenue Data',      roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
-  { key:'create_invoices',  label:'🧾 Create Invoices',        roles:{Admin:true, 'Project Manager':true, Developer:false,Designer:false,Client:false}},
-  { key:'manage_invoices',  label:'💳 Manage Payments',        roles:{Admin:true, 'Project Manager':false,Developer:false,Designer:false,Client:false}},
-  { key:'upload_files',     label:'📤 Upload Files',           roles:{Admin:true, 'Project Manager':true, Developer:true, Designer:true, Client:false}},
-  { key:'manage_team',      label:'👥 Manage Team Members',    roles:{Admin:true, 'Project Manager':false,Developer:false,Designer:false,Client:false}},
-  { key:'system_settings',  label:'⚙️ System Settings',        roles:{Admin:true, 'Project Manager':false,Developer:false,Designer:false,Client:false}},
-];
-const roleOrder = ['Admin','Project Manager','Developer','Designer','Client'];
+const accessControl = window.NexlanceAccessControl;
+const roleOrder = ['Admin', 'Project Manager', 'Developer', 'Designer', 'Client'];
+const roleColors = {
+  Admin: 'badge-red',
+  'Project Manager': 'badge-blue',
+  Developer: 'badge-purple',
+  Designer: 'badge-teal',
+  Client: 'badge-gray'
+};
+const permissions = (accessControl && Array.isArray(accessControl.PERMISSION_CATALOG) ? accessControl.PERMISSION_CATALOG : [])
+  .map(permission => ({
+    key: permission.key,
+    label: permission.label,
+    roles: Object.fromEntries(roleOrder.map(role => [
+      role,
+      Boolean(accessControl && accessControl.getRolePermissionKeys(role).includes(permission.key))
+    ]))
+  }));
+
+function getRoleLabel(role) {
+  return accessControl && typeof accessControl.getRoleDisplayLabel === 'function'
+    ? accessControl.getRoleDisplayLabel(role)
+    : String(role || 'Admin').trim();
+}
+
+function getRoleToggleState(role) {
+  if (!(accessControl && typeof accessControl.getRoleTogglePermissions === 'function')) {
+    return { tasks: false, revenue: false, invoice: false, upload: false };
+  }
+  const state = accessControl.getRoleTogglePermissions(role);
+  return {
+    tasks: Boolean(state.canEditTasks),
+    revenue: Boolean(state.canSeeRevenue),
+    invoice: Boolean(state.canCreateInvoices),
+    upload: Boolean(state.canUploadFiles)
+  };
+}
+
+function applyEditRolePermissions(role) {
+  const state = getRoleToggleState(role);
+  document.getElementById('erTasks').checked = state.tasks;
+  document.getElementById('erRevenue').checked = state.revenue;
+  document.getElementById('erInvoice').checked = state.invoice;
+  document.getElementById('erUpload').checked = state.upload;
+}
 
 /* ============================================================
    ROLE DETAIL MODAL
@@ -376,16 +406,15 @@ function renderTeamRoles() {
     tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">🧑‍💼</div><h3>No team members</h3><p><a href="team.html" style="color:#6c5ce7;">Add team members</a></p></div></td></tr>`;
     return;
   }
-  const roleColors = {Admin:'badge-red','PM':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
   const check = v => v ? '<span style="color:#00b894;">✓</span>' : '<span style="color:#ddd;">✗</span>';
   tbody.innerHTML = members.map(m => `<tr>
     <td><strong>${m.name}</strong></td>
     <td style="color:#888;font-size:0.85rem;">${m.email}</td>
-    <td><span class="badge ${roleColors[m.role]||'badge-gray'}">${m.role}</span></td>
-    <td style="text-align:center;">${check(m.can_edit_tasks)}</td>
-    <td style="text-align:center;">${check(m.can_see_revenue)}</td>
-    <td style="text-align:center;">${check(m.can_create_invoices)}</td>
-    <td style="text-align:center;">${check(m.can_upload_files)}</td>
+    <td><span class="badge ${roleColors[getRoleLabel(m.canonical_role || m.role)]||'badge-gray'}">${getRoleLabel(m.canonical_role || m.role)}</span></td>
+    <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).tasks)}</td>
+    <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).revenue)}</td>
+    <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).invoice)}</td>
+    <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).upload)}</td>
     <td><button class="action-btn action-edit" onclick="openEditRole('${m.id}')" title="Edit role">✏️</button></td>
   </tr>`).join('');
 }
@@ -398,21 +427,14 @@ function openEditRole(id) {
   if (!m) return;
   editingMemberId = id;
   document.getElementById('editRoleName').textContent = m.name;
-  document.getElementById('erRole').value = m.role;
-  document.getElementById('erTasks').checked = m.can_edit_tasks;
-  document.getElementById('erRevenue').checked = m.can_see_revenue;
-  document.getElementById('erInvoice').checked = m.can_create_invoices;
-  document.getElementById('erUpload').checked = m.can_upload_files;
+  document.getElementById('erRole').value = getRoleLabel(m.canonical_role || m.role);
+  applyEditRolePermissions(m.canonical_role || m.role);
   document.getElementById('editRoleModal').classList.add('active');
 }
 
 async function saveRole() {
   const data = {
-    role: document.getElementById('erRole').value,
-    can_edit_tasks:     document.getElementById('erTasks').checked,
-    can_see_revenue:    document.getElementById('erRevenue').checked,
-    can_create_invoices:document.getElementById('erInvoice').checked,
-    can_upload_files:   document.getElementById('erUpload').checked
+    role: document.getElementById('erRole').value
   };
   try {
     const upd = await updateTeamMember(editingMemberId, data);
@@ -425,18 +447,7 @@ async function saveRole() {
 
 // Auto-fill permissions on role select change
 document.getElementById('erRole').addEventListener('change', function() {
-  const presets = {
-    Admin:           {t:true,  r:true,  i:true,  u:true},
-    'Project Manager':{t:true, r:true,  i:true,  u:true},
-    Developer:       {t:true,  r:false, i:false, u:true},
-    Designer:        {t:true,  r:false, i:false, u:true},
-    Client:          {t:false, r:false, i:false, u:false}
-  };
-  const p = presets[this.value] || {};
-  document.getElementById('erTasks').checked   = p.t;
-  document.getElementById('erRevenue').checked = p.r;
-  document.getElementById('erInvoice').checked = p.i;
-  document.getElementById('erUpload').checked  = p.u;
+  applyEditRolePermissions(this.value);
 });
 
 /* ============================================================
@@ -497,12 +508,11 @@ function renderPendingInvites() {
   const list    = document.getElementById('pendingList');
   if (!invites.length) { section.style.display = 'none'; return; }
   section.style.display = 'block';
-  const roleColors = {Admin:'badge-red','Project Manager':'badge-blue',Developer:'badge-purple',Designer:'badge-teal',Client:'badge-gray'};
   list.innerHTML = invites.map(inv => `
     <div class="pending-row">
       <span style="font-weight:600;color:#333;">${inv.inviteeName || inv.name}</span>
       <span style="color:#888;font-size:0.82rem;">${inv.email}</span>
-      <span><span class="badge ${roleColors[window.NexlanceAccessControl ? window.NexlanceAccessControl.getRoleDisplayLabel(inv.role) : inv.role]||'badge-gray'}" style="font-size:0.75rem;">${window.NexlanceAccessControl ? window.NexlanceAccessControl.getRoleDisplayLabel(inv.role) : inv.role}</span></span>
+      <span><span class="badge ${roleColors[getRoleLabel(inv.role)]||'badge-gray'}" style="font-size:0.75rem;">${getRoleLabel(inv.role)}</span></span>
       <span><span class="invite-code-chip">${new Date(inv.createdAt || inv.created_at || Date.now()).toLocaleDateString('en-IN')}</span></span>
       <span style="display:flex;gap:6px;">
         <button class="action-btn action-edit" title="Verify code" onclick="openVerify('${inv.id}')">🔑 Verify</button>
@@ -602,6 +612,7 @@ async function init() {
   renderPermissionsMatrix();
   renderTeamRoles();
   await loadInvitations();
+  applyEditRolePermissions(document.getElementById('erRole').value);
 }
 init();
 </script>

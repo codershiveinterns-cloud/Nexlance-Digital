@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Team — Nexlance</title>
+<title>Team - Nexlance</title>
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="app.css">
-<!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="container">
@@ -17,16 +16,16 @@
   <aside class="sidebar">
     <h2 class="logo">Nexlance</h2>
     <ul class="nav">
-      <li><a href="dashboard.html">📊 Dashboard</a></li>
-      <li><a href="clients.html">👥 Clients</a></li>
-      <li class="active"><a href="team.html">🧑‍💼 Team</a></li>
-      <li><a href="projects.html">📁 Projects</a></li>
-      <li><a href="invoices.html">🧾 Invoices</a></li>
-      <li><a href="services.html">🛠 Services</a></li>
-      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
-      <li><a href="settings.html">⚙️ Settings</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="clients.html">Clients</a></li>
+      <li class="active"><a href="team.html">Team</a></li>
+      <li><a href="projects.html">Projects</a></li>
+      <li><a href="invoices.html">Invoices</a></li>
+      <li><a href="services.html">Services</a></li>
+      <li><a href="access-roles.html">Access / Roles</a></li>
+      <li><a href="settings.html">Settings</a></li>
       <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
-      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+      <li><a href="developer-info.html">Support Info</a></li>
     </ul>
   </aside>
 
@@ -42,11 +41,10 @@
         <p>Manage your agency team and their access</p>
       </div>
       <div class="page-header-actions">
-        <button class="btn btn-primary" onclick="openAddModal()">+ Add Member</button>
+        <button class="btn btn-primary" id="addMemberBtn" type="button" onclick="openAddModal()">+ Add Member</button>
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-label">Total Members</div><div class="stat-value" id="sTotal">0</div></div>
       <div class="stat-card blue"><div class="stat-label">Developers</div><div class="stat-value" id="sDev">0</div></div>
@@ -54,9 +52,8 @@
       <div class="stat-card green"><div class="stat-label">Project Managers</div><div class="stat-value" id="sPM">0</div></div>
     </div>
 
-    <!-- Filter -->
     <div class="filter-bar">
-      <input type="search" class="search-input" id="searchInput" placeholder="🔍  Search by name or email...">
+      <input type="search" class="search-input" id="searchInput" placeholder="Search by name or email...">
       <select id="filterRole">
         <option value="">All Roles</option>
         <option>Admin</option>
@@ -67,28 +64,28 @@
       </select>
     </div>
 
-    <!-- Team Cards Grid -->
     <div class="team-grid" id="teamGrid">
       <div style="grid-column:1/-1;text-align:center;padding:40px;color:#aaa;">Loading team...</div>
     </div>
-
   </main>
 </div>
 
-<!-- Add / Edit Member Modal -->
 <div class="modal-overlay" id="memberModal">
   <div class="modal">
     <div class="modal-header">
       <h2 id="modalTitle">Add Team Member</h2>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" type="button" onclick="closeModal()">×</button>
     </div>
     <div class="form-grid single">
       <div class="form-group"><label>Full Name *</label><input type="text" id="fName" placeholder="Arjun Kapoor"></div>
       <div class="form-group"><label>Email Address *</label><input type="email" id="fEmail" placeholder="arjun@nexlance.com"></div>
       <div class="form-group"><label>Role</label>
         <select id="fRole">
-          <option>Admin</option><option>Project Manager</option>
-          <option>Developer</option><option>Designer</option><option>Client</option>
+          <option>Admin</option>
+          <option>Project Manager</option>
+          <option>Developer</option>
+          <option>Designer</option>
+          <option>Client</option>
         </select>
       </div>
     </div>
@@ -101,30 +98,33 @@
     </div>
 
     <div style="margin-top:18px;">
-      <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Permissions</h4>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+        <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Permissions</h4>
+        <span style="font-size:0.78rem;color:#888;">Auto-filled from Access / Roles</span>
+      </div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
           Can Edit Tasks
-          <label class="toggle"><input type="checkbox" id="pTasks"><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="pTasks" disabled><span class="toggle-slider"></span></label>
         </label>
         <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
           Can See Revenue & Financial Data
-          <label class="toggle"><input type="checkbox" id="pRevenue"><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="pRevenue" disabled><span class="toggle-slider"></span></label>
         </label>
         <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
           Can Create Invoices
-          <label class="toggle"><input type="checkbox" id="pInvoice"><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="pInvoice" disabled><span class="toggle-slider"></span></label>
         </label>
         <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
           Can Upload Files
-          <label class="toggle"><input type="checkbox" id="pUpload"><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="pUpload" disabled><span class="toggle-slider"></span></label>
         </label>
       </div>
     </div>
 
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveMember()">Save Member</button>
+      <button class="btn btn-secondary" type="button" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" type="button" onclick="saveMember()">Save Member</button>
     </div>
   </div>
 </div>
@@ -136,15 +136,14 @@
 let members = [];
 let availableProjects = [];
 let editingId = null;
-function ensureDataAccess() {
-  if (!isUpgradeRequiredForData()) return true;
-  showToast(getUpgradeRequiredMessage(), 'error');
-  return false;
-}
 
+const accessControl = window.NexlanceAccessControl;
 const roleColors = {
-  'Admin': 'badge-red', 'Project Manager': 'badge-blue',
-  'Developer': 'badge-purple', 'Designer': 'badge-teal', 'Client': 'badge-gray'
+  'Admin': 'badge-red',
+  'Project Manager': 'badge-blue',
+  'Developer': 'badge-purple',
+  'Designer': 'badge-teal',
+  'Client': 'badge-gray'
 };
 const roleGradients = {
   'Admin': 'linear-gradient(135deg,#d63031,#e17055)',
@@ -154,33 +153,93 @@ const roleGradients = {
   'Client': 'linear-gradient(135deg,#b2bec3,#dfe6e9)'
 };
 
-async function init() {
-  [members, availableProjects] = await Promise.all([
+function ensureDataAccess() {
+  if (!isUpgradeRequiredForData()) return true;
+  showToast(getUpgradeRequiredMessage(), 'error');
+  return false;
+}
+
+function getInitials(name) {
+  return String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase() || 'TM';
+}
+
+function getRoleLabel(role) {
+  return accessControl ? accessControl.getRoleDisplayLabel(role) : String(role || 'Admin').trim();
+}
+
+function getRoleToggleState(role) {
+  if (accessControl && typeof accessControl.getRoleTogglePermissions === 'function') {
+    const nextState = accessControl.getRoleTogglePermissions(role);
+    return {
+      tasks: Boolean(nextState.canEditTasks),
+      revenue: Boolean(nextState.canSeeRevenue),
+      invoice: Boolean(nextState.canCreateInvoices),
+      upload: Boolean(nextState.canUploadFiles)
+    };
+  }
+
+  const presets = {
+    'Admin': { tasks: true, revenue: true, invoice: true, upload: true },
+    'Project Manager': { tasks: true, revenue: true, invoice: true, upload: true },
+    'Developer': { tasks: true, revenue: false, invoice: false, upload: true },
+    'Designer': { tasks: true, revenue: false, invoice: false, upload: true },
+    'Client': { tasks: false, revenue: false, invoice: false, upload: false }
+  };
+  return presets[getRoleLabel(role)] || presets.Admin;
+}
+
+function applyRolePermissions(role) {
+  const state = getRoleToggleState(role);
+  document.getElementById('pTasks').checked = state.tasks;
+  document.getElementById('pRevenue').checked = state.revenue;
+  document.getElementById('pInvoice').checked = state.invoice;
+  document.getElementById('pUpload').checked = state.upload;
+}
+
+function getMemberPermissionState(member) {
+  return getRoleToggleState(member.canonical_role || member.role);
+}
+
+async function refreshTeamData() {
+  const [nextMembers, nextProjects] = await Promise.all([
     fetchTeamMembers(),
     fetchProjects().catch(() => [])
   ]);
-  renderProjectAccessOptions();
-  applyTeamUiPermissions();
+  members = Array.isArray(nextMembers) ? nextMembers : [];
+  availableProjects = Array.isArray(nextProjects) ? nextProjects : [];
+  renderProjectAccessOptions(editingId ? getSelectedProjectIds() : []);
   renderStats();
-  renderGrid(members);
+  filterMembers();
+}
+
+async function init() {
+  await refreshTeamData();
+  applyTeamUiPermissions();
 }
 
 function applyTeamUiPermissions() {
-  const accessControl = window.NexlanceAccessControl;
   const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
   const canInvite = Boolean(accessControl && currentUser && accessControl.canAccessInvitationControl(currentUser));
-  const addButton = document.querySelector('.page-header-actions .btn.btn-primary');
+  const addButton = document.getElementById('addMemberBtn');
   if (addButton) addButton.style.display = canInvite ? '' : 'none';
 }
 
 function renderProjectAccessOptions(selectedIds = []) {
   const select = document.getElementById('fAssignedProjects');
   if (!select) return;
+
   const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(String));
   if (!availableProjects.length) {
     select.innerHTML = '<option value="">No projects available yet</option>';
     return;
   }
+
   select.innerHTML = availableProjects.map(project => `
     <option value="${project.id}" ${selected.has(String(project.id)) ? 'selected' : ''}>${project.name}</option>
   `).join('');
@@ -194,9 +253,9 @@ function getSelectedProjectIds() {
 
 function renderStats() {
   document.getElementById('sTotal').textContent = members.length;
-  document.getElementById('sDev').textContent = members.filter(m => m.role === 'Developer').length;
-  document.getElementById('sDes').textContent = members.filter(m => m.role === 'Designer').length;
-  document.getElementById('sPM').textContent = members.filter(m => m.role === 'Project Manager').length;
+  document.getElementById('sDev').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Developer').length;
+  document.getElementById('sDes').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Designer').length;
+  document.getElementById('sPM').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Project Manager').length;
 }
 
 function renderGrid(data) {
@@ -205,26 +264,30 @@ function renderGrid(data) {
     grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></div>`;
     return;
   }
+
   if (!data.length) {
     grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">🧑‍💼</div><h3>No team members found</h3><p>Add team members to get started</p></div></div>`;
     return;
   }
-  grid.innerHTML = data.map(m => {
-    const initials = getInitials(m.name);
-    const perms = [];
-    if (m.can_edit_tasks)     perms.push('Edit Tasks');
-    if (m.can_see_revenue)    perms.push('Revenue');
-    if (m.can_create_invoices) perms.push('Invoices');
-    if (m.can_upload_files)   perms.push('Uploads');
+
+  grid.innerHTML = data.map(member => {
+    const role = getRoleLabel(member.canonical_role || member.role);
+    const perms = getMemberPermissionState(member);
+    const permissionTags = [];
+    if (perms.tasks) permissionTags.push('Edit Tasks');
+    if (perms.revenue) permissionTags.push('Revenue');
+    if (perms.invoice) permissionTags.push('Invoices');
+    if (perms.upload) permissionTags.push('Uploads');
+
     return `<div class="team-card">
-      <div class="team-avatar" style="background:${roleGradients[m.role] || 'linear-gradient(135deg,#6c5ce7,#a29bfe)'}">${initials}</div>
-      <h3>${m.name}</h3>
-      <div class="team-email">${m.email}</div>
-      <span class="badge ${roleColors[m.role] || 'badge-gray'}">${m.role}</span>
-      ${perms.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${perms.map(p=>`<span style="background:#f9f7ff;color:#6c5ce7;border-radius:6px;padding:2px 7px;font-size:0.7rem;font-weight:600;">${p}</span>`).join('')}</div>` : ''}
+      <div class="team-avatar" style="background:${roleGradients[role] || 'linear-gradient(135deg,#6c5ce7,#a29bfe)'}">${getInitials(member.name)}</div>
+      <h3>${member.name}</h3>
+      <div class="team-email">${member.email}</div>
+      <span class="badge ${roleColors[role] || 'badge-gray'}">${role}</span>
+      ${permissionTags.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${permissionTags.map(permission => `<span style="background:#f9f7ff;color:#6c5ce7;border-radius:6px;padding:2px 7px;font-size:0.7rem;font-weight:600;">${permission}</span>`).join('')}</div>` : ''}
       <div class="team-card-actions">
-        <button class="action-btn action-edit" onclick="openEditModal('${m.id}')" title="Edit">✏️</button>
-        <button class="action-btn action-delete" onclick="handleDelete('${m.id}')" title="Remove">🗑</button>
+        <button class="action-btn action-edit" type="button" onclick="openEditModal('${member.id}')" title="Edit">✏️</button>
+        <button class="action-btn action-delete" type="button" onclick="handleDelete('${member.id}')" title="Remove">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -233,113 +296,141 @@ function renderGrid(data) {
 function filterMembers() {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const role = document.getElementById('filterRole').value;
-  renderGrid(members.filter(m =>
-    (!search || m.name.toLowerCase().includes(search) || m.email.toLowerCase().includes(search)) &&
-    (!role || m.role === role)
+  renderGrid(members.filter(member =>
+    (!search || String(member.name || '').toLowerCase().includes(search) || String(member.email || '').toLowerCase().includes(search)) &&
+    (!role || getRoleLabel(member.canonical_role || member.role) === role)
   ));
 }
+
 document.getElementById('searchInput').addEventListener('input', filterMembers);
 document.getElementById('filterRole').addEventListener('change', filterMembers);
 
 function openAddModal() {
-  const accessControl = window.NexlanceAccessControl;
   const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
   if (accessControl && currentUser && !accessControl.canAccessInvitationControl(currentUser)) {
     showToast('Only the workspace owner can send team invitations', 'error');
     return;
   }
   if (!ensureDataAccess()) return;
+
   editingId = null;
   document.getElementById('modalTitle').textContent = 'Add Team Member';
   document.getElementById('fName').value = '';
   document.getElementById('fEmail').value = '';
   document.getElementById('fRole').value = 'Developer';
-  ['pTasks','pRevenue','pInvoice','pUpload'].forEach(id => document.getElementById(id).checked = false);
-  renderProjectAccessOptions();
+  renderProjectAccessOptions([]);
+  applyRolePermissions('Developer');
   document.getElementById('memberModal').classList.add('active');
 }
 
 function openEditModal(id) {
   if (!ensureDataAccess()) return;
-  const m = members.find(x => x.id === id);
-  if (!m) return;
+  const member = members.find(entry => entry.id === id);
+  if (!member) return;
+
   editingId = id;
   document.getElementById('modalTitle').textContent = 'Edit Member';
-  document.getElementById('fName').value = m.name;
-  document.getElementById('fEmail').value = m.email;
-  document.getElementById('fRole').value = m.role;
-  document.getElementById('pTasks').checked = m.can_edit_tasks;
-  document.getElementById('pRevenue').checked = m.can_see_revenue;
-  document.getElementById('pInvoice').checked = m.can_create_invoices;
-  document.getElementById('pUpload').checked = m.can_upload_files;
-  renderProjectAccessOptions(m.assigned_project_ids || m.assignedProjectIds || []);
+  document.getElementById('fName').value = member.name || '';
+  document.getElementById('fEmail').value = member.email || '';
+  document.getElementById('fRole').value = getRoleLabel(member.canonical_role || member.role);
+  renderProjectAccessOptions(member.assigned_project_ids || member.assignedProjectIds || []);
+  applyRolePermissions(member.canonical_role || member.role);
   document.getElementById('memberModal').classList.add('active');
 }
-function closeModal() { document.getElementById('memberModal').classList.remove('active'); }
+
+function closeModal() {
+  document.getElementById('memberModal').classList.remove('active');
+}
 
 async function saveMember() {
   if (!ensureDataAccess()) return;
+
   const name = document.getElementById('fName').value.trim();
   const email = document.getElementById('fEmail').value.trim();
-  if (!name || !email) { showToast('Name and email are required', 'error'); return; }
+  const role = document.getElementById('fRole').value;
+  if (!name || !email) {
+    showToast('Name and email are required', 'error');
+    return;
+  }
+
   const assignedProjectIds = getSelectedProjectIds();
+  const rolePermissions = getRoleToggleState(role);
   const data = {
-    name, email,
-    role: document.getElementById('fRole').value,
-    can_edit_tasks: document.getElementById('pTasks').checked,
-    can_see_revenue: document.getElementById('pRevenue').checked,
-    can_create_invoices: document.getElementById('pInvoice').checked,
-    can_upload_files: document.getElementById('pUpload').checked,
+    name,
+    email,
+    role,
+    can_edit_tasks: rolePermissions.tasks,
+    can_see_revenue: rolePermissions.revenue,
+    can_create_invoices: rolePermissions.invoice,
+    can_upload_files: rolePermissions.upload,
     assigned_project_ids: assignedProjectIds
   };
+
   try {
     if (editingId) {
-      const upd = await updateTeamMember(editingId, data);
-      const idx = members.findIndex(m => m.id === editingId);
-      if (idx > -1) members[idx] = upd;
+      await updateTeamMember(editingId, data);
+      await refreshTeamData();
       showToast('Member updated!', 'success');
     } else {
-      const created = await inviteTeamMember({
+      const response = await inviteTeamMember({
         name,
         email,
-        role: document.getElementById('fRole').value,
+        role,
         assignedProjectIds,
         metadata: data
       });
-      members.push(created.record);
-      showToast('Invitation sent successfully!', 'success');
+      await refreshTeamData();
+      if (response && response.emailDeliveryError) {
+        showToast('Member added, but the invitation email could not be sent. Check the Resend sender domain in Vercel.', 'info');
+      } else {
+        showToast('Invitation sent successfully!', 'success');
+      }
     }
-    closeModal(); renderStats(); filterMembers();
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+
+    closeModal();
+    renderStats();
+    filterMembers();
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
 }
 
 async function handleDelete(id) {
   if (!ensureDataAccess()) return;
   if (!confirm('Remove this team member?')) return;
+
   try {
     await deleteTeamMember(id);
-    members = members.filter(m => m.id !== id);
-    renderStats(); filterMembers();
+    await refreshTeamData();
     showToast('Member removed.', 'info');
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
 }
 
-document.getElementById('memberModal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+document.getElementById('memberModal').addEventListener('click', function (event) {
+  if (event.target === this) closeModal();
+});
 
-// Auto-set permissions based on role
-document.getElementById('fRole').addEventListener('change', function() {
-  const presets = {
-    'Admin':           { t:true,  r:true,  i:true,  u:true  },
-    'Project Manager': { t:true,  r:true,  i:true,  u:true  },
-    'Developer':       { t:true,  r:false, i:false, u:true  },
-    'Designer':        { t:true,  r:false, i:false, u:true  },
-    'Client':          { t:false, r:false, i:false, u:false }
-  };
-  const p = presets[this.value] || {};
-  document.getElementById('pTasks').checked   = p.t || false;
-  document.getElementById('pRevenue').checked = p.r || false;
-  document.getElementById('pInvoice').checked = p.i || false;
-  document.getElementById('pUpload').checked  = p.u || false;
+document.getElementById('fRole').addEventListener('change', function () {
+  applyRolePermissions(this.value);
+});
+
+window.addEventListener('focus', () => {
+  refreshTeamData().catch(() => undefined);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    refreshTeamData().catch(() => undefined);
+  }
+});
+
+window.addEventListener('nexlance-data-changed', event => {
+  const entity = event && event.detail ? event.detail.entity : '';
+  if (!entity || ['team_members', 'projects'].includes(entity)) {
+    refreshTeamData().catch(() => undefined);
+  }
 });
 
 init();
