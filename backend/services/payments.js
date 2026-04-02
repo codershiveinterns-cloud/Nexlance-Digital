@@ -89,12 +89,28 @@ function getPolarProductEnvKey(productCode) {
     return getPrimaryEnvKey(POLAR_PRODUCT_ENV_MAP[productCode]);
 }
 
+function hasRealSecret(value, disallowedFragments = []) {
+    const normalized = String(value || '').trim();
+    if (!normalized) return false;
+    const lower = normalized.toLowerCase();
+    if (lower.includes('your_') || lower.includes('replace_with_') || lower.includes('changeme')) {
+        return false;
+    }
+    return !disallowedFragments.some(fragment => lower.includes(String(fragment || '').trim().toLowerCase()));
+}
+
+function isValidPolarResourceId(value) {
+    const normalized = String(value || '').trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized);
+}
+
 function hasStripeGatewayAccess() {
-    return Boolean(STRIPE_SECRET_KEY);
+    return hasRealSecret(STRIPE_SECRET_KEY, ['sk_test_your_', 'sk_live_your_', 'stripe_secret_key']);
 }
 
 function hasPolarGatewayAccess(productCode) {
-    return Boolean(POLAR_ACCESS_TOKEN && getPolarProductId(productCode));
+    return hasRealSecret(POLAR_ACCESS_TOKEN, ['polar_oat_your_', 'polar_access_token'])
+        && isValidPolarResourceId(getPolarProductId(productCode));
 }
 
 function getProductGatewayAvailability(productCode) {
@@ -316,7 +332,7 @@ async function resolveCheckoutContext(options) {
 }
 
 async function createStripeCheckoutSession(context) {
-    if (!STRIPE_SECRET_KEY) {
+    if (!hasStripeGatewayAccess()) {
         throw new Error('Set STRIPE_SECRET_KEY before using Stripe checkout.');
     }
 
@@ -384,12 +400,12 @@ async function createStripeCheckoutSession(context) {
 }
 
 async function createPolarCheckoutSession(context) {
-    if (!POLAR_ACCESS_TOKEN) {
+    if (!hasRealSecret(POLAR_ACCESS_TOKEN, ['polar_oat_your_', 'polar_access_token'])) {
         throw new Error('Set POLAR_ACCESS_TOKEN before using Polar checkout.');
     }
 
     const productId = getPolarProductId(context.product.productCode);
-    if (!productId) {
+    if (!isValidPolarResourceId(productId)) {
         throw new Error(`Set the Polar product ID for ${context.product.productCode} before using Polar checkout.`);
     }
 
@@ -428,7 +444,17 @@ async function createPolarCheckoutSession(context) {
         provider: 'polar',
         redirectUrl: data.url,
         providerReferenceId: data.id,
-        checkoutId: data.id
+        checkoutId: data.id,
+        diagnostics: {
+            paymentProcessor: data.payment_processor || '',
+            productId: data.product_id || productId,
+            productPriceId: data.product_price_id || '',
+            productPriceType: data.product_price && data.product_price.type ? data.product_price.type : '',
+            recurringInterval: data.product_price && data.product_price.recurring_interval ? data.product_price.recurring_interval : '',
+            isPaymentRequired: data.is_payment_required === true,
+            isPaymentSetupRequired: data.is_payment_setup_required === true,
+            isPaymentFormRequired: data.is_payment_form_required === true
+        }
     };
 }
 
@@ -494,7 +520,8 @@ async function createHostedCheckout(options) {
                 providerReferenceId: payload.providerReferenceId,
                 metadata: {
                     ...attemptBase.metadata,
-                    usedFallback: index > 0
+                    usedFallback: index > 0,
+                    paymentDiagnostics: payload.diagnostics || {}
                 }
             });
 
