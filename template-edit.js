@@ -23,10 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const templateName = templateConfig ? templateConfig.name : document.title.replace('Template', '').trim();
 
     let isEditMode = false;
+    let isDirty = false;
     let editableElements = [];
     let editableImages = [];
     let imagePicker = null;
     let pendingImageElement = null;
+
+    function markDirty(dirty) {
+        isDirty = Boolean(dirty);
+        parentWorkspace.setDirtyState(isDirty);
+    }
 
     function ensureStyles() {
         if (document.getElementById('templateWorkspaceStyles')) return;
@@ -96,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = loadEvent => {
                 pendingImageElement.setAttribute('src', String(loadEvent.target && loadEvent.target.result ? loadEvent.target.result : ''));
                 pendingImageElement.setAttribute('data-template-image-updated', '1');
-                parentWorkspace.setDirtyState(true);
+                markDirty(true);
                 pendingImageElement = null;
                 imagePicker.value = '';
             };
@@ -120,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         element.setAttribute('data-target', numericValue);
                     }
                 }
-                parentWorkspace.setDirtyState(true);
+                markDirty(true);
             });
         });
 
@@ -168,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        parentWorkspace.setDirtyState(false);
+        markDirty(false);
     }
 
     function setAllEditable(active) {
@@ -203,8 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function buildDownloadHtml() {
+    function buildRenderedHtml(options = {}) {
         const clone = document.documentElement.cloneNode(true);
+        const normalizeAssetsAbsolute = options.normalizeAssetsAbsolute === true;
 
         clone.querySelectorAll('[contenteditable]').forEach(element => element.removeAttribute('contenteditable'));
         clone.querySelectorAll('.template-workspace-editable').forEach(element => element.classList.remove('template-workspace-editable'));
@@ -212,28 +219,36 @@ document.addEventListener('DOMContentLoaded', () => {
         clone.querySelectorAll('#templateWorkspaceStyles').forEach(element => element.remove());
         clone.querySelectorAll('#templateWorkspaceImagePicker').forEach(element => element.remove());
 
-        clone.querySelectorAll('link[href], script[src], img[src], source[src]').forEach(element => {
-            const attr = element.tagName.toLowerCase() === 'link' ? 'href' : 'src';
-            const value = element.getAttribute(attr);
-            if (!value || value.startsWith('data:') || value.startsWith('http')) return;
-            try {
-                element.setAttribute(attr, new URL(value, window.location.href).href);
-            } catch (error) {
-                console.warn('Could not normalize asset URL:', value, error);
-            }
-        });
+        if (normalizeAssetsAbsolute) {
+            clone.querySelectorAll('link[href], script[src], img[src], source[src]').forEach(element => {
+                const attr = element.tagName.toLowerCase() === 'link' ? 'href' : 'src';
+                const value = element.getAttribute(attr);
+                if (!value || value.startsWith('data:') || value.startsWith('http')) return;
+                try {
+                    element.setAttribute(attr, new URL(value, window.location.href).href);
+                } catch (error) {
+                    console.warn('Could not normalize asset URL:', value, error);
+                }
+            });
+        }
 
         return `<!DOCTYPE html>\n${clone.outerHTML}`;
     }
 
     async function saveChanges(options = {}) {
         const state = serializeState();
+        const renderedHtml = buildRenderedHtml();
         if (options.completed) {
-            await parentWorkspace.completeProjectTemplate(projectId, state);
+            await parentWorkspace.completeProjectTemplate(projectId, state, { renderedHtml });
         } else {
-            await parentWorkspace.saveProjectTemplateState(projectId, state);
+            await parentWorkspace.saveProjectTemplateState(projectId, state, { renderedHtml });
         }
-        parentWorkspace.setDirtyState(false);
+        isEditMode = false;
+        setAllEditable(false);
+        if (typeof parentWorkspace.setEditMode === 'function') {
+            parentWorkspace.setEditMode(false);
+        }
+        markDirty(false);
     }
 
     document.addEventListener('click', event => {
@@ -248,27 +263,38 @@ document.addEventListener('DOMContentLoaded', () => {
     window.enterTemplateWorkspaceEditMode = function enterTemplateWorkspaceEditMode() {
         isEditMode = true;
         setAllEditable(true);
+        if (typeof parentWorkspace.setEditMode === 'function') {
+            parentWorkspace.setEditMode(true);
+        }
     };
 
     window.saveTemplateWorkspaceChanges = async function saveTemplateWorkspaceChanges() {
         await saveChanges({ completed: false });
-        isEditMode = false;
-        setAllEditable(false);
     };
 
     window.completeTemplateWorkspaceProject = async function completeTemplateWorkspaceProject() {
-        await saveChanges({ completed: true });
+        if (isEditMode || isDirty) {
+            throw new Error('Save changes before completing the project.');
+        }
+
+        const currentState = serializeState();
+        const renderedHtml = buildRenderedHtml();
+        await parentWorkspace.completeProjectTemplate(projectId, currentState, { renderedHtml });
         isEditMode = false;
         setAllEditable(false);
+        if (typeof parentWorkspace.setEditMode === 'function') {
+            parentWorkspace.setEditMode(false);
+        }
+        markDirty(false);
     };
 
     window.downloadTemplateWorkspaceOutput = async function downloadTemplateWorkspaceOutput() {
-        if (isEditMode) {
-            await window.saveTemplateWorkspaceChanges();
+        if (isEditMode || isDirty) {
+            throw new Error('Save changes before downloading the final output.');
         }
 
         await parentWorkspace.downloadProjectTemplate(projectId, {
-            html: buildDownloadHtml(),
+            renderedHtml: buildRenderedHtml(),
             templateId: templateConfig ? templateConfig.id : templatePage.replace('.html', ''),
             templateName
         });

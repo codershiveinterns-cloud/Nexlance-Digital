@@ -1796,9 +1796,33 @@ async function addProject(d) {
     }
 }
 
-async function updateProject(id, d) {
+function isTemplateWorkspaceProjectUpdate(payload) {
+    const templateWorkspacePatchFields = new Set([
+        'template_state',
+        'template_last_saved_at',
+        'template_saved_html',
+        'template_workflow_status',
+        'template_completed_at',
+        'template_download_paid',
+        'template_download_paid_at',
+        'template_download_payment_intent_id',
+        'template_download_amount_gbp',
+        'status',
+        'progress'
+    ]);
+
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+
+    const keys = Object.keys(payload);
+    if (!keys.length) return false;
+
+    return keys.every(key => templateWorkspacePatchFields.has(String(key || '').trim()));
+}
+
+async function updateProject(id, d, options = {}) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const doc = sanitizeFirestoreData(withOwnerFields(d));
+    const isTemplateWorkspaceUpdate = options && options.templateWorkspace === true && isTemplateWorkspaceProjectUpdate(doc);
     if (Object.prototype.hasOwnProperty.call(doc, 'template_state')) {
         console.debug('[Nexlance] Saving sanitized template_state', {
             projectId: id,
@@ -1806,12 +1830,20 @@ async function updateProject(id, d) {
         });
     }
     if (isFirebaseConfigured) {
-        if (!hasDashboardPermission('projects', 'update')) throw createDashboardPermissionError('projects', 'update');
+        if (!hasDashboardPermission('projects', isTemplateWorkspaceUpdate ? 'read' : 'update')) {
+            throw createDashboardPermissionError('projects', isTemplateWorkspaceUpdate ? 'read' : 'update');
+        }
         if (isFirebaseUserAuthenticated()) {
             try {
-                return await dashboardApiRequest('PATCH', 'projects', id, doc);
+                const record = await dashboardApiRequest('PATCH', 'projects', id, doc);
+                if (record) {
+                    upsertLocalEntityRecord('projects', record);
+                }
+                return record;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'update');
+                if (!isDashboardApiUnavailableError(error)) {
+                    throw normalizeDashboardApiError(error, 'projects', isTemplateWorkspaceUpdate ? 'read' : 'update');
+                }
             }
         }
     }

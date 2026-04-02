@@ -10,6 +10,7 @@
     })();
     let workspaceMounted = false;
     let hasUnsavedChanges = false;
+    let isWorkspaceEditMode = false;
     let workspaceActionInFlight = false;
     let lastWorkspaceError = { message: '', at: 0 };
 
@@ -33,6 +34,10 @@
         return `nexlance_template_workspace_${getCurrentWorkspaceUserKey()}_${String(projectId || '').trim()}`;
     }
 
+    function getWorkspaceCheckoutStorageKey(projectId) {
+        return `nexlance_template_workspace_checkout_${getCurrentWorkspaceUserKey()}_${String(projectId || '').trim()}`;
+    }
+
     function getStoredWorkspaceState(projectId) {
         if (!projectId) return null;
         try {
@@ -45,6 +50,24 @@
     function persistWorkspaceState(projectId, payload) {
         if (!projectId || !payload || typeof payload !== 'object') return;
         localStorage.setItem(getWorkspaceStateStorageKey(projectId), JSON.stringify(payload));
+    }
+
+    function getPendingWorkspaceCheckout(projectId) {
+        if (!projectId) return null;
+        try {
+            return JSON.parse(localStorage.getItem(getWorkspaceCheckoutStorageKey(projectId)) || 'null');
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function persistPendingWorkspaceCheckout(projectId, payload) {
+        if (!projectId) return;
+        if (!payload) {
+            localStorage.removeItem(getWorkspaceCheckoutStorageKey(projectId));
+            return;
+        }
+        localStorage.setItem(getWorkspaceCheckoutStorageKey(projectId), JSON.stringify(payload));
     }
 
     function getTimestampValue(value) {
@@ -71,8 +94,12 @@
             ...project,
             template_state: storedWorkspace.template_state || project.template_state,
             template_last_saved_at: storedSavedAt || project.template_last_saved_at,
+            template_saved_html: storedWorkspace.template_saved_html || project.template_saved_html,
             template_workflow_status: storedWorkspace.template_workflow_status || project.template_workflow_status,
             template_completed_at: storedWorkspace.template_completed_at || project.template_completed_at,
+            template_download_paid_at: storedWorkspace.template_download_paid_at || project.template_download_paid_at,
+            template_download_payment_intent_id: storedWorkspace.template_download_payment_intent_id || project.template_download_payment_intent_id,
+            template_download_amount_gbp: storedWorkspace.template_download_amount_gbp || project.template_download_amount_gbp,
             template_download_paid: storedWorkspace.template_download_paid !== undefined
                 ? storedWorkspace.template_download_paid
                 : project.template_download_paid
@@ -144,6 +171,16 @@
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '') || 'template-project';
+    }
+
+    function getApiUrl(pathname) {
+        if (window.NexlancePayments && typeof window.NexlancePayments.getApiUrl === 'function') {
+            return window.NexlancePayments.getApiUrl(pathname);
+        }
+        const normalizedPath = String(pathname || '').startsWith('/')
+            ? String(pathname)
+            : `/${String(pathname || '')}`;
+        return normalizedPath;
     }
 
     function wait(ms) {
@@ -343,6 +380,18 @@
 
     function setWorkspaceDirty(dirty) {
         hasUnsavedChanges = Boolean(dirty);
+        const currentProject = getCurrentProject();
+        if (currentProject) {
+            updateWorkspaceChrome(currentProject);
+        }
+    }
+
+    function setWorkspaceEditMode(active) {
+        isWorkspaceEditMode = Boolean(active);
+        const currentProject = getCurrentProject();
+        if (currentProject) {
+            updateWorkspaceChrome(currentProject);
+        }
     }
 
     function normalizeTemplateState(templateState, project) {
@@ -437,9 +486,11 @@
         const resolvedProject = mergeWorkspaceStateIntoProject(project);
         const statusEl = document.getElementById('workspaceStatus');
         const saveMetaEl = document.getElementById('workspaceSaveMeta');
+        const editBtn = document.getElementById('workspaceEditBtn');
+        const saveBtn = document.getElementById('workspaceSaveBtn');
         const downloadBtn = document.getElementById('workspaceDownloadBtn');
         const completeBtn = document.getElementById('workspaceCompleteBtn');
-        if (!statusEl || !saveMetaEl || !downloadBtn || !completeBtn) return;
+        if (!statusEl || !saveMetaEl || !editBtn || !saveBtn || !downloadBtn || !completeBtn) return;
 
         const workflowStatus = resolvedProject.template_workflow_status || 'draft';
         const savedAt = resolvedProject.template_last_saved_at
@@ -448,33 +499,60 @@
             || resolvedProject.updatedAt
             || null;
         const completed = workflowStatus === 'completed';
+        const needsSave = hasUnsavedChanges || isWorkspaceEditMode;
 
         statusEl.textContent = completed ? 'Completed' : (workflowStatus === 'in_progress' ? 'In Progress' : 'Draft');
-        saveMetaEl.textContent = savedAt
-            ? `Last saved ${new Date(savedAt).toLocaleString()}`
-            : 'No saved changes yet';
-        completeBtn.disabled = completed;
+        if (needsSave) {
+            saveMetaEl.textContent = 'Unsaved changes. Save before completing or downloading.';
+        } else {
+            saveMetaEl.textContent = savedAt
+                ? `Last saved ${new Date(savedAt).toLocaleString()}`
+                : 'No saved changes yet';
+        }
+
+        editBtn.disabled = workspaceActionInFlight || completed;
+        editBtn.textContent = isWorkspaceEditMode ? 'Editing Enabled' : 'Edit Mode';
+        saveBtn.disabled = workspaceActionInFlight || !needsSave || completed;
+        completeBtn.disabled = workspaceActionInFlight || completed || needsSave;
         completeBtn.textContent = completed ? 'Project Completed' : 'Complete Project';
-        downloadBtn.disabled = !completed;
-        downloadBtn.textContent = resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)';
+        downloadBtn.disabled = workspaceActionInFlight || !completed || needsSave;
+        downloadBtn.textContent = !completed
+            ? 'Download After Completion'
+            : (resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)');
     }
 
     async function saveTemplateState(projectId, templateState, options = {}) {
         const currentProject = getCurrentProject();
+        if (!currentProject) {
+            throw new Error('Project could not be found for saving.');
+        }
         const savedAt = new Date().toISOString();
+        const alreadyCompleted = String(currentProject.template_workflow_status || '').trim().toLowerCase() === 'completed';
+        const nextWorkflow = options.completed ? 'completed' : (alreadyCompleted ? 'completed' : 'in_progress');
+        const nextCompletedAt = options.completed
+            ? new Date().toISOString()
+            : (alreadyCompleted ? (currentProject.template_completed_at || savedAt) : null);
         const serializableTemplateState = getSerializableTemplateState({
             ...templateState,
             savedAt
         }, currentProject);
-        const nextProgress = options.completed ? 100 : Math.max(Number(currentProject.progress || 0), 50);
-        const nextStatus = options.completed ? 'Live' : (currentProject.status === 'Planning' ? 'Development' : currentProject.status || 'Development');
-        const nextWorkflow = options.completed ? 'completed' : 'in_progress';
+        const renderedHtml = String(options.renderedHtml || currentProject.template_saved_html || '').trim();
+        const nextProgress = (options.completed || alreadyCompleted)
+            ? 100
+            : Math.max(Number(currentProject.progress || 0), 50);
+        const nextStatus = (options.completed || alreadyCompleted)
+            ? 'Live'
+            : (currentProject.status === 'Planning' ? 'Development' : currentProject.status || 'Development');
         const workspaceSnapshot = {
             template_state: serializableTemplateState,
             template_last_saved_at: savedAt,
+            template_saved_html: renderedHtml,
             template_workflow_status: nextWorkflow,
-            template_completed_at: options.completed ? new Date().toISOString() : (currentProject.template_completed_at || null),
-            template_download_paid: Boolean(currentProject.template_download_paid)
+            template_completed_at: nextCompletedAt,
+            template_download_paid: Boolean(currentProject.template_download_paid),
+            template_download_paid_at: currentProject.template_download_paid_at || null,
+            template_download_payment_intent_id: currentProject.template_download_payment_intent_id || '',
+            template_download_amount_gbp: currentProject.template_download_amount_gbp || null
         };
         console.debug('[TemplateWorkspace] Persisting template state', {
             projectId,
@@ -485,11 +563,12 @@
         await updateProject(projectId, {
             template_state: serializableTemplateState,
             template_last_saved_at: savedAt,
+            template_saved_html: renderedHtml,
             template_workflow_status: nextWorkflow,
-            template_completed_at: workspaceSnapshot.template_completed_at,
+            template_completed_at: nextCompletedAt,
             status: nextStatus,
             progress: nextProgress
-        });
+        }, { templateWorkspace: true });
 
         const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
             ? await window.refreshProjectDetailProject()
@@ -507,13 +586,12 @@
             });
         }
         updateWorkspaceChrome(refreshedProject);
+        setWorkspaceEditMode(false);
         setWorkspaceDirty(false);
         return refreshedProject;
     }
 
-    function downloadHtmlFile(project, payload) {
-        const filename = `${slugify(project.name || project.template_name || 'template-project')}.html`;
-        const blob = new Blob([payload.html], { type: 'text/html;charset=utf-8' });
+    function downloadBlobFile(filename, blob) {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -524,6 +602,40 @@
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
+    function parseDownloadFileName(response, fallbackName) {
+        const header = response.headers.get('Content-Disposition') || response.headers.get('content-disposition') || '';
+        const match = header.match(/filename="?([^"]+)"?/i);
+        return match && match[1] ? match[1] : fallbackName;
+    }
+
+    async function downloadProjectTemplateBundle(projectId, payload = {}) {
+        if (typeof getDashboardBearerToken !== 'function') {
+            throw new Error('Project download authentication is unavailable right now.');
+        }
+
+        const token = await getDashboardBearerToken();
+        const response = await fetch(getApiUrl('/api/project-template-download'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                projectId,
+                renderedHtml: String(payload.renderedHtml || '').trim()
+            })
+        });
+
+        if (!response.ok) {
+            const errorPayload = await response.json().catch(() => ({}));
+            throw new Error(errorPayload.error || 'Project download could not be prepared.');
+        }
+
+        const blob = await response.blob();
+        const fallbackName = `${slugify((getCurrentProject() || {}).name || 'template-project')}.zip`;
+        downloadBlobFile(parseDownloadFileName(response, fallbackName), blob);
+    }
+
     async function unlockTemplateDownload(project, templateName) {
         if (project.template_download_paid) return project;
 
@@ -531,58 +643,90 @@
             throw new Error('Secure template checkout is not available right now.');
         }
 
-        await window.NexlancePayments.startTemplatePayment({
-            amount: TEMPLATE_DOWNLOAD_AMOUNT_CENTS,
-            currency: DEFAULT_BILLING_CURRENCY,
-            productCode: 'template_download',
+        const redirectPath = `${window.location.pathname.replace(/^\/+/, '')}${window.location.search}${window.location.hash || ''}`;
+        persistPendingWorkspaceCheckout(project.id, {
+            projectId: project.id,
             templateId: project.template_id || '',
-            templateName,
-            title: 'Complete your template payment',
-            message: 'Pay GBP 199 to unlock the final template download for this project.',
-            summaryTitle: templateName || 'Template Download',
-            summaryText: 'Final editable website output',
-            buttonText: 'Pay GBP 199',
-            metadata: {
-                project_id: project.id,
-                template_id: project.template_id || ''
-            },
-            onSuccess: async paymentIntent => {
-                await updateProject(project.id, {
-                    template_download_paid: true,
-                    template_download_paid_at: new Date().toISOString(),
-                    template_download_payment_intent_id: paymentIntent.id,
-                    template_download_amount_gbp: 199
-                });
-                if (typeof recordPaymentRecord === 'function') {
-                    await recordPaymentRecord({
-                        paymentIntentId: paymentIntent.id,
-                        amount: 199,
-                        currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
-                        paymentType: 'template_download',
-                        templateId: project.template_id || '',
-                        templateName: templateName || '',
-                        projectId: project.id,
-                        status: 'succeeded'
-                    });
-                }
-                if (typeof trackPlatformActivity === 'function') {
-                    await trackPlatformActivity('template_download_unlocked', {
-                        targetType: 'project',
-                        targetId: project.id,
-                        message: `Unlocked download for ${templateName || project.template_name || 'template project'}.`,
-                        metadata: {
-                            payment_intent_id: paymentIntent.id,
-                            template_id: project.template_id || '',
-                            template_name: templateName || ''
-                        }
-                    });
-                }
-                const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
-                    ? await window.refreshProjectDetailProject()
-                    : window.getProjectDetailProject();
-                updateWorkspaceChrome(refreshedProject);
-            }
+            templateName: templateName || '',
+            createdAt: new Date().toISOString()
         });
+
+        try {
+            await window.NexlancePayments.startTemplatePayment({
+                amount: TEMPLATE_DOWNLOAD_AMOUNT_CENTS,
+                currency: DEFAULT_BILLING_CURRENCY,
+                productCode: 'single_template',
+                templateId: project.template_id || '',
+                templateName,
+                successRedirect: redirectPath,
+                cancelRedirect: redirectPath,
+                title: 'Complete your template payment',
+                message: 'Pay GBP 199 to unlock the final template download for this project.',
+                summaryTitle: templateName || 'Template Download',
+                summaryText: 'Final editable website output',
+                buttonText: 'Pay GBP 199',
+                metadata: {
+                    project_id: project.id,
+                    template_id: project.template_id || ''
+                },
+                onSuccess: async checkoutResult => {
+                    const paymentRecord = checkoutResult && checkoutResult.result && checkoutResult.result.paymentRecord
+                        ? checkoutResult.result.paymentRecord
+                        : {};
+                    const providerPaymentId = String(
+                        paymentRecord.providerPaymentId
+                        || paymentRecord.paymentIntentId
+                        || paymentRecord.providerSessionId
+                        || ''
+                    ).trim();
+                    await updateProject(project.id, {
+                        template_download_paid: true,
+                        template_download_paid_at: new Date().toISOString(),
+                        template_download_payment_intent_id: providerPaymentId,
+                        template_download_amount_gbp: 199
+                    }, { templateWorkspace: true });
+                    persistWorkspaceState(project.id, {
+                        ...(getStoredWorkspaceState(project.id) || {}),
+                        template_download_paid: true,
+                        template_download_paid_at: new Date().toISOString(),
+                        template_download_payment_intent_id: providerPaymentId,
+                        template_download_amount_gbp: 199
+                    });
+                    persistPendingWorkspaceCheckout(project.id, null);
+                    if (typeof recordPaymentRecord === 'function') {
+                        await recordPaymentRecord({
+                            paymentIntentId: providerPaymentId,
+                            amount: 199,
+                            currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
+                            paymentType: 'template_download',
+                            templateId: project.template_id || '',
+                            templateName: templateName || '',
+                            projectId: project.id,
+                            status: 'succeeded'
+                        });
+                    }
+                    if (typeof trackPlatformActivity === 'function') {
+                        await trackPlatformActivity('template_download_unlocked', {
+                            targetType: 'project',
+                            targetId: project.id,
+                            message: `Unlocked download for ${templateName || project.template_name || 'template project'}.`,
+                            metadata: {
+                                payment_intent_id: providerPaymentId,
+                                template_id: project.template_id || '',
+                                template_name: templateName || ''
+                            }
+                        });
+                    }
+                    const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
+                        ? await window.refreshProjectDetailProject()
+                        : window.getProjectDetailProject();
+                    updateWorkspaceChrome(refreshedProject);
+                }
+            });
+        } catch (error) {
+            persistPendingWorkspaceCheckout(project.id, null);
+            throw error;
+        }
 
         return window.getProjectDetailProject();
     }
@@ -642,30 +786,113 @@
                 if (!currentProject || currentProject.id !== projectId) return null;
                 return getSerializableTemplateState(currentProject.template_state, currentProject);
             },
-            async saveProjectTemplateState(projectId, templateState) {
-                return saveTemplateState(projectId, templateState, { completed: false });
+            async saveProjectTemplateState(projectId, templateState, renderOptions = {}) {
+                return saveTemplateState(projectId, templateState, {
+                    completed: false,
+                    renderedHtml: renderOptions && renderOptions.renderedHtml ? renderOptions.renderedHtml : ''
+                });
             },
-            async completeProjectTemplate(projectId, templateState) {
-                return saveTemplateState(projectId, templateState, { completed: true });
+            async completeProjectTemplate(projectId, templateState, renderOptions = {}) {
+                return saveTemplateState(projectId, templateState, {
+                    completed: true,
+                    renderedHtml: renderOptions && renderOptions.renderedHtml ? renderOptions.renderedHtml : ''
+                });
             },
             async downloadProjectTemplate(projectId, payload) {
                 const currentProject = getCurrentProject();
                 if (!currentProject || currentProject.id !== projectId) {
                     throw new Error('Project could not be found for download.');
                 }
+                if (hasUnsavedChanges || isWorkspaceEditMode) {
+                    throw new Error('Save changes before downloading the final output.');
+                }
                 if ((currentProject.template_workflow_status || '') !== 'completed') {
                     throw new Error('Complete the project before downloading the final output.');
                 }
                 const unlockedProject = await unlockTemplateDownload(currentProject, currentProject.template_name || currentProject.name);
-                if (!payload || !payload.html) {
-                    throw new Error('No project output is ready to download yet.');
-                }
-                downloadHtmlFile(unlockedProject, payload);
+                await downloadProjectTemplateBundle(unlockedProject.id, payload || {});
                 showToast('Final template output downloaded successfully.', 'success');
                 return unlockedProject;
             },
-            setDirtyState: setWorkspaceDirty
+            setDirtyState: setWorkspaceDirty,
+            setEditMode: setWorkspaceEditMode
         };
+    }
+
+    async function reconcileWorkspaceCheckoutResult(detail = {}, cancelled = false) {
+        const currentProject = getCurrentProject();
+        if (!currentProject || !currentProject.id) return;
+
+        const pendingCheckout = getPendingWorkspaceCheckout(currentProject.id);
+        if (!pendingCheckout) return;
+
+        if (cancelled) {
+            persistPendingWorkspaceCheckout(currentProject.id, null);
+            showToast('Template download checkout was cancelled.', 'error');
+            return;
+        }
+
+        if (String(detail.productCode || '').trim().toLowerCase() !== 'single_template') {
+            return;
+        }
+
+        if (pendingCheckout.templateId && String(detail.templateId || '').trim() !== String(pendingCheckout.templateId || '').trim()) {
+            return;
+        }
+
+        const paymentRecord = detail && detail.result && detail.result.paymentRecord
+            ? detail.result.paymentRecord
+            : {};
+        const providerPaymentId = String(
+            paymentRecord.providerPaymentId
+            || paymentRecord.paymentIntentId
+            || paymentRecord.providerSessionId
+            || ''
+        ).trim();
+        const paidAt = new Date().toISOString();
+
+        await updateProject(currentProject.id, {
+            template_download_paid: true,
+            template_download_paid_at: paidAt,
+            template_download_payment_intent_id: providerPaymentId,
+            template_download_amount_gbp: 199
+        }, { templateWorkspace: true });
+        persistWorkspaceState(currentProject.id, {
+            ...(getStoredWorkspaceState(currentProject.id) || {}),
+            template_download_paid: true,
+            template_download_paid_at: paidAt,
+            template_download_payment_intent_id: providerPaymentId,
+            template_download_amount_gbp: 199
+        });
+        persistPendingWorkspaceCheckout(currentProject.id, null);
+
+        const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
+            ? await window.refreshProjectDetailProject()
+            : window.getProjectDetailProject();
+        updateWorkspaceChrome(refreshedProject);
+
+        await downloadProjectTemplateBundle(currentProject.id, {
+            renderedHtml: String((refreshedProject && refreshedProject.template_saved_html) || '').trim()
+        });
+        showToast('Template payment confirmed. Your final project package is downloading.', 'success');
+    }
+
+    function bindWorkspaceCheckoutEvents() {
+        if (bindWorkspaceCheckoutEvents.bound) return;
+        bindWorkspaceCheckoutEvents.bound = true;
+
+        window.addEventListener('nexlance-checkout-completed', event => {
+            reconcileWorkspaceCheckoutResult(event && event.detail ? event.detail : {}, false).catch(error => {
+                console.error('Workspace checkout completion could not be reconciled:', error);
+                showWorkspaceError(error.message || 'Template payment was confirmed, but the project download could not be prepared.');
+            });
+        });
+
+        window.addEventListener('nexlance-checkout-cancelled', event => {
+            reconcileWorkspaceCheckoutResult(event && event.detail ? event.detail : {}, true).catch(error => {
+                console.error('Workspace checkout cancellation could not be reconciled:', error);
+            });
+        });
     }
 
     function ensureWorkspaceLoaded(project) {
@@ -687,6 +914,7 @@
         injectWorkspaceTab();
         updateWorkspaceChrome(project);
         registerWorkspaceBridge();
+        bindWorkspaceCheckoutEvents();
     }
 
     async function initProjectTemplateWorkspace() {

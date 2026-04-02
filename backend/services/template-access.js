@@ -946,6 +946,65 @@ function buildTemplateZipBundle(templateId, requestedBy) {
     };
 }
 
+function buildProjectTemplateZipBundle(options = {}) {
+    const normalizedTemplateId = normalizeTemplateId(options.templateId);
+    const template = TEMPLATE_CATALOG[normalizedTemplateId];
+    const assetPaths = collectAssetPaths(template);
+    const htmlFileName = template.files.find(file => path.extname(file).toLowerCase() === '.html') || `${normalizedTemplateId}.html`;
+    const savedHtml = String(options.renderedHtml || '').trim();
+    const projectName = String(options.projectName || template.name || normalizedTemplateId).trim();
+    const projectId = String(options.projectId || '').trim();
+
+    const manifest = {
+        templateId: normalizedTemplateId,
+        templateName: template.name,
+        projectId,
+        projectName,
+        generatedAt: new Date().toISOString(),
+        requestedBy: normalizeEmail(options.requestedBy),
+        customized: Boolean(savedHtml),
+        includedFiles: assetPaths
+    };
+
+    const entries = assetPaths.map(relativePath => {
+        const absolutePath = path.join(PROJECT_ROOT, relativePath);
+        const useSavedHtml = savedHtml && relativePath.replace(/\\/g, '/') === htmlFileName.replace(/\\/g, '/');
+        return {
+            name: relativePath.replace(/\\/g, '/'),
+            data: useSavedHtml ? Buffer.from(savedHtml, 'utf8') : fs.readFileSync(absolutePath),
+            modifiedAt: useSavedHtml ? new Date() : fs.statSync(absolutePath).mtime
+        };
+    });
+
+    entries.push({
+        name: 'README.txt',
+        data: Buffer.from(
+            `Nexlance project export\nProject: ${projectName}\nTemplate: ${template.name}\nRequested by: ${normalizeEmail(options.requestedBy)}\nGenerated at: ${manifest.generatedAt}\n`,
+            'utf8'
+        ),
+        modifiedAt: new Date()
+    });
+
+    entries.push({
+        name: 'manifest.json',
+        data: Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'),
+        modifiedAt: new Date()
+    });
+
+    return {
+        fileName: `${slugify(projectName || normalizedTemplateId)}.zip`,
+        buffer: createStoredZip(entries)
+    };
+}
+
+function slugify(value) {
+    return String(value || 'template-project')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'template-project';
+}
+
 function renderDownloadErrorPage(message) {
     return `<!DOCTYPE html>
 <html lang="en">
@@ -973,6 +1032,7 @@ function renderDownloadErrorPage(message) {
 module.exports = {
     TEMPLATE_CATALOG,
     TEMPLATE_PRICE,
+    buildProjectTemplateZipBundle,
     buildTemplateZipBundle,
     completeTemplateAccess,
     issueDownloadToken,

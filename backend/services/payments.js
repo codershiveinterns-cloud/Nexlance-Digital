@@ -238,16 +238,19 @@ function sanitizeBaseUrl(value) {
     return candidate;
 }
 
-function buildCheckoutUrls(baseUrl, product, provider, templateId) {
-    const { path, hash } = splitPathAndHash(product.successRedirect || 'pricing.html');
-    const successUrl = new URL(`${baseUrl}/${path.replace(/^\/+/, '')}`);
+function buildCheckoutUrls(baseUrl, product, provider, templateId, overrides = {}) {
+    const successTarget = String(overrides.successRedirect || product.successRedirect || 'pricing.html').trim() || 'pricing.html';
+    const cancelTarget = String(overrides.cancelRedirect || successTarget).trim() || successTarget;
+    const { path: successPath, hash: successHash } = splitPathAndHash(successTarget);
+    const { path: cancelPath, hash: cancelHash } = splitPathAndHash(cancelTarget);
+    const successUrl = new URL(`${baseUrl}/${successPath.replace(/^\/+/, '')}`);
     successUrl.searchParams.set('checkout_result', 'success');
     successUrl.searchParams.set('provider', provider);
     successUrl.searchParams.set('product', product.productCode);
     if (templateId) {
         successUrl.searchParams.set('template', templateId);
     }
-    const cancelUrl = new URL(`${baseUrl}/${path.replace(/^\/+/, '')}`);
+    const cancelUrl = new URL(`${baseUrl}/${cancelPath.replace(/^\/+/, '')}`);
     cancelUrl.searchParams.set('checkout_result', 'cancelled');
     cancelUrl.searchParams.set('provider', provider);
     cancelUrl.searchParams.set('product', product.productCode);
@@ -255,8 +258,8 @@ function buildCheckoutUrls(baseUrl, product, provider, templateId) {
         cancelUrl.searchParams.set('template', templateId);
     }
 
-    const successBase = `${successUrl.toString()}${hash}`;
-    const cancelBase = `${cancelUrl.toString()}${hash}`;
+    const successBase = `${successUrl.toString()}${successHash}`;
+    const cancelBase = `${cancelUrl.toString()}${cancelHash}`;
     return {
         successUrl: successBase.includes('?')
             ? `${successBase}&session_id={CHECKOUT_SESSION_ID}`
@@ -313,6 +316,8 @@ async function resolveCheckoutContext(options) {
     const baseUrl = sanitizeBaseUrl(options.siteBaseUrl);
     const templateId = String(options.templateId || '').trim().toLowerCase();
     const templateName = String(options.templateName || '').trim();
+    const successRedirect = String(options.successRedirect || '').trim();
+    const cancelRedirect = String(options.cancelRedirect || '').trim();
 
     return {
         product,
@@ -320,6 +325,8 @@ async function resolveCheckoutContext(options) {
         userName,
         templateId,
         templateName,
+        successRedirect,
+        cancelRedirect,
         siteBaseUrl: baseUrl,
         metadata: buildMetadata({
             product,
@@ -336,7 +343,10 @@ async function createStripeCheckoutSession(context) {
         throw new Error('Set STRIPE_SECRET_KEY before using Stripe checkout.');
     }
 
-    const urls = buildCheckoutUrls(context.siteBaseUrl, context.product, 'stripe', context.templateId);
+    const urls = buildCheckoutUrls(context.siteBaseUrl, context.product, 'stripe', context.templateId, {
+        successRedirect: context.successRedirect,
+        cancelRedirect: context.cancelRedirect
+    });
     const params = new URLSearchParams();
     params.set('mode', context.product.billingType === 'subscription' ? 'subscription' : 'payment');
     params.set('success_url', urls.successUrl);
@@ -409,7 +419,10 @@ async function createPolarCheckoutSession(context) {
         throw new Error(`Set the Polar product ID for ${context.product.productCode} before using Polar checkout.`);
     }
 
-    const urls = buildCheckoutUrls(context.siteBaseUrl, context.product, 'polar', context.templateId);
+    const urls = buildCheckoutUrls(context.siteBaseUrl, context.product, 'polar', context.templateId, {
+        successRedirect: context.successRedirect,
+        cancelRedirect: context.cancelRedirect
+    });
     const response = await fetch(`${POLAR_API_BASE_URL}/checkouts`, {
         method: 'POST',
         headers: {
@@ -533,7 +546,7 @@ async function createHostedCheckout(options) {
                 redirectUrl: payload.redirectUrl,
                 sessionId: payload.sessionId || '',
                 checkoutId: payload.checkoutId || '',
-                successRedirect: context.product.successRedirect
+                successRedirect: context.successRedirect || context.product.successRedirect
             };
         } catch (error) {
             lastError = error;

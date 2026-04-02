@@ -42,6 +42,7 @@ const checkoutStartHandler = require('./api/checkout-start');
 const confirmBusinessUpgradeHandler = require('./api/confirm-business-upgrade');
 const polarWebhookHandler = require('./api/polar-webhook');
 const stripeWebhookHandler = require('./api/stripe-webhook');
+const projectTemplateDownloadHandler = require('./api/project-template-download');
 const templateAccessCompleteHandler = require('./api/template-access-complete');
 const templateAccessStartHandler = require('./api/template-access-start');
 const templateDownloadHandler = require('./api/template-download');
@@ -375,6 +376,20 @@ const DASHBOARD_COLLECTIONS = new Set([
     'team_members'
 ]);
 
+const TEMPLATE_WORKSPACE_PATCH_FIELDS = new Set([
+    'template_state',
+    'template_last_saved_at',
+    'template_saved_html',
+    'template_workflow_status',
+    'template_completed_at',
+    'template_download_paid',
+    'template_download_paid_at',
+    'template_download_payment_intent_id',
+    'template_download_amount_gbp',
+    'status',
+    'progress'
+]);
+
 function parseDashboardRoute(pathname) {
     const match = String(pathname || '').match(/^\/api\/dashboard\/([^/]+)(?:\/([^/]+))?$/);
     if (!match) return null;
@@ -527,6 +542,19 @@ function filterDashboardRecordForSession(collectionId, record, sessionUser) {
     return filterDashboardRecordsForSession(collectionId, [record], sessionUser)[0] || null;
 }
 
+function isTemplateWorkspacePatchPayload(collectionId, payload) {
+    if (collectionId !== 'projects' || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return false;
+    }
+
+    const keys = Object.keys(payload);
+    if (!keys.length) {
+        return false;
+    }
+
+    return keys.every(key => TEMPLATE_WORKSPACE_PATCH_FIELDS.has(String(key || '').trim()));
+}
+
 async function handleDashboardApi(req, res, url) {
     const route = parseDashboardRoute(url.pathname);
     if (!route) {
@@ -634,9 +662,11 @@ async function handleDashboardApi(req, res, url) {
             sendJson(res, 400, { error: 'Document ID is required.' });
             return;
         }
+        const body = await readBody(req);
+        const action = isTemplateWorkspacePatchPayload(route.collectionId, body) ? 'read' : 'update';
         if (!canPerformCollectionAction({
             collectionId: route.collectionId,
-            action: 'update',
+            action,
             authUser,
             userProfile
         })) {
@@ -654,7 +684,6 @@ async function handleDashboardApi(req, res, url) {
             return;
         }
 
-        const body = await readBody(req);
         const record = await patchCollectionDocument(
             route.collectionId,
             route.documentId,
@@ -1122,6 +1151,18 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/template-download') {
         await templateDownloadHandler(req, augmentResponse(res));
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/project-template-download') {
+        try {
+            req.body = await readBody(req);
+            await projectTemplateDownloadHandler(req, augmentResponse(res));
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, {
+                error: error.message || 'Project template download could not be prepared.'
+            });
+        }
         return;
     }
 

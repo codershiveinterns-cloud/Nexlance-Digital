@@ -558,6 +558,8 @@
                     userName: getCurrentUserName(),
                     templateId: activeCheckoutOptions.templateId || '',
                     templateName: activeCheckoutOptions.templateName || '',
+                    successRedirect: activeCheckoutOptions.successRedirect || '',
+                    cancelRedirect: activeCheckoutOptions.cancelRedirect || '',
                     siteBaseUrl: /^https?:$/i.test(window.location.protocol) && window.location.origin && window.location.origin !== 'null'
                         ? window.location.origin
                         : getApiBaseUrl()
