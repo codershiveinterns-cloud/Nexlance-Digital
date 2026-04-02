@@ -13,17 +13,6 @@ function isValidEmailAddress(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
-function normalizeDateInput(value) {
-    const safeValue = String(value || '').trim();
-    if (!safeValue) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(safeValue)) return safeValue;
-    const dayMonthYearMatch = safeValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-    if (dayMonthYearMatch) {
-        return `${dayMonthYearMatch[3]}-${dayMonthYearMatch[2]}-${dayMonthYearMatch[1]}`;
-    }
-    return '';
-}
-
 function parseNonNegativeNumber(value, fieldLabel) {
     if (value === '' || value === null || value === undefined) return 0;
     const parsed = Number(value);
@@ -46,8 +35,6 @@ function normalizeClientInvitePayload(body = {}) {
     const metadata = body && typeof body.metadata === 'object' && body.metadata !== null ? body.metadata : {};
     const inviteeName = String(body.name || body.clientName || metadata.name || '').trim();
     const email = String(body.email || body.clientEmail || metadata.email || '').trim().toLowerCase();
-    const hostingExpiry = normalizeDateInput(metadata.hosting_expiry || metadata.hostingExpiry || '');
-    const sslExpiry = normalizeDateInput(metadata.ssl_expiry || metadata.sslExpiry || '');
     const rawAssignedProjectIds = normalizeProjectIdList(
         body.assignedProjectIds !== undefined
             ? body.assignedProjectIds
@@ -80,12 +67,6 @@ function normalizeClientInvitePayload(body = {}) {
     if (!isValidEmailAddress(email)) {
         throw new Error('Client email must be a valid email address.');
     }
-    if ((metadata.hosting_expiry || metadata.hostingExpiry) && !hostingExpiry) {
-        throw new Error('Hosting expiry must use YYYY-MM-DD format.');
-    }
-    if ((metadata.ssl_expiry || metadata.sslExpiry) && !sslExpiry) {
-        throw new Error('SSL expiry must use YYYY-MM-DD format.');
-    }
     if (paidAmount > totalContractValue && totalContractValue > 0) {
         throw new Error('Paid amount cannot be greater than total contract value.');
     }
@@ -99,8 +80,6 @@ function normalizeClientInvitePayload(body = {}) {
             ...metadata,
             name: inviteeName,
             email,
-            hosting_expiry: hostingExpiry || null,
-            ssl_expiry: sslExpiry || null,
             total_contract_value: totalContractValue,
             paid_amount: paidAmount,
             assigned_project_ids: access.assignedProjectIds,

@@ -886,7 +886,13 @@ async function authorizedApiRequest(path, method = 'GET', payload = null) {
 }
 
 async function inviteClient(payload) {
-    return authorizedApiRequest('/api/invitations/client', 'POST', payload);
+    const response = await authorizedApiRequest('/api/invitations/client', 'POST', payload);
+    if (response && response.record) {
+        upsertLocalEntityRecord('clients', response.record);
+    } else {
+        window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'clients' } }));
+    }
+    return response;
 }
 
 async function inviteTeamMember(payload) {
@@ -1194,6 +1200,15 @@ function getLocalEntityData(entity) {
 function setLocalEntityData(entity, records) {
     localStorage.setItem(getEntityStorageKey(entity), JSON.stringify(records));
     window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity } }));
+}
+
+function upsertLocalEntityRecord(entity, record) {
+    if (!record || typeof record !== 'object' || !record.id) return record || null;
+    const recordId = String(record.id);
+    const records = getLocalEntityData(entity);
+    const nextRecords = [record, ...records.filter(existing => String(existing && existing.id) !== recordId)];
+    setLocalEntityData(entity, nextRecords);
+    return record;
 }
 
 function mergeEntityCollections() {
@@ -1553,6 +1568,52 @@ async function fetchClients() {
     } catch (e) { console.error(e); return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients')); }
 }
 
+async function fetchClientById(id) {
+    if (!canAccessEntity('clients')) return null;
+    const clientId = String(id || '').trim();
+    if (!clientId) return null;
+
+    if (!isFirebaseConfigured) {
+        return createAccessFilteredDataset('clients', sampleClients).find(client => String(client.id) === clientId) || null;
+    }
+
+    try {
+        if (isFirebaseUserAuthenticated()) {
+            try {
+                const record = await dashboardApiRequest('GET', 'clients', clientId);
+                if (record && typeof record === 'object') {
+                    upsertLocalEntityRecord('clients', record);
+                    return record;
+                }
+            } catch (error) {
+                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
+            }
+        }
+
+        const ownerKey = getCurrentOwnerKey();
+        if (!ownerKey) {
+            return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
+                .find(client => String(client.id) === clientId) || null;
+        }
+
+        const snapshot = await db.collection('clients').doc(clientId).get();
+        if (snapshot.exists) {
+            const record = { id: snapshot.id, ...snapshot.data() };
+            const isOwnedRecord = String(record.owner_key || '').trim().toLowerCase() === String(ownerKey || '').trim().toLowerCase();
+            const filteredRecords = filterRecordsForCurrentUserScope('clients', isOwnedRecord ? [record] : []);
+            if (filteredRecords.length) {
+                upsertLocalEntityRecord('clients', filteredRecords[0]);
+                return filteredRecords[0];
+            }
+        }
+    } catch (error) {
+        console.error(error);
+    }
+
+    return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
+        .find(client => String(client.id) === clientId) || null;
+}
+
 async function addClient(d) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
     const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
@@ -1591,11 +1652,14 @@ async function addClient(d) {
 async function updateClient(id, d) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
     const doc = withOwnerFields(d);
+    const existingLocalRecord = getLocalEntityData('clients').find(client => String(client && client.id) === String(id)) || null;
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('clients', 'update')) throw createDashboardPermissionError('clients', 'update');
         if (isFirebaseUserAuthenticated()) {
             try {
-                return await dashboardApiRequest('PATCH', 'clients', id, doc);
+                const record = await dashboardApiRequest('PATCH', 'clients', id, doc);
+                if (record) upsertLocalEntityRecord('clients', record);
+                return record;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
             }
@@ -1612,7 +1676,7 @@ async function updateClient(id, d) {
         return null;
     }
     await db.collection('clients').doc(id).update(doc);
-    return { id, ...doc };
+    return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc });
 }
 
 async function deleteClient(id) {
@@ -1622,6 +1686,8 @@ async function deleteClient(id) {
         if (isFirebaseUserAuthenticated()) {
             try {
                 await dashboardApiRequest('DELETE', 'clients', id);
+                const remainingRecords = getLocalEntityData('clients').filter(client => String(client && client.id) !== String(id));
+                setLocalEntityData('clients', remainingRecords);
                 return;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'delete');

@@ -3,53 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clients — Nexlance</title>
+<title>Clients - Nexlance</title>
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="app.css">
-<!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="container">
-
-  <!-- Sidebar -->
   <aside class="sidebar">
     <h2 class="logo">Nexlance</h2>
     <ul class="nav">
-      <li><a href="dashboard.html">📊 Dashboard</a></li>
-      <li class="active"><a href="clients.html">👥 Clients</a></li>
-      <li><a href="team.html">🧑‍💼 Team</a></li>
-      <li><a href="projects.html">📁 Projects</a></li>
-      <li><a href="invoices.html">🧾 Invoices</a></li>
-      <li><a href="services.html">🛠 Services</a></li>
-      <li><a href="access-roles.html">🔐 Access / Roles</a></li>
-      <li><a href="settings.html">⚙️ Settings</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li class="active"><a href="clients.html">Clients</a></li>
+      <li><a href="team.html">Team</a></li>
+      <li><a href="projects.html">Projects</a></li>
+      <li><a href="invoices.html">Invoices</a></li>
+      <li><a href="services.html">Services</a></li>
+      <li><a href="access-roles.html">Access / Roles</a></li>
+      <li><a href="settings.html">Settings</a></li>
       <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
-      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+      <li><a href="developer-info.html">Support Info</a></li>
     </ul>
   </aside>
 
-  <!-- Main -->
   <main class="main">
     <div class="topbar">
       <input type="text" id="globalSearch" placeholder="Search clients, projects, invoices...">
       <div class="profile">Account</div>
     </div>
 
-    <!-- Page Header -->
     <div class="page-header">
       <div class="page-header-left">
         <h1>Clients</h1>
         <p>Manage all your client relationships</p>
       </div>
       <div class="page-header-actions">
-        <button class="btn btn-primary" onclick="openAddModal()">+ Add Client</button>
+        <button class="btn btn-primary" id="addClientBtn" type="button" onclick="openAddModal()">+ Add Client</button>
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Total Clients</div>
@@ -73,27 +67,20 @@
       </div>
     </div>
 
-    <!-- Filter Bar -->
     <div class="filter-bar">
-      <input type="search" class="search-input" id="searchInput" placeholder="🔍  Search by name, company, domain...">
+      <input type="search" class="search-input" id="searchInput" placeholder="Search by name, company, email, website type...">
       <select id="filterType">
         <option value="">All Website Types</option>
         <option>Business Website</option>
         <option>Ecommerce Website</option>
         <option>Landing Page</option>
         <option>Website Redesign</option>
-      </select>
-      <select id="filterPlan">
-        <option value="">All Plans</option>
-        <option>Basic</option>
-        <option>Premium</option>
         <option>Custom</option>
       </select>
       <div class="spacer"></div>
       <span id="clientCount" style="font-size:0.82rem;color:#aaa;"></span>
     </div>
 
-    <!-- Table -->
     <div class="table-card">
       <div class="table-header">
         <h3>Client List</h3>
@@ -104,8 +91,6 @@
           <tr>
             <th>Client</th>
             <th>Website Type</th>
-            <th>Plan</th>
-            <th>Platform</th>
             <th>Last Payment</th>
             <th>Total Value</th>
             <th>Balance Due</th>
@@ -113,20 +98,18 @@
           </tr>
         </thead>
         <tbody id="clientsTableBody">
-          <tr><td colspan="8"><div class="empty-state"><div class="e-icon">⏳</div><h3>Loading clients...</h3></div></td></tr>
+          <tr><td colspan="6"><div class="empty-state"><div class="e-icon">⏳</div><h3>Loading clients...</h3></div></td></tr>
         </tbody>
       </table>
     </div>
-
   </main>
 </div>
 
-<!-- Add / Edit Client Modal -->
 <div class="modal-overlay" id="clientModal">
   <div class="modal modal-lg">
     <div class="modal-header">
       <h2 id="modalTitle">Add New Client</h2>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" type="button" onclick="closeModal()">×</button>
     </div>
 
     <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Basic Information</h4>
@@ -143,63 +126,24 @@
         <label>Company Name</label>
         <input type="text" id="fCompany" placeholder="Company Pvt Ltd">
       </div>
-      <div class="form-group">
-        <label>Domain Name</label>
-        <input type="text" id="fDomain" placeholder="company.in">
-      </div>
-      <div class="form-group">
-        <label>Hosting Provider</label>
-        <input type="text" id="fHostingProvider" placeholder="Hostinger / AWS / GoDaddy">
-      </div>
     </div>
 
     <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin:18px 0 14px;">Website Details</h4>
     <div class="form-grid">
       <div class="form-group">
-        <label>Project Type</label>
+        <label>Website Type</label>
         <select id="fProjectType">
           <option value="">Select type</option>
           <option>Business Website</option>
           <option>Ecommerce Website</option>
           <option>Landing Page</option>
           <option>Website Redesign</option>
+          <option value="__custom__">Custom</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Platform</label>
-        <select id="fPlatform">
-          <option value="">Select platform</option>
-          <option>WordPress</option>
-          <option>Shopify</option>
-          <option>WooCommerce</option>
-          <option>Custom</option>
-          <option>Webflow</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Hosting Expiry</label>
-        <input type="date" id="fHostingExpiry">
-      </div>
-      <div class="form-group">
-        <label>SSL Expiry</label>
-        <input type="date" id="fSslExpiry">
-      </div>
-      <div class="form-group">
-        <label>Maintenance Plan</label>
-        <select id="fMaintenance">
-          <option>None</option>
-          <option>Monthly</option>
-          <option>Quarterly</option>
-          <option>Annual</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Plan Type</label>
-        <select id="fPlanType">
-          <option>Basic</option>
-          <option>Premium</option>
-          <option>Custom</option>
-        </select>
+      <div class="form-group" id="fProjectTypeCustomGroup" hidden>
+        <label>Custom Website Type</label>
+        <input type="text" id="fProjectTypeCustom" placeholder="Enter custom website type">
       </div>
     </div>
 
@@ -224,8 +168,8 @@
     </div>
 
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveClient()">Save Client</button>
+      <button class="btn btn-secondary" type="button" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" type="button" onclick="saveClient()">Save Client</button>
     </div>
   </div>
 </div>
@@ -237,11 +181,94 @@
 let clients = [];
 let availableProjects = [];
 let editingId = null;
+
 const ALL_PROJECT_ACCESS_VALUE = '__all_projects__';
+const CUSTOM_WEBSITE_TYPE_VALUE = '__custom__';
+const STANDARD_WEBSITE_TYPES = [
+  'Business Website',
+  'Ecommerce Website',
+  'Landing Page',
+  'Website Redesign'
+];
+
 function ensureDataAccess() {
   if (!isUpgradeRequiredForData()) return true;
   showToast(getUpgradeRequiredMessage(), 'error');
   return false;
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getClientWebsiteType(client) {
+  return String(client && client.project_type || '').trim();
+}
+
+function isStandardWebsiteType(value) {
+  return STANDARD_WEBSITE_TYPES.includes(String(value || '').trim());
+}
+
+function isCustomWebsiteType(value) {
+  const normalized = String(value || '').trim();
+  return Boolean(normalized) && !isStandardWebsiteType(normalized);
+}
+
+function syncWebsiteTypeInput(selectId, customGroupId, customInputId) {
+  const select = document.getElementById(selectId);
+  const customGroup = document.getElementById(customGroupId);
+  const customInput = document.getElementById(customInputId);
+  const isCustom = select && select.value === CUSTOM_WEBSITE_TYPE_VALUE;
+
+  if (customGroup) customGroup.hidden = !isCustom;
+  if (!isCustom && customInput) customInput.value = '';
+}
+
+function setWebsiteTypeValue(value, options = {}) {
+  const select = document.getElementById(options.selectId || 'fProjectType');
+  const customGroup = document.getElementById(options.customGroupId || 'fProjectTypeCustomGroup');
+  const customInput = document.getElementById(options.customInputId || 'fProjectTypeCustom');
+  const normalized = String(value || '').trim();
+
+  if (!select) return;
+
+  if (!normalized) {
+    select.value = '';
+    if (customInput) customInput.value = '';
+    if (customGroup) customGroup.hidden = true;
+    return;
+  }
+
+  if (isStandardWebsiteType(normalized)) {
+    select.value = normalized;
+    if (customInput) customInput.value = '';
+    if (customGroup) customGroup.hidden = true;
+    return;
+  }
+
+  select.value = CUSTOM_WEBSITE_TYPE_VALUE;
+  if (customInput) customInput.value = normalized;
+  if (customGroup) customGroup.hidden = false;
+}
+
+function getWebsiteTypeValue(selectId = 'fProjectType', customInputId = 'fProjectTypeCustom') {
+  const select = document.getElementById(selectId);
+  const customInput = document.getElementById(customInputId);
+  const selected = String(select && select.value || '').trim();
+
+  if (!selected) return '';
+  if (selected !== CUSTOM_WEBSITE_TYPE_VALUE) return selected;
+
+  const customValue = String(customInput && customInput.value || '').trim();
+  if (!customValue) {
+    throw new Error('Enter a custom website type');
+  }
+  return customValue;
 }
 
 async function init() {
@@ -253,30 +280,34 @@ function applyClientUiPermissions() {
   const accessControl = window.NexlanceAccessControl;
   const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
   const canInvite = Boolean(accessControl && currentUser && accessControl.canAccessInvitationControl(currentUser));
-  const addButton = document.querySelector('.page-header-actions .btn.btn-primary');
+  const addButton = document.getElementById('addClientBtn');
   if (addButton) addButton.style.display = canInvite ? '' : 'none';
 }
 
 function renderProjectAccessOptions(selectedIds = [], allProjectsAccess = false) {
   const select = document.getElementById('fAssignedProjects');
   if (!select) return;
+
   const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(String));
   const options = [
     `<option value="${ALL_PROJECT_ACCESS_VALUE}" ${allProjectsAccess ? 'selected' : ''}>All Access</option>`
   ];
+
   if (!availableProjects.length) {
     options.push('<option value="" disabled>No projects available yet</option>');
     select.innerHTML = options.join('');
     return;
   }
+
   select.innerHTML = options.concat(availableProjects.map(project => `
-    <option value="${project.id}" ${!allProjectsAccess && selected.has(String(project.id)) ? 'selected' : ''}>${project.name}</option>
+    <option value="${escapeHtml(project.id)}" ${!allProjectsAccess && selected.has(String(project.id)) ? 'selected' : ''}>${escapeHtml(project.name)}</option>
   `)).join('');
 }
 
 function normalizeProjectAccessSelection() {
   const select = document.getElementById('fAssignedProjects');
   if (!select) return;
+
   const selectedValues = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
   if (selectedValues.includes(ALL_PROJECT_ACCESS_VALUE)) {
     Array.from(select.options).forEach(option => {
@@ -284,6 +315,7 @@ function normalizeProjectAccessSelection() {
     });
     return;
   }
+
   const allAccessOption = Array.from(select.options).find(option => option.value === ALL_PROJECT_ACCESS_VALUE);
   if (allAccessOption) {
     allAccessOption.selected = false;
@@ -295,24 +327,28 @@ function getSelectedProjectAccess() {
   if (!select) {
     return { allProjectsAccess: false, assignedProjectIds: [] };
   }
+
   const selectedValues = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
   const allProjectsAccess = selectedValues.includes(ALL_PROJECT_ACCESS_VALUE);
   return {
     allProjectsAccess,
-    assignedProjectIds: allProjectsAccess
-      ? []
-      : selectedValues.filter(value => value !== ALL_PROJECT_ACCESS_VALUE)
+    assignedProjectIds: allProjectsAccess ? [] : selectedValues.filter(value => value !== ALL_PROJECT_ACCESS_VALUE)
   };
 }
 
 async function refreshClientsData({ preserveSelection = true } = {}) {
-  const currentSelection = preserveSelection ? getSelectedProjectAccess() : { allProjectsAccess: false, assignedProjectIds: [] };
+  const currentSelection = preserveSelection
+    ? getSelectedProjectAccess()
+    : { allProjectsAccess: false, assignedProjectIds: [] };
+
   const [nextClients, nextProjects] = await Promise.all([
     fetchClients(),
     fetchProjects().catch(() => [])
   ]);
+
   clients = Array.isArray(nextClients) ? nextClients : [];
   availableProjects = Array.isArray(nextProjects) ? nextProjects : [];
+
   renderProjectAccessOptions(currentSelection.assignedProjectIds, currentSelection.allProjectsAccess);
   renderStats();
   filterClients();
@@ -320,57 +356,66 @@ async function refreshClientsData({ preserveSelection = true } = {}) {
 
 function renderStats() {
   const total = clients.length;
-  const pending = clients.reduce((s, c) => s + (c.total_contract_value - c.paid_amount), 0);
-  const revenue = clients.reduce((s, c) => s + (c.total_contract_value || 0), 0);
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statActive').textContent = clients.filter(c => (c.total_contract_value - c.paid_amount) > 0).length;
+  const pending = clients.reduce((sum, client) => sum + Math.max(0, Number(client.total_contract_value || 0) - Number(client.paid_amount || 0)), 0);
+  const revenue = clients.reduce((sum, client) => sum + Number(client.total_contract_value || 0), 0);
+
+  document.getElementById('statTotal').textContent = String(total);
+  document.getElementById('statActive').textContent = String(clients.filter(client => Number(client.total_contract_value || 0) - Number(client.paid_amount || 0) > 0).length);
   document.getElementById('statPending').textContent = formatCurrency(pending);
   document.getElementById('statRevenue').textContent = formatCurrency(revenue);
 }
 
-function statusBadge(type) {
-  const map = {
-    'Business Website': 'badge-blue', 'Ecommerce Website': 'badge-purple',
-    'Landing Page': 'badge-teal', 'Website Redesign': 'badge-orange'
+function websiteTypeBadge(value) {
+  const normalized = String(value || '').trim();
+  const badgeMap = {
+    'Business Website': 'badge-blue',
+    'Ecommerce Website': 'badge-purple',
+    'Landing Page': 'badge-teal',
+    'Website Redesign': 'badge-orange'
   };
-  return `<span class="badge ${map[type] || 'badge-gray'}">${type || '—'}</span>`;
-}
-function planBadge(plan) {
-  const map = { 'Premium': 'badge-purple', 'Basic': 'badge-blue', 'Custom': 'badge-orange' };
-  return `<span class="badge ${map[plan] || 'badge-gray'}">${plan || '—'}</span>`;
+  const badgeClass = isCustomWebsiteType(normalized) ? 'badge-orange' : (badgeMap[normalized] || 'badge-gray');
+  return `<span class="badge ${badgeClass}">${escapeHtml(normalized || '—')}</span>`;
 }
 
 function renderTable(data) {
   const tbody = document.getElementById('clientsTableBody');
-  document.getElementById('tableCount').textContent = data.length + ' clients';
+  const countLabel = `${data.length} client${data.length === 1 ? '' : 's'}`;
+  document.getElementById('tableCount').textContent = countLabel;
+  document.getElementById('clientCount').textContent = countLabel;
+
   if (isUpgradeRequiredForData()) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="e-icon">🔒</div><h3>Upgrade required</h3><p>${escapeHtml(getUpgradeRequiredMessage())}</p></div></td></tr>`;
     return;
   }
+
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="e-icon">👥</div><h3>No clients found</h3><p>Add your first client to get started</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="e-icon">👥</div><h3>No clients found</h3><p>Add your first client to get started</p></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = data.map(c => {
-    const balance = (c.total_contract_value || 0) - (c.paid_amount || 0);
+
+  tbody.innerHTML = data.map(client => {
+    const clientId = String(client.id || '');
+    const websiteType = getClientWebsiteType(client);
+    const balance = Number(client.total_contract_value || 0) - Number(client.paid_amount || 0);
+    const company = String(client.company || '').trim();
+    const email = String(client.email || '').trim();
+
     return `<tr>
       <td data-label="Client">
-        <div style="font-weight:600;color:#333;">${c.name}</div>
-        <div style="font-size:0.78rem;color:#aaa;">${c.company || ''}</div>
+        <div style="font-weight:600;color:#333;">${escapeHtml(client.name || 'Unnamed client')}</div>
+        <div style="font-size:0.78rem;color:#aaa;">${escapeHtml(company || email || '')}</div>
       </td>
-      <td data-label="Type">${statusBadge(c.project_type)}</td>
-      <td data-label="Plan">${planBadge(c.plan_type)}</td>
-      <td data-label="Platform"><span style="color:#666;">${c.platform || '—'}</span></td>
-      <td data-label="Last Payment"><span style="color:#666;font-size:0.85rem;">${c.paid_amount ? formatCurrency(c.paid_amount) : '—'}</span></td>
-      <td data-label="Total Value"><strong style="color:#4b3fbf;">${formatCurrency(c.total_contract_value || 0)}</strong></td>
+      <td data-label="Website Type">${websiteTypeBadge(websiteType)}</td>
+      <td data-label="Last Payment"><span style="color:#666;font-size:0.85rem;">${Number(client.paid_amount || 0) ? formatCurrency(Number(client.paid_amount || 0)) : '—'}</span></td>
+      <td data-label="Total Value"><strong style="color:#4b3fbf;">${formatCurrency(Number(client.total_contract_value || 0))}</strong></td>
       <td data-label="Balance Due">
         <span class="${balance > 0 ? 'badge badge-red' : 'badge badge-green'}">${balance > 0 ? formatCurrency(balance) : 'Paid ✓'}</span>
       </td>
       <td data-label="Actions">
         <div class="table-actions">
-          <a href="client-detail.html?id=${c.id}" class="action-btn action-view" title="View Profile">👁</a>
-          <button class="action-btn action-edit" onclick="openEditModal('${c.id}')" title="Edit">✏️</button>
-          <button class="action-btn action-delete" onclick="handleDelete('${c.id}')" title="Delete">🗑</button>
+          <a href="client-detail.html?id=${encodeURIComponent(clientId)}" class="action-btn action-view" title="View Client">👁</a>
+          <button type="button" class="action-btn action-edit" onclick="openEditModal('${escapeHtml(clientId)}')" title="Edit">✏️</button>
+          <button type="button" class="action-btn action-delete" onclick="handleDelete('${escapeHtml(clientId)}')" title="Delete">🗑</button>
         </div>
       </td>
     </tr>`;
@@ -378,25 +423,28 @@ function renderTable(data) {
 }
 
 function filterClients() {
-  const search = document.getElementById('searchInput').value.toLowerCase();
-  const type = document.getElementById('filterType').value;
-  const plan = document.getElementById('filterPlan').value;
-  const filtered = clients.filter(c => {
-    const matchSearch = !search ||
-      (c.name || '').toLowerCase().includes(search) ||
-      (c.company || '').toLowerCase().includes(search) ||
-      (c.domain_name || '').toLowerCase().includes(search) ||
-      (c.email || '').toLowerCase().includes(search);
-    const matchType = !type || c.project_type === type;
-    const matchPlan = !plan || c.plan_type === plan;
-    return matchSearch && matchType && matchPlan;
+  const search = String(document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const type = String(document.getElementById('filterType').value || '').trim();
+
+  const filtered = clients.filter(client => {
+    const websiteType = getClientWebsiteType(client);
+    const matchesSearch = !search
+      || String(client.name || '').toLowerCase().includes(search)
+      || String(client.company || '').toLowerCase().includes(search)
+      || String(client.email || '').toLowerCase().includes(search)
+      || websiteType.toLowerCase().includes(search);
+
+    const matchesType = !type
+      || (type === 'Custom' ? isCustomWebsiteType(websiteType) : websiteType === type);
+
+    return matchesSearch && matchesType;
   });
+
   renderTable(filtered);
 }
 
 document.getElementById('searchInput').addEventListener('input', filterClients);
 document.getElementById('filterType').addEventListener('change', filterClients);
-document.getElementById('filterPlan').addEventListener('change', filterClients);
 
 function openAddModal() {
   const accessControl = window.NexlanceAccessControl;
@@ -406,58 +454,43 @@ function openAddModal() {
     return;
   }
   if (!ensureDataAccess()) return;
+
   editingId = null;
   document.getElementById('modalTitle').textContent = 'Add New Client';
-  ['fName','fEmail','fCompany','fDomain','fHostingProvider','fHostingExpiry','fSslExpiry','fContractValue','fPaidAmount'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('fProjectType').value = '';
-  document.getElementById('fPlatform').value = '';
-  document.getElementById('fMaintenance').value = 'None';
-  document.getElementById('fPlanType').value = 'Basic';
+  ['fName', 'fEmail', 'fCompany', 'fProjectTypeCustom', 'fContractValue', 'fPaidAmount'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  setWebsiteTypeValue('');
   renderProjectAccessOptions([], false);
   document.getElementById('clientModal').classList.add('active');
 }
 
 function openEditModal(id) {
   if (!ensureDataAccess()) return;
-  const c = clients.find(x => x.id === id);
-  if (!c) return;
-  editingId = id;
+  const client = clients.find(entry => String(entry.id) === String(id));
+  if (!client) return;
+
+  editingId = String(id);
   document.getElementById('modalTitle').textContent = 'Edit Client';
-  document.getElementById('fName').value = c.name || '';
-  document.getElementById('fEmail').value = c.email || '';
-  document.getElementById('fCompany').value = c.company || '';
-  document.getElementById('fDomain').value = c.domain_name || '';
-  document.getElementById('fHostingProvider').value = c.hosting_provider || '';
-  document.getElementById('fProjectType').value = c.project_type || '';
-  document.getElementById('fPlatform').value = c.platform || '';
-  document.getElementById('fHostingExpiry').value = c.hosting_expiry || '';
-  document.getElementById('fSslExpiry').value = c.ssl_expiry || '';
-  document.getElementById('fMaintenance').value = c.maintenance_plan || 'None';
-  document.getElementById('fPlanType').value = c.plan_type || 'Basic';
-  document.getElementById('fContractValue').value = c.total_contract_value || '';
-  document.getElementById('fPaidAmount').value = c.paid_amount || '';
+  document.getElementById('fName').value = client.name || '';
+  document.getElementById('fEmail').value = client.email || '';
+  document.getElementById('fCompany').value = client.company || '';
+  document.getElementById('fContractValue').value = client.total_contract_value || '';
+  document.getElementById('fPaidAmount').value = client.paid_amount || '';
+  setWebsiteTypeValue(getClientWebsiteType(client));
   renderProjectAccessOptions(
-    c.assigned_project_ids || c.assignedProjectIds || [],
-    Boolean(c.all_projects_access || c.allProjectsAccess || c.project_access_scope === 'all' || c.projectAccessScope === 'all')
+    client.assigned_project_ids || client.assignedProjectIds || [],
+    Boolean(client.all_projects_access || client.allProjectsAccess || client.project_access_scope === 'all' || client.projectAccessScope === 'all')
   );
   document.getElementById('clientModal').classList.add('active');
 }
 
-function closeModal() { document.getElementById('clientModal').classList.remove('active'); }
+function closeModal() {
+  document.getElementById('clientModal').classList.remove('active');
+}
 
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
-}
-
-function normalizeDateForApi(value) {
-  const safeValue = String(value || '').trim();
-  if (!safeValue) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(safeValue)) return safeValue;
-  const match = safeValue.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (match) {
-    return `${match[3]}-${match[2]}-${match[1]}`;
-  }
-  return '';
 }
 
 function parseCurrencyField(fieldId, label) {
@@ -486,11 +519,9 @@ function getClientRequestDiagnostics(error, requestConfig = {}) {
 function buildClientFormPayload() {
   const name = document.getElementById('fName').value.trim();
   const email = document.getElementById('fEmail').value.trim().toLowerCase();
-  const hostingExpiry = normalizeDateForApi(document.getElementById('fHostingExpiry').value);
-  const sslExpiry = normalizeDateForApi(document.getElementById('fSslExpiry').value);
+  const company = document.getElementById('fCompany').value.trim();
+  const projectType = getWebsiteTypeValue();
   const accessSelection = getSelectedProjectAccess();
-  const assignedProjectIds = accessSelection.assignedProjectIds;
-  const allProjectsAccess = accessSelection.allProjectsAccess;
   const totalContractValue = parseCurrencyField('fContractValue', 'Total contract value');
   const paidAmount = parseCurrencyField('fPaidAmount', 'Paid amount');
 
@@ -503,89 +534,55 @@ function buildClientFormPayload() {
   if (email && !isValidEmail(email)) {
     throw new Error('Enter a valid client email address');
   }
-  if (document.getElementById('fHostingExpiry').value && !hostingExpiry) {
-    throw new Error('Hosting expiry must use YYYY-MM-DD format');
-  }
-  if (document.getElementById('fSslExpiry').value && !sslExpiry) {
-    throw new Error('SSL expiry must use YYYY-MM-DD format');
-  }
   if (paidAmount > totalContractValue && totalContractValue > 0) {
     throw new Error('Paid amount cannot be greater than total contract value');
   }
-  if (!Array.isArray(assignedProjectIds)) {
-    throw new Error('Assigned project access must be sent as a list of project IDs');
-  }
+
+  const sharedPayload = {
+    name,
+    email,
+    company,
+    project_type: projectType,
+    total_contract_value: totalContractValue,
+    paid_amount: paidAmount,
+    assigned_project_ids: accessSelection.assignedProjectIds,
+    all_projects_access: accessSelection.allProjectsAccess,
+    project_access_scope: accessSelection.allProjectsAccess ? 'all' : 'selected'
+  };
 
   return {
     requestPayload: {
       name,
       email,
-      assignedProjectIds,
-      allProjectsAccess,
-      metadata: {
-        name,
-        email,
-        company: document.getElementById('fCompany').value.trim(),
-        domain_name: document.getElementById('fDomain').value.trim(),
-        hosting_provider: document.getElementById('fHostingProvider').value.trim(),
-        project_type: document.getElementById('fProjectType').value,
-        platform: document.getElementById('fPlatform').value,
-        hosting_expiry: hostingExpiry,
-        ssl_expiry: sslExpiry,
-        maintenance_plan: document.getElementById('fMaintenance').value,
-        plan_type: document.getElementById('fPlanType').value,
-        total_contract_value: totalContractValue,
-        paid_amount: paidAmount,
-        assigned_project_ids: assignedProjectIds,
-        all_projects_access: allProjectsAccess,
-        project_access_scope: allProjectsAccess ? 'all' : 'selected'
-      }
+      assignedProjectIds: accessSelection.assignedProjectIds,
+      allProjectsAccess: accessSelection.allProjectsAccess,
+      metadata: { ...sharedPayload }
     },
-    updatePayload: {
-      name,
-      email,
-      company: document.getElementById('fCompany').value.trim(),
-      domain_name: document.getElementById('fDomain').value.trim(),
-      hosting_provider: document.getElementById('fHostingProvider').value.trim(),
-      project_type: document.getElementById('fProjectType').value,
-      platform: document.getElementById('fPlatform').value,
-      hosting_expiry: hostingExpiry,
-      ssl_expiry: sslExpiry,
-      maintenance_plan: document.getElementById('fMaintenance').value,
-      plan_type: document.getElementById('fPlanType').value,
-      total_contract_value: totalContractValue,
-      paid_amount: paidAmount,
-      assigned_project_ids: assignedProjectIds,
-      all_projects_access: allProjectsAccess,
-      project_access_scope: allProjectsAccess ? 'all' : 'selected'
-    }
+    updatePayload: { ...sharedPayload }
   };
+}
+
+function mergeClientIntoMemory(record) {
+  if (!record || typeof record !== 'object' || !record.id) return;
+  clients = mergeEntityCollections([record], clients);
 }
 
 async function saveClient() {
   if (!ensureDataAccess()) return;
+
   let payloads;
   try {
     payloads = buildClientFormPayload();
-    clearDateError('fHostingExpiry');
-    clearDateError('fSslExpiry');
 
     if (editingId) {
-      console.groupCollapsed('[Clients] Save Client request');
-      console.log('request URL', `/api/dashboard/clients/${editingId}`);
-      console.log('HTTP method', 'PATCH');
-      console.log('request payload', payloads.updatePayload);
-      console.groupEnd();
       await updateClient(editingId, payloads.updatePayload);
       await refreshClientsData();
       showToast('Client updated successfully!', 'success');
     } else {
-      console.groupCollapsed('[Clients] Save Client request');
-      console.log('request URL', '/api/invitations/client');
-      console.log('HTTP method', 'POST');
-      console.log('request payload', payloads.requestPayload);
-      console.groupEnd();
       const created = await inviteClient(payloads.requestPayload);
+      if (created && created.record) {
+        mergeClientIntoMemory(created.record);
+      }
       await refreshClientsData();
       if (created && created.emailDeliveryError) {
         showToast('Client saved, but the invitation email could not be sent. Check the Resend sender domain in Vercel.', 'info');
@@ -593,9 +590,12 @@ async function saveClient() {
         showToast('Client invited successfully!', 'success');
       }
     }
-    closeModal(); renderStats(); filterClients();
-  } catch (e) {
-    const diagnostics = getClientRequestDiagnostics(e, {
+
+    closeModal();
+    renderStats();
+    filterClients();
+  } catch (error) {
+    const diagnostics = getClientRequestDiagnostics(error, {
       url: editingId ? `/api/dashboard/clients/${editingId}` : '/api/invitations/client',
       method: editingId ? 'PATCH' : 'POST',
       payload: editingId ? payloads?.updatePayload : payloads?.requestPayload
@@ -606,9 +606,9 @@ async function saveClient() {
     console.log('request payload', diagnostics.payload);
     console.log('response status code', diagnostics.status);
     console.log('exact backend error message', diagnostics.backendMessage);
-    console.log('error.response?.data', e?.response?.data || null);
-    console.log('error.message', e?.message || '');
-    console.error(e);
+    console.log('error.response?.data', error?.response?.data || null);
+    console.log('error.message', error?.message || '');
+    console.error(error);
     console.groupEnd();
     showToast(diagnostics.backendMessage, 'error');
   }
@@ -617,20 +617,24 @@ async function saveClient() {
 async function handleDelete(id) {
   if (!ensureDataAccess()) return;
   if (!confirm('Delete this client? This action cannot be undone.')) return;
+
   try {
     await deleteClient(id);
-    clients = clients.filter(c => c.id !== id);
-    renderStats(); filterClients();
+    clients = clients.filter(client => String(client.id) !== String(id));
+    renderStats();
+    filterClients();
     showToast('Client deleted.', 'info');
-  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  } catch (error) {
+    showToast('Error: ' + error.message, 'error');
+  }
 }
 
-// Close modal on overlay click
-document.getElementById('clientModal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
+document.getElementById('clientModal').addEventListener('click', function (event) {
+  if (event.target === this) closeModal();
 });
 
 document.getElementById('fAssignedProjects').addEventListener('change', normalizeProjectAccessSelection);
+document.getElementById('fProjectType').addEventListener('change', () => syncWebsiteTypeInput('fProjectType', 'fProjectTypeCustomGroup', 'fProjectTypeCustom'));
 
 window.addEventListener('focus', () => {
   refreshClientsData().catch(() => undefined);
@@ -649,8 +653,6 @@ window.addEventListener('nexlance-data-changed', event => {
   }
 });
 
-attachDateValidation('fHostingExpiry', { label: 'Hosting Expiry' });
-attachDateValidation('fSslExpiry',     { label: 'SSL Expiry' });
 init();
 </script>
 </body>
