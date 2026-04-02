@@ -52,12 +52,21 @@ function getSlugParts(req) {
 
     const pathname = getRequestPathname(req);
     const routePrefix = '/api/commerce/';
-    if (!pathname.startsWith(routePrefix)) {
+    if (pathname.startsWith(routePrefix)) {
+        return pathname
+            .slice(routePrefix.length)
+            .split('/')
+            .map(entry => String(entry || '').trim())
+            .filter(Boolean);
+    }
+
+    const legacyApiPrefix = '/api/';
+    if (!pathname.startsWith(legacyApiPrefix)) {
         return [];
     }
 
     return pathname
-        .slice(routePrefix.length)
+        .slice(legacyApiPrefix.length)
         .split('/')
         .map(entry => String(entry || '').trim())
         .filter(Boolean);

@@ -477,6 +477,22 @@ function getProviderFallbackOrder(requestedProvider) {
     return ['stripe', 'polar'];
 }
 
+function isPolarSubscriptionSetupModeMismatch(context, payload) {
+    if (!context || !payload || payload.provider !== 'polar') {
+        return false;
+    }
+
+    const diagnostics = payload.diagnostics && typeof payload.diagnostics === 'object'
+        ? payload.diagnostics
+        : {};
+
+    return context.product
+        && context.product.billingType === 'subscription'
+        && diagnostics.paymentProcessor === 'stripe'
+        && diagnostics.isPaymentRequired === true
+        && diagnostics.isPaymentSetupRequired === true;
+}
+
 async function createHostedCheckout(options) {
     const context = await resolveCheckoutContext(options);
     const explicitlyRequestedProvider = normalizeRequestedProvider(options.provider);
@@ -487,7 +503,11 @@ async function createHostedCheckout(options) {
         if (!gatewayAvailability[explicitlyRequestedProvider]) {
             throw new Error(getProviderConfigurationError(explicitlyRequestedProvider, context.product.productCode));
         }
-        providersToTry = [explicitlyRequestedProvider];
+        providersToTry = explicitlyRequestedProvider === 'polar'
+            && context.product.billingType === 'subscription'
+            && gatewayAvailability.stripe
+            ? ['polar', 'stripe']
+            : [explicitlyRequestedProvider];
     } else {
         providersToTry = getProviderFallbackOrder('stripe').filter(provider => gatewayAvailability[provider]);
         if (!providersToTry.length) {
@@ -525,6 +545,13 @@ async function createHostedCheckout(options) {
                 ? await createPolarCheckoutSession(context)
                 : await createStripeCheckoutSession(context);
 
+            if (isPolarSubscriptionSetupModeMismatch(context, payload)) {
+                const mismatchError = new Error('Polar recurring checkout returned a Stripe setup-mode session that is incompatible with immediate subscription payment confirmation.');
+                mismatchError.code = 'polar/subscription-setup-mismatch';
+                mismatchError.diagnostics = payload.diagnostics || {};
+                throw mismatchError;
+            }
+
             await upsertPaymentAttempt({
                 ...attemptBase,
                 provider,
@@ -556,7 +583,8 @@ async function createHostedCheckout(options) {
                 status: index === 0 ? 'provider_failed' : 'fallback_failed',
                 metadata: {
                     ...attemptBase.metadata,
-                    error: error.message || 'Checkout session creation failed.'
+                    error: error.message || 'Checkout session creation failed.',
+                    paymentDiagnostics: error && error.diagnostics ? error.diagnostics : {}
                 }
             });
         }
