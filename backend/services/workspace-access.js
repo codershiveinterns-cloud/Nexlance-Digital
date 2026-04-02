@@ -52,6 +52,12 @@ function getNormalizedAssignedProjectIds(profile = {}) {
     return AccessControl.sanitizeAssignedProjectIds(profile.assignedProjectIds);
 }
 
+function hasAllProjectsAccess(profile = {}) {
+    return profile.allProjectsAccess === true
+        || profile.all_projects_access === true
+        || String(profile.projectAccessScope || profile.project_access_scope || '').trim().toLowerCase() === 'all';
+}
+
 function buildPermissionFields(profile = {}, authUser = {}) {
     const role = AccessControl.normalizeRole(profile.role || profile.workspaceRole || profile.dashboardRole || 'admin');
     const enrichedProfile = {
@@ -82,6 +88,8 @@ function buildWorkspaceMemberDocument(profile = {}, authUser = {}) {
         workspaceRole: permissionFields.workspaceRole,
         isWorkspaceOwner: permissionFields.isWorkspaceOwner,
         assignedProjectIds,
+        allProjectsAccess: hasAllProjectsAccess(profile),
+        projectAccessScope: hasAllProjectsAccess(profile) ? 'all' : 'selected',
         status: String(profile.membershipStatus || profile.status || 'active').trim().toLowerCase(),
         inviteType: String(profile.inviteType || profile.memberType || '').trim().toLowerCase(),
         joinedAt: profile.joinedAt || profile.inviteAcceptedAt || new Date().toISOString(),
@@ -201,6 +209,8 @@ async function ensureWorkspaceAccessProfile(authUser) {
         workspaceOwnerUserId: pendingInviteBootstrap ? '' : ownerUserId,
         isWorkspaceOwner: pendingInviteBootstrap ? false : inferredOwner,
         assignedProjectIds: getNormalizedAssignedProjectIds(existingProfile),
+        allProjectsAccess: hasAllProjectsAccess(existingProfile),
+        projectAccessScope: hasAllProjectsAccess(existingProfile) ? 'all' : 'selected',
         membershipStatus: String(existingProfile.membershipStatus || 'active').trim().toLowerCase()
     };
 
@@ -239,6 +249,8 @@ async function ensureWorkspaceAccessProfile(authUser) {
         permissionKeys: nextProfile.permissionKeys,
         permissions: nextProfile.permissions,
         assignedProjectIds: nextProfile.assignedProjectIds,
+        allProjectsAccess: nextProfile.allProjectsAccess,
+        projectAccessScope: nextProfile.projectAccessScope,
         membershipStatus: nextProfile.membershipStatus,
         updatedAt: nextProfile.updatedAt
     });
@@ -270,6 +282,8 @@ function buildSessionUser(profile = {}, authUser = {}) {
         permissionKeys: accessProfile.permissionKeys,
         permissions: accessProfile.permissionMatrix,
         assignedProjectIds: getNormalizedAssignedProjectIds(profile),
+        allProjectsAccess: hasAllProjectsAccess(profile),
+        projectAccessScope: hasAllProjectsAccess(profile) ? 'all' : 'selected',
         membershipStatus: String(profile.membershipStatus || 'active').trim().toLowerCase(),
         accountType: String(profile.accountType || 'individual').trim().toLowerCase(),
         currentPlan: String(profile.currentPlan || '').trim(),

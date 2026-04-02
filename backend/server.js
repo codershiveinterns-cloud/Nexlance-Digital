@@ -56,6 +56,11 @@ const { getAdminAnalytics } = require('./services/admin-analytics');
 const { authenticateDashboardRequest } = require('./services/dashboard-auth');
 const { canPerformCollectionAction, normalizeEmail } = require('./services/dashboard-rbac');
 const {
+    buildClientAccessFields,
+    normalizeProjectAccess,
+    syncClientAccessState
+} = require('./services/client-access');
+const {
     requireAuth,
     requireOwnerOnly,
     requirePermission
@@ -164,11 +169,20 @@ function normalizeClientInvitePayload(body = {}) {
     const email = String(body.email || body.clientEmail || metadata.email || '').trim().toLowerCase();
     const hostingExpiry = normalizeDateInput(metadata.hosting_expiry || metadata.hostingExpiry || '');
     const sslExpiry = normalizeDateInput(metadata.ssl_expiry || metadata.sslExpiry || '');
-    const assignedProjectIds = normalizeProjectIdList(
+    const rawAssignedProjectIds = normalizeProjectIdList(
         body.assignedProjectIds !== undefined
             ? body.assignedProjectIds
             : (metadata.assigned_project_ids !== undefined ? metadata.assigned_project_ids : metadata.assignedProjectIds)
     );
+    const allProjectsAccess = body.allProjectsAccess === true
+        || body.all_projects_access === true
+        || metadata.allProjectsAccess === true
+        || metadata.all_projects_access === true
+        || String(body.projectAccessScope || body.project_access_scope || metadata.projectAccessScope || metadata.project_access_scope || '').trim().toLowerCase() === 'all';
+    const access = normalizeProjectAccess({
+        assignedProjectIds: rawAssignedProjectIds,
+        allProjectsAccess
+    });
     const totalContractValue = parseNonNegativeNumber(
         metadata.total_contract_value !== undefined ? metadata.total_contract_value : metadata.totalContractValue,
         'Total contract value'
@@ -200,7 +214,8 @@ function normalizeClientInvitePayload(body = {}) {
     return {
         inviteeName,
         email,
-        assignedProjectIds,
+        assignedProjectIds: access.assignedProjectIds,
+        allProjectsAccess: access.allProjectsAccess,
         metadata: {
             ...metadata,
             name: inviteeName,
@@ -209,7 +224,10 @@ function normalizeClientInvitePayload(body = {}) {
             ssl_expiry: sslExpiry || null,
             total_contract_value: totalContractValue,
             paid_amount: paidAmount,
-            assigned_project_ids: assignedProjectIds
+            assigned_project_ids: access.assignedProjectIds,
+            all_projects_access: access.allProjectsAccess,
+            project_access_scope: access.projectAccessScope,
+            ...buildClientAccessFields(access)
         }
     };
 }
@@ -432,27 +450,76 @@ function ensureOwnedDocument(record, sessionUser) {
 
 async function listDashboardCollectionRecords(collectionId, sessionUser) {
     const ownerKey = getWorkspaceOwnerKey(sessionUser);
-    if (!ownerKey) return [];
+    const workspaceId = String(sessionUser.workspaceId || '').trim();
+    if (!ownerKey && !workspaceId) return [];
 
-    const queried = await queryCollectionDocuments(collectionId, {
-        fieldPath: 'owner_key',
-        op: 'EQUAL',
-        value: ownerKey,
-        limit: 500
-    }).catch(async () => {
-        const all = await listCollectionDocuments(collectionId, { pageSize: 500 });
+    const queryResults = [];
+    if (ownerKey) {
+        const ownerMatched = await queryCollectionDocuments(collectionId, {
+            fieldPath: 'owner_key',
+            op: 'EQUAL',
+            value: ownerKey,
+            limit: 500
+        }).catch(() => []);
+        queryResults.push(...(Array.isArray(ownerMatched) ? ownerMatched : []));
+    }
+
+    if (workspaceId) {
+        const workspaceMatched = await queryCollectionDocuments(collectionId, {
+            fieldPath: 'workspace_id',
+            op: 'EQUAL',
+            value: workspaceId,
+            limit: 500
+        }).catch(() => []);
+        queryResults.push(...(Array.isArray(workspaceMatched) ? workspaceMatched : []));
+    }
+
+    if (!queryResults.length) {
+        const all = await listCollectionDocuments(collectionId, { pageSize: 500 }).catch(() => []);
         return all
-            .filter(record => normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
+            .filter(record => (
+                (ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
+                || (workspaceId && String(record.workspace_id || '').trim() === workspaceId)
+            ))
             .map(record => ({
                 id: record.id,
                 data: record
             }));
-    });
+    }
 
-    return (Array.isArray(queried) ? queried : []).map(record => ({
-        id: record.id || (record.name ? record.name.split('/').pop() : ''),
-        data: record.data || record
-    }));
+    const seen = new Set();
+    return queryResults
+        .map(record => ({
+            id: record.id || (record.name ? record.name.split('/').pop() : ''),
+            data: record.data || record
+        }))
+        .filter(record => {
+            if (!record.id || seen.has(record.id)) return false;
+            seen.add(record.id);
+            return true;
+        });
+}
+
+function hasAllProjectsAccess(sessionUser = {}) {
+    return sessionUser.allProjectsAccess === true
+        || sessionUser.all_projects_access === true
+        || String(sessionUser.projectAccessScope || sessionUser.project_access_scope || '').trim().toLowerCase() === 'all';
+}
+
+function getScopedProjectIdsFromRecord(recordData = {}, collectionId = '') {
+    if (!recordData || typeof recordData !== 'object') return [];
+    if (collectionId === 'projects') {
+        return [String(recordData.id || '').trim()].filter(Boolean);
+    }
+    if (collectionId === 'tasks') {
+        return [String(recordData.project_id || '').trim()].filter(Boolean);
+    }
+    return AccessControl.sanitizeAssignedProjectIds([
+        ...(Array.isArray(recordData.assigned_project_ids) ? recordData.assigned_project_ids : []),
+        ...(Array.isArray(recordData.assignedProjectIds) ? recordData.assignedProjectIds : []),
+        recordData.project_id,
+        recordData.primary_project_id
+    ]);
 }
 
 function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
@@ -460,25 +527,20 @@ function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
     const isOwner = AccessControl.isWorkspaceOwner(sessionUser);
     const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
     const hasExplicitProjectScope = !isOwner && assignedProjectIds.size > 0;
+    const allProjectsAccess = hasAllProjectsAccess(sessionUser);
     const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
 
-    if (!shouldRestrictProjects) {
+    if (!shouldRestrictProjects || isOwner || allProjectsAccess) {
         return records;
     }
 
-    if (collectionId === 'projects') {
-        return records.filter(record => assignedProjectIds.has(String(record.data.id || record.id || '').trim()));
-    }
-
-    if (collectionId === 'tasks') {
-        return records.filter(record => assignedProjectIds.has(String(record.data.project_id || '').trim()));
-    }
-
-    if (collectionId === 'clients') {
-        return records.filter(record => assignedProjectIds.has(String(record.data.project_id || record.data.primary_project_id || '').trim()));
-    }
-
-    return records;
+    return (Array.isArray(records) ? records : []).filter(record => {
+        const projectIds = getScopedProjectIdsFromRecord(record && record.data ? record.data : record, collectionId);
+        if (!projectIds.length) {
+            return false;
+        }
+        return projectIds.some(projectId => assignedProjectIds.has(String(projectId || '').trim()));
+    });
 }
 
 function filterDashboardRecordForSession(collectionId, record, sessionUser) {
@@ -570,6 +632,9 @@ async function handleDashboardApi(req, res, url) {
             buildDashboardDocument(body, sessionUser, true),
             route.documentId || ''
         );
+        if (route.collectionId === 'clients') {
+            await syncClientAccessState({ id: record.id, data: record }).catch(() => undefined);
+        }
         sendJson(res, 200, { ok: true, record });
         return;
     }
@@ -605,6 +670,9 @@ async function handleDashboardApi(req, res, url) {
             route.documentId,
             buildDashboardDocument(body, sessionUser, false)
         );
+        if (route.collectionId === 'clients') {
+            await syncClientAccessState({ id: route.documentId, data: record }).catch(() => undefined);
+        }
         sendJson(res, 200, { ok: true, record });
         return;
     }
@@ -719,7 +787,9 @@ const server = http.createServer(async (req, res) => {
                     workspaceId: record.workspaceId,
                     expiresAt: record.expiresAt,
                     status: record.status,
-                    assignedProjectIds: record.assignedProjectIds || []
+                    assignedProjectIds: record.assignedProjectIds || [],
+                    allProjectsAccess: record.allProjectsAccess === true,
+                    projectAccessScope: record.projectAccessScope || (record.allProjectsAccess ? 'all' : 'selected')
                 }
             });
         } catch (error) {
@@ -789,6 +859,7 @@ const server = http.createServer(async (req, res) => {
                 email: normalizedPayload.email,
                 role: 'client',
                 assignedProjectIds: normalizedPayload.assignedProjectIds,
+                allProjectsAccess: normalizedPayload.allProjectsAccess,
                 origin: getRequestOrigin(req),
                 metadata: normalizedPayload.metadata
             });

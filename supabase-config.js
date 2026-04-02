@@ -1356,11 +1356,84 @@ function createAccessFilteredDataset(entity, demoRecords) {
     if (!canAccessAccountData()) {
         return [];
     }
-    const realRecords = getLocalEntityData(entity);
+    const realRecords = filterRecordsForCurrentUserScope(entity, getLocalEntityData(entity));
     if (shouldShowDemoData()) {
-        return [...realRecords, ...cloneDemoRecords(demoRecords, `demo-${entity}`)];
+        return [
+            ...realRecords,
+            ...filterRecordsForCurrentUserScope(entity, cloneDemoRecords(demoRecords, `demo-${entity}`))
+        ];
     }
     return realRecords;
+}
+
+function currentUserHasAllProjectsAccess() {
+    const currentUser = getCurrentSessionUser();
+    return Boolean(
+        currentUser
+        && (
+            currentUser.allProjectsAccess === true
+            || currentUser.all_projects_access === true
+            || String(currentUser.projectAccessScope || currentUser.project_access_scope || '').trim().toLowerCase() === 'all'
+        )
+    );
+}
+
+function getProjectScopedIdsForRecord(entity, record = {}) {
+    if (!record || typeof record !== 'object') return [];
+    if (entity === 'projects') {
+        return [String(record.id || '').trim()].filter(Boolean);
+    }
+    if (entity === 'tasks') {
+        return [String(record.project_id || '').trim()].filter(Boolean);
+    }
+    if (entity === 'clients') {
+        const accessControl = getAccessControl();
+        const ids = [
+            ...(Array.isArray(record.assigned_project_ids) ? record.assigned_project_ids : []),
+            ...(Array.isArray(record.assignedProjectIds) ? record.assignedProjectIds : []),
+            record.project_id,
+            record.primary_project_id
+        ];
+        return accessControl ? accessControl.sanitizeAssignedProjectIds(ids) : ids.map(id => String(id || '').trim()).filter(Boolean);
+    }
+    return [];
+}
+
+function filterRecordsForCurrentUserScope(entity, records) {
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
+    const safeRecords = Array.isArray(records) ? records : [];
+    if (!accessControl || !currentUser || !currentUser.workspaceId) {
+        return safeRecords;
+    }
+
+    if (accessControl.isWorkspaceOwner(currentUser) || currentUserHasAllProjectsAccess()) {
+        return safeRecords;
+    }
+
+    const assignedProjectIds = new Set(accessControl.sanitizeAssignedProjectIds(currentUser.assignedProjectIds));
+    const role = accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
+    const shouldRestrictProjects = role === accessControl.ROLES.CLIENT || assignedProjectIds.size > 0;
+    if (!shouldRestrictProjects) {
+        return safeRecords;
+    }
+
+    return safeRecords.filter(record => {
+        const projectIds = getProjectScopedIdsForRecord(entity, record);
+        if (!projectIds.length) {
+            return false;
+        }
+        return projectIds.some(projectId => assignedProjectIds.has(String(projectId || '').trim()));
+    });
+}
+
+function shouldSkipOwnerScopedFallbackForCurrentUser() {
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
+    if (!accessControl || !currentUser || !currentUser.workspaceId) {
+        return false;
+    }
+    return !accessControl.isWorkspaceOwner(currentUser) && !currentUserHasAllProjectsAccess();
 }
 
 function createRestrictedAccessError(entity) {
@@ -1473,11 +1546,11 @@ async function fetchClients() {
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('clients').where('owner_key', '==', ownerKey).get();
-        return mergeEntityCollections(
+        return filterRecordsForCurrentUserScope('clients', mergeEntityCollections(
             _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
             getLocalEntityData('clients')
-        ).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    } catch (e) { console.error(e); return getLocalEntityData('clients'); }
+        )).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    } catch (e) { console.error(e); return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients')); }
 }
 
 async function addClient(d) {
@@ -1572,8 +1645,8 @@ async function deleteClient(id) {
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
 
-    const scopedProjects = getLocalEntityData('projects');
-    const templateProjects = getLegacyTemplateProjects();
+    const scopedProjects = filterRecordsForCurrentUserScope('projects', getLocalEntityData('projects'));
+    const templateProjects = filterRecordsForCurrentUserScope('projects', getLegacyTemplateProjects());
 
     if (!isFirebaseConfigured) {
         const records = createAccessFilteredDataset('projects', sampleProjects);
@@ -1594,6 +1667,10 @@ async function fetchProjects(clientId = null) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'update');
             }
         }
+        if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
+            const combinedScoped = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
+            return clientId ? combinedScoped.filter(p => p.client_id === clientId) : combinedScoped;
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) {
             const combinedWithoutOwner = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
@@ -1603,7 +1680,7 @@ async function fetchProjects(clientId = null) {
         if (clientId) q = q.where('client_id', '==', clientId);
         const snap = await q.get();
         const firebaseProjects = _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        const combined = sortProjectsByRecent(mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects));
+        const combined = sortProjectsByRecent(filterRecordsForCurrentUserScope('projects', mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects)));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     } catch (e) {
         console.error(e);
@@ -1773,16 +1850,19 @@ async function fetchTasks(projectId) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'update');
             }
         }
+        if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
+            return filterRecordsForCurrentUserScope('tasks', getLocalEntityData('tasks')).filter(t => t.project_id === projectId);
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('tasks')
             .where('owner_key', '==', ownerKey)
             .where('project_id', '==', projectId)
             .get();
-        return mergeEntityCollections(
+        return filterRecordsForCurrentUserScope('tasks', mergeEntityCollections(
             _snap(snap).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
             getLocalEntityData('tasks').filter(t => t.project_id === projectId)
-        ).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+        )).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
     } catch (e) { console.error(e); return []; }
 }
 

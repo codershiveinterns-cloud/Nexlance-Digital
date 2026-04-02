@@ -237,6 +237,7 @@
 let clients = [];
 let availableProjects = [];
 let editingId = null;
+const ALL_PROJECT_ACCESS_VALUE = '__all_projects__';
 function ensureDataAccess() {
   if (!isUpgradeRequiredForData()) return true;
   showToast(getUpgradeRequiredMessage(), 'error');
@@ -244,14 +245,8 @@ function ensureDataAccess() {
 }
 
 async function init() {
-  [clients, availableProjects] = await Promise.all([
-    fetchClients(),
-    fetchProjects().catch(() => [])
-  ]);
-  renderProjectAccessOptions();
+  await refreshClientsData({ preserveSelection: false });
   applyClientUiPermissions();
-  renderStats();
-  renderTable(clients);
 }
 
 function applyClientUiPermissions() {
@@ -262,23 +257,65 @@ function applyClientUiPermissions() {
   if (addButton) addButton.style.display = canInvite ? '' : 'none';
 }
 
-function renderProjectAccessOptions(selectedIds = []) {
+function renderProjectAccessOptions(selectedIds = [], allProjectsAccess = false) {
   const select = document.getElementById('fAssignedProjects');
   if (!select) return;
   const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(String));
+  const options = [
+    `<option value="${ALL_PROJECT_ACCESS_VALUE}" ${allProjectsAccess ? 'selected' : ''}>All Access</option>`
+  ];
   if (!availableProjects.length) {
-    select.innerHTML = '<option value="">No projects available yet</option>';
+    options.push('<option value="" disabled>No projects available yet</option>');
+    select.innerHTML = options.join('');
     return;
   }
-  select.innerHTML = availableProjects.map(project => `
-    <option value="${project.id}" ${selected.has(String(project.id)) ? 'selected' : ''}>${project.name}</option>
-  `).join('');
+  select.innerHTML = options.concat(availableProjects.map(project => `
+    <option value="${project.id}" ${!allProjectsAccess && selected.has(String(project.id)) ? 'selected' : ''}>${project.name}</option>
+  `)).join('');
 }
 
-function getSelectedProjectIds() {
+function normalizeProjectAccessSelection() {
   const select = document.getElementById('fAssignedProjects');
-  if (!select) return [];
-  return Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
+  if (!select) return;
+  const selectedValues = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
+  if (selectedValues.includes(ALL_PROJECT_ACCESS_VALUE)) {
+    Array.from(select.options).forEach(option => {
+      option.selected = option.value === ALL_PROJECT_ACCESS_VALUE;
+    });
+    return;
+  }
+  const allAccessOption = Array.from(select.options).find(option => option.value === ALL_PROJECT_ACCESS_VALUE);
+  if (allAccessOption) {
+    allAccessOption.selected = false;
+  }
+}
+
+function getSelectedProjectAccess() {
+  const select = document.getElementById('fAssignedProjects');
+  if (!select) {
+    return { allProjectsAccess: false, assignedProjectIds: [] };
+  }
+  const selectedValues = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
+  const allProjectsAccess = selectedValues.includes(ALL_PROJECT_ACCESS_VALUE);
+  return {
+    allProjectsAccess,
+    assignedProjectIds: allProjectsAccess
+      ? []
+      : selectedValues.filter(value => value !== ALL_PROJECT_ACCESS_VALUE)
+  };
+}
+
+async function refreshClientsData({ preserveSelection = true } = {}) {
+  const currentSelection = preserveSelection ? getSelectedProjectAccess() : { allProjectsAccess: false, assignedProjectIds: [] };
+  const [nextClients, nextProjects] = await Promise.all([
+    fetchClients(),
+    fetchProjects().catch(() => [])
+  ]);
+  clients = Array.isArray(nextClients) ? nextClients : [];
+  availableProjects = Array.isArray(nextProjects) ? nextProjects : [];
+  renderProjectAccessOptions(currentSelection.assignedProjectIds, currentSelection.allProjectsAccess);
+  renderStats();
+  filterClients();
 }
 
 function renderStats() {
@@ -376,7 +413,7 @@ function openAddModal() {
   document.getElementById('fPlatform').value = '';
   document.getElementById('fMaintenance').value = 'None';
   document.getElementById('fPlanType').value = 'Basic';
-  renderProjectAccessOptions();
+  renderProjectAccessOptions([], false);
   document.getElementById('clientModal').classList.add('active');
 }
 
@@ -399,7 +436,10 @@ function openEditModal(id) {
   document.getElementById('fPlanType').value = c.plan_type || 'Basic';
   document.getElementById('fContractValue').value = c.total_contract_value || '';
   document.getElementById('fPaidAmount').value = c.paid_amount || '';
-  renderProjectAccessOptions(c.assigned_project_ids || c.assignedProjectIds || []);
+  renderProjectAccessOptions(
+    c.assigned_project_ids || c.assignedProjectIds || [],
+    Boolean(c.all_projects_access || c.allProjectsAccess || c.project_access_scope === 'all' || c.projectAccessScope === 'all')
+  );
   document.getElementById('clientModal').classList.add('active');
 }
 
@@ -448,7 +488,9 @@ function buildClientFormPayload() {
   const email = document.getElementById('fEmail').value.trim().toLowerCase();
   const hostingExpiry = normalizeDateForApi(document.getElementById('fHostingExpiry').value);
   const sslExpiry = normalizeDateForApi(document.getElementById('fSslExpiry').value);
-  const assignedProjectIds = getSelectedProjectIds();
+  const accessSelection = getSelectedProjectAccess();
+  const assignedProjectIds = accessSelection.assignedProjectIds;
+  const allProjectsAccess = accessSelection.allProjectsAccess;
   const totalContractValue = parseCurrencyField('fContractValue', 'Total contract value');
   const paidAmount = parseCurrencyField('fPaidAmount', 'Paid amount');
 
@@ -479,6 +521,7 @@ function buildClientFormPayload() {
       name,
       email,
       assignedProjectIds,
+      allProjectsAccess,
       metadata: {
         name,
         email,
@@ -493,7 +536,9 @@ function buildClientFormPayload() {
         plan_type: document.getElementById('fPlanType').value,
         total_contract_value: totalContractValue,
         paid_amount: paidAmount,
-        assigned_project_ids: assignedProjectIds
+        assigned_project_ids: assignedProjectIds,
+        all_projects_access: allProjectsAccess,
+        project_access_scope: allProjectsAccess ? 'all' : 'selected'
       }
     },
     updatePayload: {
@@ -510,7 +555,9 @@ function buildClientFormPayload() {
       plan_type: document.getElementById('fPlanType').value,
       total_contract_value: totalContractValue,
       paid_amount: paidAmount,
-      assigned_project_ids: assignedProjectIds
+      assigned_project_ids: assignedProjectIds,
+      all_projects_access: allProjectsAccess,
+      project_access_scope: allProjectsAccess ? 'all' : 'selected'
     }
   };
 }
@@ -529,9 +576,8 @@ async function saveClient() {
       console.log('HTTP method', 'PATCH');
       console.log('request payload', payloads.updatePayload);
       console.groupEnd();
-      const updated = await updateClient(editingId, payloads.updatePayload);
-      const idx = clients.findIndex(c => c.id === editingId);
-      if (idx > -1) clients[idx] = updated;
+      await updateClient(editingId, payloads.updatePayload);
+      await refreshClientsData();
       showToast('Client updated successfully!', 'success');
     } else {
       console.groupCollapsed('[Clients] Save Client request');
@@ -540,7 +586,7 @@ async function saveClient() {
       console.log('request payload', payloads.requestPayload);
       console.groupEnd();
       const created = await inviteClient(payloads.requestPayload);
-      clients.unshift(created.record);
+      await refreshClientsData();
       if (created && created.emailDeliveryError) {
         showToast('Client saved, but the invitation email could not be sent. Check the Resend sender domain in Vercel.', 'info');
       } else {
@@ -582,6 +628,25 @@ async function handleDelete(id) {
 // Close modal on overlay click
 document.getElementById('clientModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
+});
+
+document.getElementById('fAssignedProjects').addEventListener('change', normalizeProjectAccessSelection);
+
+window.addEventListener('focus', () => {
+  refreshClientsData().catch(() => undefined);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    refreshClientsData().catch(() => undefined);
+  }
+});
+
+window.addEventListener('nexlance-data-changed', event => {
+  const entity = event && event.detail ? event.detail.entity : '';
+  if (!entity || ['clients', 'projects'].includes(entity)) {
+    refreshClientsData().catch(() => undefined);
+  }
 });
 
 attachDateValidation('fHostingExpiry', { label: 'Hosting Expiry' });

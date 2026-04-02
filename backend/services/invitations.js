@@ -4,6 +4,12 @@ const { logAuditEvent } = require('./audit-log');
 const { sendEmailWithResend } = require('./email-service');
 const { buildClientInviteEmail, buildTeamInviteEmail } = require('./invitation-emails');
 const {
+    buildClientAccessFields,
+    buildInvitationAccessFields,
+    buildProfileAccessFields,
+    normalizeProjectAccess
+} = require('./client-access');
+const {
     createCollectionDocument,
     getCollectionDocument,
     patchCollectionDocument,
@@ -102,21 +108,25 @@ async function sendInvitationEmail({ inviteType, inviteeName, email, workspaceNa
     });
 }
 
-function buildTargetRecordPayload({ inviteType, inviteeName, email, role, assignedProjectIds, sessionUser, invitationId, metadata = {} }) {
+function buildTargetRecordPayload({ inviteType, inviteeName, email, role, assignedProjectIds, allProjectsAccess, sessionUser, invitationId, metadata = {} }) {
     const now = new Date().toISOString();
+    const accessFields = buildClientAccessFields({
+        assignedProjectIds,
+        allProjectsAccess
+    });
     const baseRecord = {
         ...(metadata && typeof metadata === 'object' ? metadata : {}),
         name: inviteeName,
         email: AccessControl.normalizeEmail(email),
         role: AccessControl.getRoleDisplayLabel(role),
         canonical_role: role,
-        assigned_project_ids: assignedProjectIds,
         invitation_id: invitationId,
         invite_status: 'pending',
         owner_key: AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.email),
         owner_email: AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.email),
         workspace_id: sessionUser.workspaceId,
-        updated_at: now
+        updated_at: now,
+        ...accessFields
     };
 
     if (inviteType === 'client') {
@@ -147,8 +157,24 @@ async function createPendingTargetRecord(options) {
     };
 }
 
-function buildInvitationRecord({ invitationId, inviteType, inviteeName, email, role, assignedProjectIds, sessionUser, rawToken, targetRecord, origin }) {
+function buildInvitationRecord({
+    invitationId,
+    inviteType,
+    inviteeName,
+    email,
+    role,
+    assignedProjectIds,
+    allProjectsAccess,
+    sessionUser,
+    rawToken,
+    targetRecord,
+    origin
+}) {
     const now = new Date().toISOString();
+    const invitationAccessFields = buildInvitationAccessFields({
+        assignedProjectIds,
+        allProjectsAccess
+    });
     return {
         invitationId,
         inviteType,
@@ -164,12 +190,12 @@ function buildInvitationRecord({ invitationId, inviteType, inviteeName, email, r
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS).toISOString(),
         usedAt: '',
         status: 'pending',
-        assignedProjectIds,
         targetRecordCollection: targetRecord ? targetRecord.targetCollectionId : '',
         targetRecordId: targetRecord && targetRecord.targetRecord ? targetRecord.targetRecord.id : '',
         inviteLink: buildInvitationLink(rawToken, origin),
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        ...invitationAccessFields
     };
 }
 
@@ -180,6 +206,7 @@ async function createInvitation({
     email,
     role,
     assignedProjectIds = [],
+    allProjectsAccess = false,
     origin = '',
     metadata = {},
     suppressEmailDeliveryError = false
@@ -191,7 +218,8 @@ async function createInvitation({
         throw new Error('Invite email is required.');
     }
 
-    const safeAssignedProjectIds = getNormalizedAssignedProjectIds({ assignedProjectIds });
+    const normalizedAccess = normalizeProjectAccess({ assignedProjectIds, allProjectsAccess });
+    const safeAssignedProjectIds = normalizedAccess.assignedProjectIds;
     const rawToken = createRawInviteToken();
     const invitationId = getInvitationDocumentId();
     const targetRecord = await createPendingTargetRecord({
@@ -200,6 +228,7 @@ async function createInvitation({
         email: safeEmail,
         role: normalizedRole,
         assignedProjectIds: safeAssignedProjectIds,
+        allProjectsAccess: normalizedAccess.allProjectsAccess,
         sessionUser,
         invitationId,
         metadata
@@ -211,6 +240,7 @@ async function createInvitation({
         email: safeEmail,
         role: normalizedRole,
         assignedProjectIds: safeAssignedProjectIds,
+        allProjectsAccess: normalizedAccess.allProjectsAccess,
         sessionUser,
         rawToken,
         targetRecord,
@@ -425,6 +455,7 @@ async function acceptInvitation({ session, token }) {
     }
 
     const role = AccessControl.normalizeRole(record.role);
+    const accessFields = buildProfileAccessFields(record);
     const profileFields = buildPermissionFields({
         ...session.userProfile,
         role,
@@ -433,7 +464,9 @@ async function acceptInvitation({ session, token }) {
         workspaceOwnerEmail: record.workspaceOwnerEmail,
         workspaceOwnerUserId: record.workspaceOwnerUserId,
         isWorkspaceOwner: false,
-        assignedProjectIds: record.assignedProjectIds,
+        assignedProjectIds: accessFields.assignedProjectIds,
+        allProjectsAccess: accessFields.allProjectsAccess,
+        projectAccessScope: accessFields.projectAccessScope,
         membershipStatus: 'active',
         inviteType: record.inviteType,
         inviteAcceptedAt: new Date().toISOString(),
@@ -451,7 +484,9 @@ async function acceptInvitation({ session, token }) {
         workspaceRole: role,
         permissionKeys: profileFields.permissionKeys,
         permissions: profileFields.permissions,
-        assignedProjectIds: record.assignedProjectIds || [],
+        assignedProjectIds: accessFields.assignedProjectIds,
+        allProjectsAccess: accessFields.allProjectsAccess,
+        projectAccessScope: accessFields.projectAccessScope,
         membershipStatus: 'active',
         inviteType: record.inviteType,
         inviteAcceptedAt: new Date().toISOString(),
@@ -469,27 +504,31 @@ async function acceptInvitation({ session, token }) {
         role,
         workspaceRole: role,
         isWorkspaceOwner: false,
-        assignedProjectIds: record.assignedProjectIds || [],
+        assignedProjectIds: accessFields.assignedProjectIds,
+        allProjectsAccess: accessFields.allProjectsAccess,
+        projectAccessScope: accessFields.projectAccessScope,
         status: 'active',
         inviteType: record.inviteType,
         joinedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     });
 
-    const assignmentIds = AccessControl.sanitizeAssignedProjectIds(record.assignedProjectIds);
-    for (const projectId of assignmentIds) {
-        const assignmentId = sanitizeDocumentId(`${record.workspaceId}_${projectId}_${session.authUser.uid}`);
-        await upsertCollectionDocument('project_assignments', assignmentId, {
-            workspaceId: record.workspaceId,
-            projectId,
-            userId: session.authUser.uid,
-            email: safeSessionEmail,
-            role,
-            inviteType: record.inviteType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            active: true
-        });
+    const assignmentIds = AccessControl.sanitizeAssignedProjectIds(accessFields.assignedProjectIds);
+    if (!accessFields.allProjectsAccess) {
+        for (const projectId of assignmentIds) {
+            const assignmentId = sanitizeDocumentId(`${record.workspaceId}_${projectId}_${session.authUser.uid}`);
+            await upsertCollectionDocument('project_assignments', assignmentId, {
+                workspaceId: record.workspaceId,
+                projectId,
+                userId: session.authUser.uid,
+                email: safeSessionEmail,
+                role,
+                inviteType: record.inviteType,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                active: true
+            });
+        }
     }
 
     if (record.targetRecordCollection && record.targetRecordId) {
@@ -498,6 +537,10 @@ async function acceptInvitation({ session, token }) {
             canonical_role: role,
             role: AccessControl.getRoleDisplayLabel(role),
             assigned_project_ids: assignmentIds,
+            all_projects_access: accessFields.allProjectsAccess,
+            project_access_scope: accessFields.projectAccessScope,
+            project_id: accessFields.allProjectsAccess ? '' : (assignmentIds[0] || ''),
+            primary_project_id: accessFields.allProjectsAccess ? '' : (assignmentIds[0] || ''),
             invited_user_id: session.authUser.uid,
             invite_accepted_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -511,6 +554,8 @@ async function acceptInvitation({ session, token }) {
             userId: session.authUser.uid,
             email: safeSessionEmail,
             assignedProjectIds: assignmentIds,
+            allProjectsAccess: accessFields.allProjectsAccess,
+            projectAccessScope: accessFields.projectAccessScope,
             status: 'active',
             updatedAt: new Date().toISOString()
         });

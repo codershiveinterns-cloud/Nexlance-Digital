@@ -1,5 +1,6 @@
 const { requireAuth, requireOwnerOnly } = require('../services/request-guards');
 const { createInvitation } = require('../services/invitations');
+const { buildClientAccessFields, normalizeProjectAccess } = require('../services/client-access');
 const {
     handleOptions,
     normalizeBody,
@@ -47,11 +48,20 @@ function normalizeClientInvitePayload(body = {}) {
     const email = String(body.email || body.clientEmail || metadata.email || '').trim().toLowerCase();
     const hostingExpiry = normalizeDateInput(metadata.hosting_expiry || metadata.hostingExpiry || '');
     const sslExpiry = normalizeDateInput(metadata.ssl_expiry || metadata.sslExpiry || '');
-    const assignedProjectIds = normalizeProjectIdList(
+    const rawAssignedProjectIds = normalizeProjectIdList(
         body.assignedProjectIds !== undefined
             ? body.assignedProjectIds
             : (metadata.assigned_project_ids !== undefined ? metadata.assigned_project_ids : metadata.assignedProjectIds)
     );
+    const allProjectsAccess = body.allProjectsAccess === true
+        || body.all_projects_access === true
+        || metadata.allProjectsAccess === true
+        || metadata.all_projects_access === true
+        || String(body.projectAccessScope || body.project_access_scope || metadata.projectAccessScope || metadata.project_access_scope || '').trim().toLowerCase() === 'all';
+    const access = normalizeProjectAccess({
+        assignedProjectIds: rawAssignedProjectIds,
+        allProjectsAccess
+    });
     const totalContractValue = parseNonNegativeNumber(
         metadata.total_contract_value !== undefined ? metadata.total_contract_value : metadata.totalContractValue,
         'Total contract value'
@@ -83,7 +93,8 @@ function normalizeClientInvitePayload(body = {}) {
     return {
         inviteeName,
         email,
-        assignedProjectIds,
+        assignedProjectIds: access.assignedProjectIds,
+        allProjectsAccess: access.allProjectsAccess,
         metadata: {
             ...metadata,
             name: inviteeName,
@@ -92,7 +103,10 @@ function normalizeClientInvitePayload(body = {}) {
             ssl_expiry: sslExpiry || null,
             total_contract_value: totalContractValue,
             paid_amount: paidAmount,
-            assigned_project_ids: assignedProjectIds
+            assigned_project_ids: access.assignedProjectIds,
+            all_projects_access: access.allProjectsAccess,
+            project_access_scope: access.projectAccessScope,
+            ...buildClientAccessFields(access)
         }
     };
 }
@@ -118,6 +132,7 @@ module.exports = async function handler(req, res) {
             email: normalizedPayload.email,
             role: 'client',
             assignedProjectIds: normalizedPayload.assignedProjectIds,
+            allProjectsAccess: normalizedPayload.allProjectsAccess,
             origin: getRequestOrigin(req),
             metadata: normalizedPayload.metadata,
             suppressEmailDeliveryError: true

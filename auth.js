@@ -557,6 +557,8 @@ document.addEventListener("DOMContentLoaded", () => {
       isWorkspaceOwner: Boolean(profile?.isWorkspaceOwner),
       permissionKeys: profile?.permissionKeys || accessFields.permissionKeys,
       assignedProjectIds: profile?.assignedProjectIds || [],
+      allProjectsAccess: Boolean(profile?.allProjectsAccess),
+      projectAccessScope: profile?.projectAccessScope || (profile?.allProjectsAccess ? "all" : "selected"),
       membershipStatus: profile?.membershipStatus || "active",
       inviteType: profile?.inviteType || "",
       permissions,

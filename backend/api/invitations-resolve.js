@@ -30,7 +30,9 @@ module.exports = async function handler(req, res) {
                 workspaceId: record.workspaceId,
                 expiresAt: record.expiresAt,
                 status: record.status,
-                assignedProjectIds: record.assignedProjectIds || []
+                assignedProjectIds: record.assignedProjectIds || [],
+                allProjectsAccess: record.allProjectsAccess === true,
+                projectAccessScope: record.projectAccessScope || (record.allProjectsAccess ? 'all' : 'selected')
             }
         });
     } catch (error) {
