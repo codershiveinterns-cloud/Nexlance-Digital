@@ -119,13 +119,15 @@ module.exports = async function handler(req, res) {
             role: 'client',
             assignedProjectIds: normalizedPayload.assignedProjectIds,
             origin: getRequestOrigin(req),
-            metadata: normalizedPayload.metadata
+            metadata: normalizedPayload.metadata,
+            suppressEmailDeliveryError: true
         });
 
         res.status(200).json({
             ok: true,
             invitation: result.invitation,
-            record: result.targetRecord
+            record: result.targetRecord,
+            emailDeliveryError: result.emailDeliveryError || null
         });
     } catch (error) {
         sendApiError(res, error, 'Client invitation could not be sent.');

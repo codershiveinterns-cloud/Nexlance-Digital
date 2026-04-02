@@ -1,8 +1,10 @@
 import { auth, authReady } from "./firebase.js";
 import {
+  clearPersistedSession,
   createInvitedAccountSession,
   loginWithEmail,
   persistSession,
+  resendVerificationEmailForCredentials,
 } from "./authService.js";
 
 function showState(stateId) {
@@ -22,6 +24,17 @@ function showForm(formId) {
   document.querySelectorAll(".invite-form").forEach((element) => {
     element.classList.toggle("active", element.id === formId);
   });
+}
+
+let pendingVerificationCredentials = null;
+
+function setResendVerificationState(visible, credentials = null) {
+  pendingVerificationCredentials = visible ? credentials : null;
+  const button = document.getElementById("resendInviteVerificationBtn");
+  if (!button) return;
+  button.style.display = visible ? "block" : "none";
+  button.disabled = false;
+  button.textContent = "Resend verification email";
 }
 
 async function resolveInvitation(token) {
@@ -107,18 +120,49 @@ document.addEventListener("DOMContentLoaded", async () => {
   showState("acceptState");
 
   if (auth.currentUser && String(auth.currentUser.email || "").toLowerCase() === String(invitation.email || "").toLowerCase()) {
-    document.getElementById("acceptCurrentSessionBtn").style.display = "block";
+    if (auth.currentUser.emailVerified) {
+      document.getElementById("acceptCurrentSessionBtn").style.display = "block";
+    } else {
+      setMessage("Verify your email address before accepting this invitation.", "error");
+    }
   }
 
   document.getElementById("showSignupBtn").addEventListener("click", () => {
     showForm("signupFormWrap");
     setMessage("");
+    setResendVerificationState(false);
   });
 
   document.getElementById("showLoginBtn").addEventListener("click", () => {
     showForm("loginFormWrap");
     setMessage("");
+    setResendVerificationState(false);
   });
+
+  const resendInviteVerificationBtn = document.getElementById("resendInviteVerificationBtn");
+  if (resendInviteVerificationBtn) {
+    resendInviteVerificationBtn.addEventListener("click", async () => {
+      if (!pendingVerificationCredentials) {
+        setMessage(
+          "Enter your invite email and password, then try signing in again to resend verification.",
+          "error"
+        );
+        return;
+      }
+
+      resendInviteVerificationBtn.disabled = true;
+      resendInviteVerificationBtn.textContent = "Sending...";
+
+      const result = await resendVerificationEmailForCredentials(
+        pendingVerificationCredentials.email,
+        pendingVerificationCredentials.password
+      );
+
+      resendInviteVerificationBtn.disabled = false;
+      resendInviteVerificationBtn.textContent = "Resend verification email";
+      setMessage(result.success ? result.message : result.error, result.success ? "success" : "error");
+    });
+  }
 
   document.getElementById("acceptCurrentSessionBtn").addEventListener("click", async () => {
     try {
@@ -165,15 +209,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         throw new Error(result.error || "Account could not be created.");
       }
 
-      const sessionUser = await acceptInvitationWithSession(token);
-      persistSession({
-        ...sessionUser,
-        emailVerified: Boolean(auth.currentUser && auth.currentUser.emailVerified),
-      });
-      showState("successState");
-      window.setTimeout(() => {
-        window.location.href = getPostAcceptRedirect(sessionUser);
-      }, 900);
+      setResendVerificationState(true, { email: invitation.email, password });
+      showForm("loginFormWrap");
+      document.getElementById("existingPassword").value = "";
+      clearPersistedSession();
+      await auth.signOut().catch(() => undefined);
+      setMessage(
+        "Account created. We sent a verification email to your inbox. Verify your email, then sign in here to accept the invitation.",
+        "success"
+      );
     } catch (error) {
       setMessage(error.message || "Account setup failed.", "error");
     }
@@ -190,9 +234,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       setMessage("Signing you in...", "success");
       const result = await loginWithEmail(invitation.email, password, {});
       if (!result.success) {
+        if (result.requiresEmailVerification) {
+          setResendVerificationState(true, { email: invitation.email, password });
+        }
         throw new Error(result.error || "Sign in failed.");
       }
 
+      setResendVerificationState(false);
       const sessionUser = await acceptInvitationWithSession(token);
       persistSession({
         ...sessionUser,

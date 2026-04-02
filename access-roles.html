@@ -478,7 +478,11 @@ async function sendInvite() {
       renderTeamRoles();
     }
     await loadInvitations();
-    showToast('Invitation email sent successfully!', 'success');
+    if (response && response.emailDeliveryError) {
+      showToast('Member added, but the invitation email could not be sent. Check the Resend sender domain in Vercel.', 'info');
+    } else {
+      showToast('Invitation email sent successfully!', 'success');
+    }
   } catch (error) {
     showToast(error.message || 'Could not send the invitation.', 'error');
   }

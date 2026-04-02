@@ -541,7 +541,11 @@ async function saveClient() {
       console.groupEnd();
       const created = await inviteClient(payloads.requestPayload);
       clients.unshift(created.record);
-      showToast('Client invited successfully!', 'success');
+      if (created && created.emailDeliveryError) {
+        showToast('Client saved, but the invitation email could not be sent. Check the Resend sender domain in Vercel.', 'info');
+      } else {
+        showToast('Client invited successfully!', 'success');
+      }
     }
     closeModal(); renderStats(); filterClients();
   } catch (e) {

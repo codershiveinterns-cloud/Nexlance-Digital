@@ -173,7 +173,17 @@ function buildInvitationRecord({ invitationId, inviteType, inviteeName, email, r
     };
 }
 
-async function createInvitation({ session, inviteType, inviteeName, email, role, assignedProjectIds = [], origin = '', metadata = {} }) {
+async function createInvitation({
+    session,
+    inviteType,
+    inviteeName,
+    email,
+    role,
+    assignedProjectIds = [],
+    origin = '',
+    metadata = {},
+    suppressEmailDeliveryError = false
+}) {
     const sessionUser = session.sessionUser;
     const normalizedRole = assertAllowedInviteRole(role, inviteType);
     const safeEmail = AccessControl.normalizeEmail(email);
@@ -208,6 +218,9 @@ async function createInvitation({ session, inviteType, inviteeName, email, role,
     });
 
     await upsertCollectionDocument('invitations', invitationId, invitationRecord);
+    let finalInvitationRecord = invitationRecord;
+    let finalTargetRecord = targetRecord.targetRecord;
+    let emailDeliveryError = null;
     try {
         await sendInvitationEmail({
             inviteType,
@@ -219,38 +232,73 @@ async function createInvitation({ session, inviteType, inviteeName, email, role,
             assignedProjectIds: safeAssignedProjectIds
         });
     } catch (error) {
-        await patchCollectionDocument('invitations', invitationId, {
+        const failedAt = new Date().toISOString();
+        finalInvitationRecord = await patchCollectionDocument('invitations', invitationId, {
             status: 'delivery_failed',
-            updatedAt: new Date().toISOString()
-        }).catch(() => undefined);
+            updatedAt: failedAt
+        }).catch(() => ({
+            ...invitationRecord,
+            status: 'delivery_failed',
+            updatedAt: failedAt
+        }));
 
         if (targetRecord && targetRecord.targetCollectionId && targetRecord.targetRecord && targetRecord.targetRecord.id) {
-            await patchCollectionDocument(targetRecord.targetCollectionId, targetRecord.targetRecord.id, {
+            finalTargetRecord = await patchCollectionDocument(targetRecord.targetCollectionId, targetRecord.targetRecord.id, {
                 invite_status: 'delivery_failed',
-                updated_at: new Date().toISOString()
-            }).catch(() => undefined);
+                updated_at: failedAt
+            }).catch(() => ({
+                ...(targetRecord.targetRecord || {}),
+                invite_status: 'delivery_failed',
+                updated_at: failedAt
+            }));
         }
 
-        throw error;
+        emailDeliveryError = {
+            message: error.message || 'Invitation email could not be sent.',
+            statusCode: error.statusCode || error.status || 500,
+            response: error.response || null
+        };
+
+        await logAuditEvent('invite_delivery_failed', {
+            workspaceId: sessionUser.workspaceId,
+            actorUserId: sessionUser.uid,
+            actorEmail: sessionUser.email,
+            targetEmail: safeEmail,
+            targetId: invitationId,
+            message: `${inviteType} invitation created for ${safeEmail}, but email delivery failed.`,
+            metadata: {
+                inviteType,
+                role: normalizedRole,
+                assignedProjectIds: safeAssignedProjectIds,
+                emailError: emailDeliveryError.message
+            }
+        }).catch(() => undefined);
+
+        if (!suppressEmailDeliveryError) {
+            throw error;
+        }
     }
 
-    await logAuditEvent('invite_sent', {
-        workspaceId: sessionUser.workspaceId,
-        actorUserId: sessionUser.uid,
-        actorEmail: sessionUser.email,
-        targetEmail: safeEmail,
-        targetId: invitationId,
-        message: `${inviteType} invitation sent to ${safeEmail}.`,
-        metadata: {
-            inviteType,
-            role: normalizedRole,
-            assignedProjectIds: safeAssignedProjectIds
-        }
-    });
+    if (!emailDeliveryError) {
+        await logAuditEvent('invite_sent', {
+            workspaceId: sessionUser.workspaceId,
+            actorUserId: sessionUser.uid,
+            actorEmail: sessionUser.email,
+            targetEmail: safeEmail,
+            targetId: invitationId,
+            message: `${inviteType} invitation sent to ${safeEmail}.`,
+            metadata: {
+                inviteType,
+                role: normalizedRole,
+                assignedProjectIds: safeAssignedProjectIds
+            }
+        });
+    }
 
     return {
-        invitation: invitationRecord,
-        targetRecord: targetRecord.targetRecord
+        invitation: finalInvitationRecord,
+        targetRecord: finalTargetRecord,
+        emailDeliveryError
     };
 }
 
@@ -356,6 +404,12 @@ async function acceptInvitation({ session, token }) {
     const record = assertInvitationUsable(invitation);
     const sessionUser = session.sessionUser;
     const safeSessionEmail = AccessControl.normalizeEmail(sessionUser.email);
+
+    if (!session.authUser || !session.authUser.emailVerified) {
+        const error = new Error('Please verify your email address before accepting this invitation.');
+        error.statusCode = 403;
+        throw error;
+    }
 
     if (safeSessionEmail !== AccessControl.normalizeEmail(record.email)) {
         throw new Error('This invitation was sent to a different email address.');

@@ -76,15 +76,6 @@ function buildFailure(error, extras = {}) {
   };
 }
 
-function canSkipEmailVerification(profile = {}) {
-  return Boolean(
-    profile
-    && profile.workspaceId
-    && profile.membershipStatus === "active"
-    && (profile.inviteAcceptedAt || profile.inviteType)
-  );
-}
-
 async function ensureUserProfile(uid, defaults = {}) {
   const userRef = doc(db, "users", uid);
   const snapshot = await getDoc(userRef);
@@ -192,7 +183,6 @@ export async function createInvitedAccountSession({
     password,
     displayName,
     profileData,
-    skipEmailVerification: true,
     keepSignedIn: true,
   });
 }
@@ -220,7 +210,7 @@ export async function loginWithEmail(email, password, profileDefaults = {}) {
       });
     }
 
-    if (!auth.currentUser?.emailVerified && !canSkipEmailVerification(profile)) {
+    if (!auth.currentUser?.emailVerified) {
       await signOut(auth);
       return buildFailure(
         { code: "auth/email-not-verified" },

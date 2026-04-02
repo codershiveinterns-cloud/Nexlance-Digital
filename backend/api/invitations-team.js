@@ -29,13 +29,15 @@ module.exports = async function handler(req, res) {
             role: String(body.role || '').trim(),
             assignedProjectIds: Array.isArray(body.assignedProjectIds) ? body.assignedProjectIds : [],
             origin: getRequestOrigin(req),
-            metadata: body.metadata || {}
+            metadata: body.metadata || {},
+            suppressEmailDeliveryError: true
         });
 
         res.status(200).json({
             ok: true,
             invitation: result.invitation,
-            record: result.targetRecord
+            record: result.targetRecord,
+            emailDeliveryError: result.emailDeliveryError || null
         });
     } catch (error) {
         sendApiError(res, error, 'Team invitation could not be sent.');
