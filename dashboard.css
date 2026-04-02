@@ -468,6 +468,44 @@ body[data-theme="dark"] .sidebar {
     padding: 22px;
 }
 
+.chart-box-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.chart-meta {
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.chart-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.chart-status.is-empty {
+    background: rgba(9, 132, 227, 0.08);
+    color: #0984e3;
+}
+
+.chart-status.is-error {
+    background: rgba(214, 48, 49, 0.1);
+    color: #b42318;
+}
+
 .chart-box canvas {
     margin-top: 18px;
     max-height: 320px;
@@ -876,6 +914,7 @@ body[data-theme="dark"] .sidebar {
 
     .topbar,
     .page-header,
+    .chart-box-header,
     .settings-page-header,
     .settings-profile-card,
     .setting-row {

@@ -332,9 +332,9 @@
         <span class="quick-link-title">Roles</span>
         <span class="quick-link-label">Access</span>
       </a>
-      <a href="owner-control.html" id="adminQuickLink" class="quick-link" style="display:none;">
-        <span class="quick-link-title">Owner</span>
-        <span class="quick-link-label">Owner Panel</span>
+      <a href="settings.html#settings" id="settingsQuickLink" class="quick-link">
+        <span class="quick-link-title">Settings</span>
+        <span class="quick-link-label">Manage Account</span>
       </a>
       <a href="invoice-create.html" class="quick-link quick-link-primary">
         <span class="quick-link-title">New</span>
@@ -348,7 +348,13 @@
         <canvas id="projectStatusChart"></canvas>
       </div>
       <div class="chart-box">
-        <h3>Revenue Analytics - 2025</h3>
+        <div class="chart-box-header">
+          <div>
+            <h3 id="revenueChartTitle">Revenue Analytics</h3>
+            <p class="chart-meta" id="revenueChartMeta">Actual revenue and pending payments from live invoice data.</p>
+          </div>
+          <span class="chart-status" id="revenueChartStatus">Loading...</span>
+        </div>
         <canvas id="revenueChart"></canvas>
       </div>
     </section>

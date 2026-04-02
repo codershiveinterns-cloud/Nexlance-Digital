@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminQuickLink = document.getElementById('adminQuickLink');
     const activityFeed = document.getElementById('activityFeed');
     const alertsSection = document.querySelector('.alerts');
+    const revenueChartTitle = document.getElementById('revenueChartTitle');
+    const revenueChartMeta = document.getElementById('revenueChartMeta');
+    const revenueChartStatus = document.getElementById('revenueChartStatus');
     const dashboardHomeView = document.getElementById('dashboardHomeView');
     const settingsView = document.getElementById('settingsView');
     const settingsNavItem = document.getElementById('settingsNavItem');
@@ -611,43 +614,156 @@ document.addEventListener('DOMContentLoaded', () => {
         if (element) element.textContent = value;
     }
 
+    function destroyRevenueChart() {
+        if (revenueChartInstance) {
+            revenueChartInstance.destroy();
+            revenueChartInstance = null;
+        }
+    }
+
+    function getInvoiceAmount(invoice) {
+        return Number(invoice && (invoice.total_amount || invoice.amount) || 0);
+    }
+
+    function getInvoiceTimelineDate(invoice, mode) {
+        const candidateKeys = mode === 'paid'
+            ? ['paid_date', 'updated_at', 'created_at']
+            : ['due_date', 'created_at', 'updated_at'];
+
+        for (const key of candidateKeys) {
+            const value = invoice && invoice[key];
+            if (!value) continue;
+            const parsed = new Date(value);
+            if (!Number.isNaN(parsed.getTime())) {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    function getRevenueChartYear(invoices) {
+        const years = invoices.reduce((list, invoice) => {
+            const paidDate = invoice.status === 'paid' ? getInvoiceTimelineDate(invoice, 'paid') : null;
+            const pendingDate = ['pending', 'overdue'].includes(invoice.status) ? getInvoiceTimelineDate(invoice, 'pending') : null;
+            if (paidDate) list.push(paidDate.getFullYear());
+            if (pendingDate) list.push(pendingDate.getFullYear());
+            return list;
+        }, []);
+
+        return years.length ? Math.max(...years) : new Date().getFullYear();
+    }
+
+    function setRevenueChartState({ year, meta, status, tone = 'default', hideCanvas = false }) {
+        const revenueChart = document.getElementById('revenueChart');
+        if (revenueChartTitle) {
+            revenueChartTitle.textContent = year ? `Revenue Analytics - ${year}` : 'Revenue Analytics';
+        }
+        if (revenueChartMeta) {
+            revenueChartMeta.textContent = meta || 'Actual revenue and pending payments from live invoice data.';
+        }
+        if (revenueChartStatus) {
+            revenueChartStatus.textContent = status || '';
+            revenueChartStatus.classList.toggle('is-empty', tone === 'empty');
+            revenueChartStatus.classList.toggle('is-error', tone === 'error');
+        }
+        if (revenueChart) {
+            revenueChart.hidden = hideCanvas;
+        }
+    }
+
     function renderRevenueChart(invoices) {
         const revenueChart = document.getElementById('revenueChart');
-        if (!revenueChart || typeof Chart === 'undefined') return;
-        const palette = getChartPalette();
-
-        const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthlyTotals = new Array(12).fill(0);
-
-        invoices
-            .filter(invoice => invoice.status === 'paid' && invoice.paid_date)
-            .forEach(invoice => {
-                const paidDate = new Date(invoice.paid_date);
-                if (!Number.isNaN(paidDate.getTime())) {
-                    monthlyTotals[paidDate.getMonth()] += Number(invoice.total_amount || 0);
-                }
+        const year = getRevenueChartYear(invoices);
+        if (!revenueChart) return;
+        if (typeof Chart === 'undefined') {
+            destroyRevenueChart();
+            setRevenueChartState({
+                year,
+                meta: 'The revenue chart could not load because the chart library is unavailable.',
+                status: 'Unavailable',
+                tone: 'error',
+                hideCanvas: true
             });
+            return;
+        }
 
-        if (revenueChartInstance) revenueChartInstance.destroy();
+        const palette = getChartPalette();
+        const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const actualRevenueByMonth = new Array(12).fill(0);
+        const pendingRevenueByMonth = new Array(12).fill(0);
+
+        invoices.forEach(invoice => {
+            if (invoice.status === 'paid') {
+                const paidDate = getInvoiceTimelineDate(invoice, 'paid');
+                if (paidDate && paidDate.getFullYear() === year) {
+                    actualRevenueByMonth[paidDate.getMonth()] += getInvoiceAmount(invoice);
+                }
+                return;
+            }
+
+            if (['pending', 'overdue'].includes(invoice.status)) {
+                const pendingDate = getInvoiceTimelineDate(invoice, 'pending');
+                if (pendingDate && pendingDate.getFullYear() === year) {
+                    pendingRevenueByMonth[pendingDate.getMonth()] += getInvoiceAmount(invoice);
+                }
+            }
+        });
+
+        const hasActualRevenue = actualRevenueByMonth.some(value => value > 0);
+        const hasPendingRevenue = pendingRevenueByMonth.some(value => value > 0);
+
+        if (!hasActualRevenue && !hasPendingRevenue) {
+            destroyRevenueChart();
+            setRevenueChartState({
+                year,
+                meta: `No paid or pending invoice totals are available for ${year} yet.`,
+                status: 'No data',
+                tone: 'empty',
+                hideCanvas: true
+            });
+            return;
+        }
+
+        revenueChart.hidden = false;
+        destroyRevenueChart();
         revenueChartInstance = new Chart(revenueChart.getContext('2d'), {
             type: 'line',
             data: {
                 labels: monthLabels,
-                datasets: [{
-                    label: 'Revenue (GBP)',
-                    data: monthlyTotals,
-                    borderColor: palette.accent,
-                    backgroundColor: palette.accentSoft,
-                    pointBackgroundColor: palette.accent,
-                    pointBorderColor: palette.accent,
-                    fill: true,
-                    tension: 0.35
-                }]
+                datasets: [
+                    {
+                        label: 'Actual Revenue',
+                        data: actualRevenueByMonth,
+                        borderColor: palette.accent,
+                        backgroundColor: palette.accentSoft,
+                        pointBackgroundColor: palette.accent,
+                        pointBorderColor: palette.accent,
+                        fill: true,
+                        tension: 0.35
+                    },
+                    {
+                        label: 'Pending Payments',
+                        data: pendingRevenueByMonth,
+                        borderColor: '#f39c12',
+                        backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                        pointBackgroundColor: '#f39c12',
+                        pointBorderColor: '#f39c12',
+                        fill: true,
+                        tension: 0.35,
+                        borderDash: [8, 6]
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: { display: false }
+                    legend: {
+                        display: true,
+                        labels: {
+                            color: palette.text
+                        }
+                    }
                 },
                 scales: {
                     x: {
@@ -660,6 +776,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+        });
+
+        const activeSeriesLabel = hasActualRevenue && hasPendingRevenue
+            ? 'Live'
+            : hasActualRevenue
+                ? 'Actual only'
+                : 'Pending only';
+        const invoiceCount = invoices.filter(invoice => {
+            if (invoice.status === 'paid') {
+                const paidDate = getInvoiceTimelineDate(invoice, 'paid');
+                return paidDate && paidDate.getFullYear() === year;
+            }
+            if (['pending', 'overdue'].includes(invoice.status)) {
+                const pendingDate = getInvoiceTimelineDate(invoice, 'pending');
+                return pendingDate && pendingDate.getFullYear() === year;
+            }
+            return false;
+        }).length;
+
+        setRevenueChartState({
+            year,
+            meta: `Actual revenue and pending payments aggregated from ${invoiceCount} invoice${invoiceCount === 1 ? '' : 's'} in ${year}.`,
+            status: activeSeriesLabel,
+            hideCanvas: false
         });
     }
 
@@ -757,6 +897,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function refreshDashboardData() {
+        destroyRevenueChart();
+        setRevenueChartState({
+            year: getRevenueChartYear([]),
+            meta: 'Loading actual revenue and pending payments from invoices...',
+            status: 'Loading...',
+            hideCanvas: true
+        });
+
         try {
             const [clients, projects, invoices] = await Promise.all([
                 fetchClients(),
@@ -785,6 +933,14 @@ document.addEventListener('DOMContentLoaded', () => {
             renderAlerts(clients, projects, invoices);
         } catch (error) {
             console.error('Dashboard refresh failed:', error);
+            destroyRevenueChart();
+            setRevenueChartState({
+                year: getRevenueChartYear([]),
+                meta: 'We could not load revenue analytics right now. Please try again in a moment.',
+                status: 'Error',
+                tone: 'error',
+                hideCanvas: true
+            });
         }
     }
 

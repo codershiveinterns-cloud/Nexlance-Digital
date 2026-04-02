@@ -3,6 +3,11 @@
     const SETTINGS_STORAGE_KEY = 'nexlance_dashboard_settings';
     const MOBILE_SIDEBAR_BREAKPOINT = '(max-width: 768px)';
     const AUTH_NOTICE_KEY = 'nexlance_auth_notice';
+    const SETTINGS_PROFILE_PATH = 'settings.html#settings';
+
+    let topbarProfileCache = null;
+    let topbarProfilePromise = null;
+    let authProfileListenerBound = false;
 
     function normalizeEmail(email) {
         return String(email || '').trim().toLowerCase();
@@ -14,6 +19,223 @@
         } catch (error) {
             return null;
         }
+    }
+
+    function getLocalUsers() {
+        try {
+            return JSON.parse(localStorage.getItem('nexlance_users') || '[]');
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function getInitials(name, email) {
+        const source = String(name || email || 'NA').trim();
+        const parts = source.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+            return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+        }
+        return source.slice(0, 2).toUpperCase();
+    }
+
+    function setAvatarContent(element, label, imageUrl) {
+        if (!element) return;
+        element.textContent = label;
+        if (imageUrl) {
+            element.style.backgroundImage = `url("${imageUrl}")`;
+            element.style.color = 'transparent';
+            return;
+        }
+        element.style.backgroundImage = '';
+        element.style.color = '';
+    }
+
+    function getCurrentPathName() {
+        const pathname = String(window.location.pathname || '');
+        const pageName = pathname.split('/').pop();
+        return pageName || 'dashboard.html';
+    }
+
+    function pageHasDedicatedProfileController() {
+        const pageName = getCurrentPathName().toLowerCase();
+        return pageName === 'dashboard.html' || pageName === 'settings.html';
+    }
+
+    function openSettingsFromTopbar() {
+        const settings = getStoredDashboardSettings();
+
+        if (settings.quickOpen === false) {
+            const message = 'Quick-open is off. Re-enable it in Settings > Preferences to open Settings from the profile button.';
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, 'info');
+            } else {
+                console.info(message);
+            }
+            return;
+        }
+
+        if (getCurrentPathName().toLowerCase() === 'settings.html') {
+            if (window.location.hash !== '#settings') {
+                history.replaceState(null, '', `${window.location.pathname}${window.location.search}#settings`);
+            }
+            return;
+        }
+
+        window.location.href = SETTINGS_PROFILE_PATH;
+    }
+
+    function bindTopbarProfileButton(button) {
+        if (!button || pageHasDedicatedProfileController() || button.dataset.topbarProfileBound === '1') {
+            return;
+        }
+
+        button.dataset.topbarProfileBound = '1';
+        button.addEventListener('click', openSettingsFromTopbar);
+    }
+
+    function ensureTopbarProfileButton() {
+        const topbar = document.querySelector('.topbar');
+        if (!topbar) return null;
+
+        let button = document.getElementById('openSettingsProfileBtn') || topbar.querySelector('.profile-button');
+        if (!button) {
+            const placeholder = topbar.querySelector('.profile');
+            button = document.createElement('button');
+            button.type = 'button';
+            button.id = 'openSettingsProfileBtn';
+            button.className = 'profile profile-button';
+            button.setAttribute('aria-label', 'Open settings');
+            button.innerHTML = '<span class="profile-avatar-small" id="topbarAvatar">NA</span><span id="topbarProfileLabel">Account</span>';
+
+            if (placeholder) {
+                placeholder.replaceWith(button);
+            } else {
+                topbar.appendChild(button);
+            }
+        } else {
+            button.classList.add('profile', 'profile-button');
+            if (!button.id) button.id = 'openSettingsProfileBtn';
+            if (!button.getAttribute('aria-label')) button.setAttribute('aria-label', 'Open settings');
+        }
+
+        let avatar = button.querySelector('#topbarAvatar') || button.querySelector('.profile-avatar-small');
+        if (!avatar) {
+            avatar = document.createElement('span');
+            avatar.id = 'topbarAvatar';
+            avatar.className = 'profile-avatar-small';
+            avatar.textContent = 'NA';
+            button.insertBefore(avatar, button.firstChild);
+        } else if (!avatar.id) {
+            avatar.id = 'topbarAvatar';
+        }
+
+        let label = button.querySelector('#topbarProfileLabel');
+        if (!label) {
+            label = document.createElement('span');
+            label.id = 'topbarProfileLabel';
+            label.textContent = 'Account';
+            button.appendChild(label);
+        }
+
+        bindTopbarProfileButton(button);
+        return button;
+    }
+
+    function getFallbackTopbarProfile() {
+        const currentUser = getCurrentUser();
+        if (!currentUser) return null;
+
+        const email = normalizeEmail(currentUser.email);
+        const localRecord = getLocalUsers().find(user => normalizeEmail(user.email) === email) || {};
+        const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
+
+        return {
+            name: localRecord.name || currentUser.name || currentUser.email || 'Account',
+            email: localRecord.email || currentUser.email || '',
+            avatar: authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL || '' : ''
+        };
+    }
+
+    function renderTopbarProfile(profile = null, settings = getStoredDashboardSettings()) {
+        const button = ensureTopbarProfileButton();
+        if (!button) return;
+
+        const avatar = document.getElementById('topbarAvatar');
+        const label = document.getElementById('topbarProfileLabel');
+        if (!avatar || !label) return;
+
+        const nextProfile = profile || topbarProfileCache || getFallbackTopbarProfile();
+
+        if (settings.privacyProfileVisibility === false || !nextProfile) {
+            label.textContent = 'Account';
+            setAvatarContent(avatar, 'AC', '');
+            return;
+        }
+
+        label.textContent = nextProfile.name || 'Account';
+        setAvatarContent(avatar, getInitials(nextProfile.name, nextProfile.email), nextProfile.avatar);
+    }
+
+    async function loadTopbarProfile(options = {}) {
+        if (!options.force && topbarProfilePromise) {
+            return topbarProfilePromise;
+        }
+
+        topbarProfilePromise = (async () => {
+            const currentUser = getCurrentUser();
+            const fallbackProfile = getFallbackTopbarProfile();
+            if (!currentUser) {
+                topbarProfileCache = null;
+                return null;
+            }
+
+            const email = normalizeEmail(currentUser.email);
+            const localRecord = getLocalUsers().find(user => normalizeEmail(user.email) === email) || {};
+            let firebaseRecord = {};
+
+            try {
+                const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
+                if (authInstance && authInstance.currentUser && typeof db !== 'undefined' && db) {
+                    const snapshot = await db.collection('users').doc(authInstance.currentUser.uid).get();
+                    firebaseRecord = snapshot.exists ? snapshot.data() : {};
+                }
+            } catch (error) {
+                firebaseRecord = {};
+            }
+
+            const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
+            topbarProfileCache = {
+                name: firebaseRecord.name || localRecord.name || currentUser.name || (fallbackProfile && fallbackProfile.name) || 'Account',
+                email: firebaseRecord.email || localRecord.email || currentUser.email || (fallbackProfile && fallbackProfile.email) || '',
+                avatar: authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL || '' : ((fallbackProfile && fallbackProfile.avatar) || '')
+            };
+
+            return topbarProfileCache;
+        })();
+
+        try {
+            return await topbarProfilePromise;
+        } finally {
+            topbarProfilePromise = null;
+        }
+    }
+
+    async function refreshTopbarProfile(options = {}) {
+        renderTopbarProfile(topbarProfileCache, getStoredDashboardSettings());
+        const profile = await loadTopbarProfile(options);
+        renderTopbarProfile(profile, getStoredDashboardSettings());
+        return profile;
+    }
+
+    function ensureAuthProfileRefresh() {
+        if (authProfileListenerBound) return;
+        const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
+        if (!authInstance || typeof authInstance.onAuthStateChanged !== 'function') return;
+
+        authProfileListenerBound = true;
+        authInstance.onAuthStateChanged(() => {
+            refreshTopbarProfile({ force: true }).catch(() => undefined);
+        });
     }
 
     function enforceVerifiedSession() {
@@ -87,16 +309,8 @@
     }
 
     function applyProfileVisibility(settings) {
-        const visible = !(settings && settings.privacyProfileVisibility === false);
-        const topbarAvatar = document.getElementById('topbarAvatar');
-        const topbarProfileLabel = document.getElementById('topbarProfileLabel');
-
-        if (topbarAvatar && topbarProfileLabel && !visible) {
-            topbarProfileLabel.textContent = 'Account';
-            topbarAvatar.textContent = 'AC';
-            topbarAvatar.style.backgroundImage = '';
-            topbarAvatar.style.color = '';
-        }
+        ensureTopbarProfileButton();
+        renderTopbarProfile(topbarProfileCache, settings);
 
         document.querySelectorAll('.topbar .profile:not(.profile-button)').forEach(profile => {
             profile.textContent = 'Account';
@@ -276,6 +490,9 @@
         if (!key || key.startsWith(THEME_STORAGE_KEY) || key.startsWith(SETTINGS_STORAGE_KEY)) {
             applySettingsToPage();
         }
+        if (!key || key === 'nexlance_user' || key === 'nexlance_users') {
+            refreshTopbarProfile({ force: true }).catch(() => undefined);
+        }
     }
 
     window.NexlanceDashboardShell = {
@@ -288,6 +505,9 @@
         saveDashboardSettings,
         applyTheme,
         applySettingsToPage,
+        refreshTopbarProfile,
+        renderTopbarProfile,
+        ensureTopbarProfileButton,
         logoutCurrentUser,
         ensureSidebarSignOutButton,
         ensureMobileSidebarToggle,
@@ -303,6 +523,8 @@
             removeDashboardSearchBars();
             ensureSidebarSignOutButton();
             ensureMobileSidebarToggle();
+            ensureAuthProfileRefresh();
+            refreshTopbarProfile({ force: true }).catch(() => undefined);
         });
     } else {
         if (!enforceVerifiedSession()) return;
@@ -310,8 +532,18 @@
         removeDashboardSearchBars();
         ensureSidebarSignOutButton();
         ensureMobileSidebarToggle();
+        ensureAuthProfileRefresh();
+        refreshTopbarProfile({ force: true }).catch(() => undefined);
     }
 
     window.addEventListener('storage', handleStorageSync);
     window.addEventListener('nexlance-dashboard-settings-changed', applySettingsToPage);
+    window.addEventListener('focus', () => {
+        refreshTopbarProfile({ force: true }).catch(() => undefined);
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            refreshTopbarProfile({ force: true }).catch(() => undefined);
+        }
+    });
 }());
