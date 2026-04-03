@@ -282,6 +282,9 @@
         if (!response.ok) {
             const error = new Error(data.error || data.message || 'Template workspace request failed.');
             error.status = response.status;
+            if (data && data.errorCode) {
+                error.code = String(data.errorCode || '').trim();
+            }
             throw error;
         }
         return data;

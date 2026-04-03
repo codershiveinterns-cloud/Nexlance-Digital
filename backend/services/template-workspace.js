@@ -4,6 +4,7 @@ const {
     PROJECT_CAPABILITIES,
     canAccessProjectRecord,
     createEmptyProjectCapabilities,
+    diagnoseProjectRecordAccess,
     isPersistedProject,
     resolveProjectCapabilities
 } = require('./project-access');
@@ -54,9 +55,12 @@ const TEMPLATE_WORKSPACE_UNLOCK_REQUEST_FIELDS = new Set([
     'hasUnsavedChanges'
 ]);
 
-function createHttpError(message, statusCode = 400) {
+function createHttpError(message, statusCode = 400, code = '') {
     const error = new Error(message);
     error.statusCode = statusCode;
+    if (code) {
+        error.code = String(code || '').trim();
+    }
     return error;
 }
 
@@ -139,12 +143,41 @@ async function loadTemplateWorkspaceContext(session, projectId) {
     }
 
     if (!isPersistedProject(projectRecord.data)) {
-        throw createHttpError('Project not yet synced to server. Save project to backend to use workspace features.', 404);
+        throw createHttpError('Project not yet synced to server. Save project to backend to use workspace features.', 404, 'project_not_synced');
+    }
+
+    const accessDiagnosis = diagnoseProjectRecordAccess(session.sessionUser, normalizedProjectId, projectRecord.data);
+    if (!accessDiagnosis.allowed) {
+        throw createHttpError(
+            accessDiagnosis.message || 'You do not have access to this template workspace.',
+            403,
+            accessDiagnosis.code || 'project_access_denied'
+        );
     }
 
     const capabilities = resolveTemplateWorkspaceCapabilities(session.sessionUser, projectRecord.data, normalizedProjectId);
     if (capabilities[AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE] !== true) {
-        throw createHttpError('You do not have access to this template workspace.', 403);
+        const hasProjectView = AccessControl.hasPermission(session.sessionUser, AccessControl.PERMISSIONS.VIEW_PROJECTS);
+        const hasWorkspaceView = AccessControl.hasPermission(session.sessionUser, AccessControl.PERMISSIONS.VIEW_TEMPLATE_WORKSPACE);
+        if (!hasProjectView) {
+            throw createHttpError(
+                'Access denied: your role is missing "View Projects" permission.',
+                403,
+                'missing_view_projects_permission'
+            );
+        }
+        if (!hasWorkspaceView) {
+            throw createHttpError(
+                'Access denied: your role is missing "View Template Workspace" permission.',
+                403,
+                'missing_template_workspace_permission'
+            );
+        }
+        throw createHttpError(
+            'Access denied: template workspace capability is disabled for your account.',
+            403,
+            'template_workspace_capability_denied'
+        );
     }
 
     return {

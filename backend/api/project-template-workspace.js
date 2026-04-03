@@ -23,6 +23,9 @@ module.exports = async function handler(req, res) {
         const payload = await fetchTemplateWorkspace(session, projectId);
         res.status(200).json({ ok: true, ...payload });
     } catch (error) {
-        res.status(error.statusCode || 400).json({ error: error.message || 'Template workspace could not be loaded.' });
+        res.status(error.statusCode || 400).json({
+            error: error.message || 'Template workspace could not be loaded.',
+            errorCode: String(error.code || '').trim() || undefined
+        });
     }
 };

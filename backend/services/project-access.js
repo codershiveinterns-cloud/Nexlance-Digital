@@ -45,16 +45,25 @@ function isPersistedProject(project = {}) {
     return getProjectSource(project) === 'database';
 }
 
-function canAccessProjectRecord(sessionUser = {}, projectId, project = {}) {
+function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) {
     const ownerEmail = AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email);
     const recordOwner = AccessControl.normalizeEmail(project.owner_key || project.owner_email || '');
-    const workspaceMatch = String(project.workspace_id || '').trim() === String(sessionUser.workspaceId || '').trim();
+    const sessionWorkspaceId = String(sessionUser.workspaceId || '').trim();
+    const recordWorkspaceId = String(project.workspace_id || '').trim();
+    const workspaceMatch = recordWorkspaceId && recordWorkspaceId === sessionWorkspaceId;
     if (!((recordOwner && recordOwner === ownerEmail) || workspaceMatch)) {
-        return false;
+        return {
+            allowed: false,
+            code: 'workspace_mismatch',
+            message: 'Access denied: this project belongs to a different workspace or owner account.'
+        };
     }
 
     if (AccessControl.isWorkspaceOwner(sessionUser) || hasAllProjectsAccess(sessionUser)) {
-        return true;
+        return {
+            allowed: true,
+            code: 'owner_or_all_projects'
+        };
     }
 
     const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
@@ -63,10 +72,30 @@ function canAccessProjectRecord(sessionUser = {}, projectId, project = {}) {
     const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
 
     if (!shouldRestrictProjects) {
-        return true;
+        return {
+            allowed: true,
+            code: 'unscoped_team_member'
+        };
     }
 
-    return assignedProjectIds.includes(String(projectId || '').trim());
+    const normalizedProjectId = String(projectId || '').trim();
+    const isAssigned = assignedProjectIds.includes(normalizedProjectId);
+    if (isAssigned) {
+        return {
+            allowed: true,
+            code: 'assigned_project'
+        };
+    }
+
+    return {
+        allowed: false,
+        code: 'project_not_assigned',
+        message: 'Access denied: this project is not assigned to your account. Ask the workspace owner to assign it or grant all-project access.'
+    };
+}
+
+function canAccessProjectRecord(sessionUser = {}, projectId, project = {}) {
+    return diagnoseProjectRecordAccess(sessionUser, projectId, project).allowed === true;
 }
 
 function resolveProjectCapabilities(sessionUser = {}, projectId, project = {}) {
@@ -96,6 +125,7 @@ function resolveProjectCapabilities(sessionUser = {}, projectId, project = {}) {
 module.exports = {
     PROJECT_CAPABILITIES,
     canAccessProjectRecord,
+    diagnoseProjectRecordAccess,
     createEmptyProjectCapabilities,
     createProjectNotFoundError,
     getProjectSource,
