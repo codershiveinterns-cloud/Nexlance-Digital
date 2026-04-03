@@ -1527,7 +1527,11 @@ function filterRecordsForCurrentUserScope(entity, records) {
 
     const assignedProjectIds = new Set(accessControl.sanitizeAssignedProjectIds(currentUser.assignedProjectIds));
     const role = accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
+    const isAdmin = role === accessControl.ROLES.ADMIN;
     const shouldRestrictProjects = role === accessControl.ROLES.CLIENT || assignedProjectIds.size > 0;
+    if (isAdmin) {
+        return safeRecords;
+    }
     if (!shouldRestrictProjects) {
         return safeRecords;
     }

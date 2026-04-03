@@ -66,8 +66,15 @@ function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) 
         };
     }
 
-    const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
     const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole || sessionUser.dashboardRole);
+    if (role === AccessControl.ROLES.ADMIN) {
+        return {
+            allowed: true,
+            code: 'admin_role'
+        };
+    }
+
+    const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
     const hasExplicitProjectScope = assignedProjectIds.length > 0;
     const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
 

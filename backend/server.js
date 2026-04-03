@@ -513,11 +513,12 @@ function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
     const assignedProjectIds = new Set(AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds));
     const isOwner = AccessControl.isWorkspaceOwner(sessionUser);
     const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
+    const isAdmin = role === AccessControl.ROLES.ADMIN;
     const hasExplicitProjectScope = !isOwner && assignedProjectIds.size > 0;
     const allProjectsAccess = hasAllProjectsAccess(sessionUser);
     const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
 
-    if (!shouldRestrictProjects || isOwner || allProjectsAccess) {
+    if (!shouldRestrictProjects || isOwner || isAdmin || allProjectsAccess) {
         return records;
     }
 
