@@ -268,13 +268,6 @@
         return Array.from(permissionKeys);
     }
 
-        if (isWorkspaceOwner(user)) {
-            OWNER_ONLY_PERMISSIONS.forEach(permission => permissionKeys.add(permission));
-        }
-
-        return Array.from(permissionKeys);
-    }
-
     function hasPermission(user, permission) {
         return getAuthenticatedPermissionKeys(user).includes(String(permission || '').trim());
     }

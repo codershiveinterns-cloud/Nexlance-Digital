@@ -205,6 +205,7 @@ const projectId = params.get('id');
 let project = null;
 let tasks = [];
 let editingTaskId = null;
+let syncProjectInFlight = false;
 
 const columns = [
   { id: 'todo',        label: 'To Do' },
@@ -241,6 +242,28 @@ function getActiveProjectId() {
   return project && project.id ? project.id : projectId;
 }
 
+function getProjectSource(record) {
+  if (!record || typeof record !== 'object') return 'local_fallback';
+  const explicitSource = String(record.source || record.project_source || record.projectSource || '').trim().toLowerCase();
+  if (explicitSource) return explicitSource;
+  if (record.storage_fallback === true || record.local_fallback === true) return 'local_fallback';
+  return 'database';
+}
+
+function getProjectBackendId(record) {
+  if (!record || typeof record !== 'object') return '';
+  const explicitBackendId = String(record.backendId || record.backend_id || '').trim();
+  if (explicitBackendId) return explicitBackendId;
+  if (record.isPersisted === true || record.is_persisted_project === true || getProjectSource(record) === 'database') {
+    return String(record.id || '').trim();
+  }
+  return '';
+}
+
+function isPersistedProject(record) {
+  return Boolean(getProjectBackendId(record));
+}
+
 function resolveProjectRecord(projects, requestedId) {
   if (!requestedId) return null;
 
@@ -272,15 +295,55 @@ function renderProjectSourceNotice() {
   const notice = document.getElementById('projectSourceNotice');
   if (!notice || !project) return;
 
-  const isPersisted = project.is_persisted_project !== false && project.project_source !== 'local_fallback';
-  if (isPersisted) {
+  if (isPersistedProject(project)) {
     notice.style.display = 'none';
     notice.textContent = '';
+    notice.innerHTML = '';
     return;
   }
 
   notice.style.display = 'block';
-  notice.textContent = 'This project is stored only on this browser and is not yet synced to the server. Shared workspace features are unavailable until it is saved to the backend.';
+  const buttonLabel = syncProjectInFlight ? 'Syncing...' : 'Save to backend';
+  notice.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+      <span>This project is stored only on this browser and is not yet synced to the server. Shared workspace features are unavailable until it is saved to the backend.</span>
+      <button id="syncProjectBtn" class="btn btn-secondary" style="white-space:nowrap;" ${syncProjectInFlight ? 'disabled' : ''}>${buttonLabel}</button>
+    </div>
+  `;
+
+  const syncButton = document.getElementById('syncProjectBtn');
+  if (syncButton) {
+    syncButton.onclick = syncProjectToBackendAction;
+  }
+}
+
+async function syncProjectToBackendAction() {
+  if (syncProjectInFlight) return;
+  if (!project || isPersistedProject(project)) return;
+  if (typeof syncProjectToBackend !== 'function') {
+    showToast('Project sync is unavailable right now.', 'error');
+    return;
+  }
+
+  syncProjectInFlight = true;
+  renderProjectSourceNotice();
+  try {
+    const syncedProject = await syncProjectToBackend(getActiveProjectId());
+    if (!syncedProject || !syncedProject.id) {
+      throw new Error('Project sync did not return a backend record.');
+    }
+
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set('id', syncedProject.id);
+    nextParams.set('synced', '1');
+    window.location.href = `${window.location.pathname}?${nextParams.toString()}${window.location.hash || ''}`;
+    return;
+  } catch (error) {
+    showToast(error.message || 'Project could not be synced to backend.', 'error');
+  } finally {
+    syncProjectInFlight = false;
+    renderProjectSourceNotice();
+  }
 }
 
 async function init() {
@@ -294,6 +357,14 @@ async function init() {
   populateOverview();
   renderProjectSourceNotice();
   renderKanban();
+
+  const currentParams = new URLSearchParams(window.location.search);
+  if (currentParams.get('synced') === '1') {
+    showToast('Project synced to backend successfully.', 'success');
+    currentParams.delete('synced');
+    const nextUrl = `${window.location.pathname}?${currentParams.toString()}${window.location.hash || ''}`.replace(/\?$/, '');
+    window.history.replaceState({}, document.title, nextUrl);
+  }
 }
 
 function populateOverview() {
@@ -519,6 +590,9 @@ window.getProjectDetailProject = function() {
 };
 window.getProjectDetailProjectId = function() {
   return getActiveProjectId();
+};
+window.getProjectDetailBackendProjectId = function() {
+  return getProjectBackendId(project);
 };
 window.setProjectDetailProject = function(nextProject) {
   project = nextProject;

@@ -15,9 +15,33 @@
     let lastWorkspaceError = { message: '', at: 0 };
     let workspaceCapabilities = createEmptyWorkspaceCapabilities();
 
+    function getProjectSource(project) {
+        if (!project || typeof project !== 'object') return 'local_fallback';
+        const explicitSource = String(project.source || project.project_source || project.projectSource || '').trim().toLowerCase();
+        if (explicitSource) return explicitSource;
+        if (project.storage_fallback === true || project.local_fallback === true) {
+            return 'local_fallback';
+        }
+        return 'database';
+    }
+
+    function isProjectPersisted(project) {
+        if (!project || typeof project !== 'object') return false;
+        if (project.isPersisted === true) return true;
+        if (project.is_persisted_project === true) return true;
+        return getProjectSource(project) === 'database';
+    }
+
+    function getProjectBackendId(project) {
+        if (!project || typeof project !== 'object') return '';
+        const explicitBackendId = String(project.backendId || project.backend_id || '').trim();
+        if (explicitBackendId) return explicitBackendId;
+        if (!isProjectPersisted(project)) return '';
+        return String(project.id || '').trim();
+    }
+
     function isServerProject(project) {
-        if (!project) return false;
-        return project.is_persisted_project !== false && project.project_source !== 'local_fallback';
+        return Boolean(isProjectPersisted(project) && getProjectBackendId(project));
     }
 
     function createEmptyWorkspaceCapabilities() {
@@ -265,7 +289,17 @@
 
     function syncProjectDetailRecord(project) {
         if (!project || !project.id) return project;
-        const nextProject = resolveWorkspaceProject(project);
+        const backendId = String(project.id || '').trim();
+        const nextProject = resolveWorkspaceProject({
+            ...project,
+            backend_id: backendId,
+            backendId: backendId,
+            source: 'database',
+            project_source: 'database',
+            isPersisted: true,
+            is_persisted_project: true,
+            is_shared_workspace_available: true
+        });
         if (typeof upsertLocalEntityRecord === 'function') {
             upsertLocalEntityRecord('projects', nextProject);
         }
@@ -276,8 +310,12 @@
         return nextProject;
     }
 
-    async function fetchWorkspaceContext(projectId) {
-        const payload = await authorizedWorkspaceRequest(`/api/project-template-workspace?projectId=${encodeURIComponent(projectId)}`, 'GET');
+    async function fetchWorkspaceContext(backendProjectId) {
+        const normalizedBackendId = String(backendProjectId || '').trim();
+        if (!normalizedBackendId) {
+            throw new Error('Project not yet synced to server.');
+        }
+        const payload = await authorizedWorkspaceRequest(`/api/project-template-workspace?projectId=${encodeURIComponent(normalizedBackendId)}`, 'GET');
         workspaceCapabilities = normalizeWorkspaceCapabilities(payload && payload.capabilities ? payload.capabilities : null);
         const syncedProject = payload && payload.project
             ? syncProjectDetailRecord(payload.project)
@@ -654,6 +692,14 @@
             : (resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)');
     }
 
+    function requireBackendProjectId(project, actionLabel = 'this action') {
+        const backendId = getProjectBackendId(project);
+        if (!backendId) {
+            throw new Error(`Project not yet synced to server. Save to backend before ${actionLabel}.`);
+        }
+        return backendId;
+    }
+
     async function saveTemplateState(projectId, templateState, options = {}) {
         const currentProject = getCurrentProject();
         if (!currentProject) {
@@ -666,12 +712,14 @@
             ...templateState
         }, currentProject);
         const renderedHtml = String(options.renderedHtml || currentProject.template_saved_html || '').trim();
+        const backendProjectId = requireBackendProjectId(currentProject, 'saving template changes');
         console.debug('[TemplateWorkspace] Persisting template state', {
-            projectId,
+            projectId: projectId || currentProject.id,
+            backendProjectId,
             templateState: serializableTemplateState
         });
         const response = await authorizedWorkspaceRequest('/api/project-template-workspace-save', 'POST', {
-            projectId,
+            projectId: backendProjectId,
             templateState: serializableTemplateState,
             renderedHtml
         });
@@ -696,9 +744,10 @@
         if (hasUnsavedChanges || isWorkspaceEditMode) {
             throw new Error('Save changes before completing the project.');
         }
+        const backendProjectId = requireBackendProjectId(currentProject, 'completing this project');
 
         const response = await authorizedWorkspaceRequest('/api/project-template-workspace-complete', 'POST', {
-            projectId,
+            projectId: backendProjectId,
             expectedLastSavedAt: currentProject.template_last_saved_at || (currentProject.template_state && currentProject.template_state.savedAt) || '',
             hasUnsavedChanges: hasUnsavedChanges || isWorkspaceEditMode
         });
@@ -710,7 +759,7 @@
         if (typeof trackPlatformActivity === 'function') {
             await trackPlatformActivity('project_completed', {
                 targetType: 'project',
-                targetId: projectId,
+                targetId: backendProjectId,
                 message: `Completed template project ${currentProject.template_name || currentProject.name || 'project'}.`,
                 metadata: {
                     template_id: currentProject.template_id || '',
@@ -744,6 +793,10 @@
     }
 
     async function downloadProjectTemplateBundle(projectId, payload = {}) {
+        const backendProjectId = String(projectId || '').trim();
+        if (!backendProjectId) {
+            throw new Error('Project not yet synced to server. Save to backend before downloading.');
+        }
         if (typeof getDashboardBearerToken !== 'function') {
             throw new Error('Project download authentication is unavailable right now.');
         }
@@ -756,7 +809,7 @@
                 Authorization: `Bearer ${token}`
             },
             body: JSON.stringify({
-                projectId,
+                projectId: backendProjectId,
                 hasUnsavedChanges: hasUnsavedChanges || isWorkspaceEditMode
             })
         });
@@ -776,6 +829,7 @@
         if (!hasWorkspaceCapability('download_template_output')) {
             throw new Error('You do not have permission to unlock the final template output.');
         }
+        const backendProjectId = requireBackendProjectId(project, 'unlocking final download');
 
         if (!window.NexlancePayments || typeof window.NexlancePayments.startTemplatePayment !== 'function') {
             throw new Error('Secure template checkout is not available right now.');
@@ -804,7 +858,7 @@
                 summaryText: 'Final editable website output',
                 buttonText: 'Pay GBP 199',
                 metadata: {
-                    project_id: project.id,
+                    project_id: backendProjectId,
                     template_id: project.template_id || ''
                 },
                 onSuccess: async checkoutResult => {
@@ -818,7 +872,7 @@
                         || ''
                     ).trim();
                     const response = await authorizedWorkspaceRequest('/api/project-template-workspace-unlock', 'POST', {
-                        projectId: project.id,
+                        projectId: backendProjectId,
                         providerPaymentId,
                         amount: 199,
                         currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
@@ -837,14 +891,14 @@
                             paymentType: 'template_download',
                             templateId: project.template_id || '',
                             templateName: templateName || '',
-                            projectId: project.id,
+                            projectId: backendProjectId,
                             status: 'succeeded'
                         });
                     }
                     if (typeof trackPlatformActivity === 'function') {
                         await trackPlatformActivity('template_download_unlocked', {
                             targetType: 'project',
-                            targetId: project.id,
+                            targetId: backendProjectId,
                             message: `Unlocked download for ${templateName || project.template_name || 'template project'}.`,
                             metadata: {
                                 payment_intent_id: providerPaymentId,
@@ -942,8 +996,10 @@
                 if ((currentProject.template_workflow_status || '') !== 'completed') {
                     throw new Error('Complete the project before downloading the final output.');
                 }
+                const backendProjectId = requireBackendProjectId(currentProject, 'downloading final output');
                 const unlockedProject = await unlockTemplateDownload(currentProject, currentProject.template_name || currentProject.name);
-                await downloadProjectTemplateBundle(unlockedProject.id, payload || {});
+                const downloadProjectId = getProjectBackendId(unlockedProject) || backendProjectId;
+                await downloadProjectTemplateBundle(downloadProjectId, payload || {});
                 showToast('Final template output downloaded successfully.', 'success');
                 return unlockedProject;
             },
@@ -982,8 +1038,9 @@
             || paymentRecord.providerSessionId
             || ''
         ).trim();
+        const backendProjectId = requireBackendProjectId(currentProject, 'unlocking final output');
         const response = await authorizedWorkspaceRequest('/api/project-template-workspace-unlock', 'POST', {
-            projectId: currentProject.id,
+            projectId: backendProjectId,
             providerPaymentId,
             amount: 199,
             currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
@@ -997,7 +1054,7 @@
             : getCurrentProject();
         updateWorkspaceChrome(refreshedProject);
 
-        await downloadProjectTemplateBundle(currentProject.id);
+        await downloadProjectTemplateBundle(backendProjectId);
         showToast('Template payment confirmed. Your final project package is downloading.', 'success');
     }
 
@@ -1047,14 +1104,25 @@
             showLocalOnlyWorkspaceMessage();
             return null;
         }
+        const backendProjectId = getProjectBackendId(project);
+        if (!backendProjectId) {
+            showLocalOnlyWorkspaceMessage();
+            return null;
+        }
         try {
-            const result = await fetchWorkspaceContext(project.id);
+            const result = await fetchWorkspaceContext(backendProjectId);
             updateWorkspaceChrome(getCurrentProject() || project);
             return result;
         } catch (error) {
             console.error('Template workspace could not be loaded:', error);
             const errorMessage = error && error.message ? error.message : '';
-            if (errorMessage.includes('not found') || errorMessage.includes('Project could not be found')) {
+            const normalizedErrorMessage = errorMessage.toLowerCase();
+            if (
+                (Number(error && error.status) === 404)
+                || normalizedErrorMessage.includes('not found')
+                || normalizedErrorMessage.includes('not yet synced')
+                || normalizedErrorMessage.includes('not synced')
+            ) {
                 showLocalOnlyWorkspaceMessage();
             } else {
                 showWorkspaceError(error.message || 'Template workspace could not be loaded.');

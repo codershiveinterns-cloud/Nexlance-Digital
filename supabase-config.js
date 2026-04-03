@@ -1315,20 +1315,44 @@ function mergeProjectCollections() {
 function normalizeProjectSource(record = {}, fallbackSource = 'database') {
     const explicitSource = String(record.project_source || record.projectSource || '').trim().toLowerCase();
     if (explicitSource) return explicitSource;
+    const semanticSource = String(record.source || '').trim().toLowerCase();
+    if (semanticSource) return semanticSource;
     if (record.storage_fallback === true || record.local_fallback === true) {
         return 'local_fallback';
     }
     return fallbackSource;
 }
 
+function resolveProjectBackendId(record = {}, fallbackSource = 'database') {
+    const explicitBackendId = String(record.backend_id || record.backendId || '').trim();
+    if (explicitBackendId) return explicitBackendId;
+    const projectSource = normalizeProjectSource(record, fallbackSource);
+    if (projectSource === 'database') {
+        return String(record.id || '').trim();
+    }
+    return '';
+}
+
+function isPersistedProjectRecord(record = {}, fallbackSource = 'database') {
+    const projectSource = normalizeProjectSource(record, fallbackSource);
+    const backendId = resolveProjectBackendId(record, fallbackSource);
+    return projectSource === 'database' && Boolean(backendId);
+}
+
 function decorateProjectRecord(record, fallbackSource = 'database') {
     if (!record || typeof record !== 'object') return record;
     const projectSource = normalizeProjectSource(record, fallbackSource);
+    const backendId = resolveProjectBackendId(record, fallbackSource);
+    const isPersisted = isPersistedProjectRecord(record, fallbackSource);
     return {
         ...record,
+        backend_id: backendId,
+        backendId,
+        source: projectSource,
+        isPersisted: isPersisted,
         project_source: projectSource,
-        is_persisted_project: projectSource === 'database',
-        is_shared_workspace_available: projectSource === 'database'
+        is_persisted_project: isPersisted,
+        is_shared_workspace_available: isPersisted
     };
 }
 
@@ -1842,6 +1866,19 @@ async function fetchProjects(clientId = null) {
 async function addProject(d) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const doc = sanitizeFirestoreData({ ...withOwnerFields(d), created_at: new Date().toISOString() });
+
+    const createLocalDraftProject = () => {
+        const records = getLocalEntityData('projects');
+        const draftRecord = decorateProjectRecord({
+            ...doc,
+            id: 'p' + Date.now(),
+            storage_fallback: true
+        }, 'local_fallback');
+        records.unshift(draftRecord);
+        setLocalEntityData('projects', records);
+        return draftRecord;
+    };
+
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('projects', 'create')) throw createDashboardPermissionError('projects', 'create');
         if (isFirebaseUserAuthenticated()) {
@@ -1856,22 +1893,16 @@ async function addProject(d) {
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('projects');
-        const r = decorateProjectRecord({ ...doc, id: 'p' + Date.now(), storage_fallback: true }, 'local_fallback');
-        records.unshift(r);
-        setLocalEntityData('projects', records);
-        return r;
+        return createLocalDraftProject();
     }
     try {
         const ref = await db.collection('projects').add(doc);
-        return decorateProjectRecord({ id: ref.id, ...doc }, 'database');
+        const persistedProject = decorateProjectRecord({ id: ref.id, ...doc }, 'database');
+        if (persistedProject) upsertLocalEntityRecord('projects', persistedProject);
+        return persistedProject;
     } catch (error) {
         if (shouldUseLocalEntityFallback(error)) {
-            const records = getLocalEntityData('projects');
-            const r = decorateProjectRecord({ ...doc, id: 'p' + Date.now(), storage_fallback: true }, 'local_fallback');
-            records.unshift(r);
-            setLocalEntityData('projects', records);
-            return r;
+            return createLocalDraftProject();
         }
         throw error;
     }
@@ -2028,6 +2059,124 @@ async function deleteProject(id) {
     setLocalEntityData('projects', records);
     const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
     setLegacyTemplateProjects(legacyRecords);
+}
+
+function buildProjectSyncPayload(project) {
+    const clone = { ...(project || {}) };
+    [
+        'id',
+        'backend_id',
+        'backendId',
+        'project_source',
+        'projectSource',
+        'source',
+        'isPersisted',
+        'is_persisted_project',
+        'is_shared_workspace_available',
+        'storage_fallback',
+        'local_fallback'
+    ].forEach(key => {
+        delete clone[key];
+    });
+    return sanitizeFirestoreData(clone);
+}
+
+async function syncProjectToBackend(projectId) {
+    if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
+
+    const localId = String(projectId || '').trim();
+    if (!localId) throw new Error('Project ID is required for sync.');
+
+    const scopedProjects = getLocalEntityData('projects');
+    const legacyProjects = getLegacyTemplateProjects();
+    const currentProject = scopedProjects.find(project => String(project && project.id) === localId)
+        || legacyProjects.find(project => String(project && project.id) === localId);
+
+    if (!currentProject) {
+        throw new Error('Project not found in local drafts.');
+    }
+
+    const decoratedLocalProject = decorateProjectRecord(currentProject, normalizeProjectSource(currentProject, 'local_fallback'));
+    if (decoratedLocalProject.is_persisted_project === true && decoratedLocalProject.backend_id) {
+        return decoratedLocalProject;
+    }
+
+    if (!isFirebaseConfigured) {
+        throw new Error('Backend sync is unavailable because Firebase is not configured.');
+    }
+    if (!hasDashboardPermission('projects', 'create')) {
+        throw createDashboardPermissionError('projects', 'create');
+    }
+    if (!isFirebaseUserAuthenticated()) {
+        throw new Error('Please sign in again before syncing this project.');
+    }
+
+    const payload = sanitizeFirestoreData({
+        ...withOwnerFields(buildProjectSyncPayload(decoratedLocalProject)),
+        created_at: decoratedLocalProject.created_at || new Date().toISOString()
+    });
+
+    let createdRecord = null;
+    try {
+        createdRecord = await dashboardApiRequest('POST', 'projects', '', payload);
+    } catch (error) {
+        if (!isDashboardApiUnavailableError(error)) {
+            throw normalizeDashboardApiError(error, 'projects', 'create');
+        }
+    }
+
+    if (!createdRecord) {
+        try {
+            const ref = await db.collection('projects').add(payload);
+            createdRecord = { id: ref.id, ...payload };
+        } catch (error) {
+            throw new Error('Project could not be synced to backend. Please try again.');
+        }
+    }
+
+    const persistedProject = decorateProjectRecord(createdRecord, 'database');
+    const backendId = String(persistedProject && persistedProject.id ? persistedProject.id : '').trim();
+    if (!backendId) {
+        throw new Error('Backend sync completed without a valid project ID.');
+    }
+
+    const nextScopedProjects = scopedProjects.filter(project => {
+        const recordId = String(project && project.id ? project.id : '').trim();
+        return recordId && recordId !== localId && recordId !== backendId;
+    });
+    nextScopedProjects.unshift(persistedProject);
+    setLocalEntityData('projects', nextScopedProjects);
+
+    const nextLegacyProjects = legacyProjects.filter(project => {
+        const recordId = String(project && project.id ? project.id : '').trim();
+        return recordId && recordId !== localId && recordId !== backendId;
+    });
+    setLegacyTemplateProjects(nextLegacyProjects);
+
+    const localTasks = getLocalEntityData('tasks');
+    let migratedTaskCount = 0;
+    const nextTasks = localTasks.map(task => {
+        if (!task || String(task.project_id || '').trim() !== localId) return task;
+        migratedTaskCount += 1;
+        return {
+            ...task,
+            project_id: backendId
+        };
+    });
+    if (migratedTaskCount > 0) {
+        setLocalEntityData('tasks', nextTasks);
+    }
+
+    window.dispatchEvent(new CustomEvent('nexlance-data-changed', {
+        detail: {
+            entity: 'projects',
+            action: 'synced',
+            fromId: localId,
+            toId: backendId
+        }
+    }));
+
+    return persistedProject;
 }
 
 async function fetchTasks(projectId) {
