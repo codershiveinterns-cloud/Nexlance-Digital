@@ -155,6 +155,15 @@
         'developer-info.html': PERMISSIONS.ACCESS_SUPPORT_INFO
     });
 
+    const TEMPLATE_WORKSPACE_CAPABILITIES = Object.freeze({
+        VIEW_TEMPLATE_WORKSPACE: 'view_template_workspace',
+        EDIT_TEMPLATE: 'edit_template',
+        SAVE_TEMPLATE: 'save_template',
+        COMPLETE_TEMPLATE_PROJECT: 'complete_template_project',
+        DOWNLOAD_TEMPLATE_OUTPUT: 'download_template_output',
+        ADMIN_OVERRIDE: 'admin_override'
+    });
+
     function normalizeEmail(email) {
         return String(email || '').trim().toLowerCase();
     }
@@ -301,6 +310,53 @@
         };
     }
 
+    function createEmptyTemplateWorkspaceCapabilities() {
+        return {
+            [TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE]: false,
+            [TEMPLATE_WORKSPACE_CAPABILITIES.EDIT_TEMPLATE]: false,
+            [TEMPLATE_WORKSPACE_CAPABILITIES.SAVE_TEMPLATE]: false,
+            [TEMPLATE_WORKSPACE_CAPABILITIES.COMPLETE_TEMPLATE_PROJECT]: false,
+            [TEMPLATE_WORKSPACE_CAPABILITIES.DOWNLOAD_TEMPLATE_OUTPUT]: false,
+            [TEMPLATE_WORKSPACE_CAPABILITIES.ADMIN_OVERRIDE]: false
+        };
+    }
+
+    function isTemplateWorkspaceTeamMemberRole(role) {
+        const normalizedRole = normalizeRole(role);
+        return normalizedRole === ROLES.PM
+            || normalizedRole === ROLES.DEVELOPER
+            || normalizedRole === ROLES.DESIGNER;
+    }
+
+    function getTemplateWorkspaceRoleCapabilities(user) {
+        const capabilities = createEmptyTemplateWorkspaceCapabilities();
+        const normalizedRole = normalizeRole(user && (user.role || user.workspaceRole || user.dashboardRole));
+        const isOwner = isWorkspaceOwner(user);
+        const isAdmin = isOwner || normalizedRole === ROLES.ADMIN;
+
+        if (isAdmin) {
+            Object.keys(capabilities).forEach(capability => {
+                capabilities[capability] = true;
+            });
+            return capabilities;
+        }
+
+        if (normalizedRole === ROLES.CLIENT) {
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE] = true;
+            return capabilities;
+        }
+
+        if (isTemplateWorkspaceTeamMemberRole(normalizedRole)) {
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE] = true;
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.EDIT_TEMPLATE] = true;
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.SAVE_TEMPLATE] = true;
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.COMPLETE_TEMPLATE_PROJECT] = true;
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.DOWNLOAD_TEMPLATE_OUTPUT] = true;
+        }
+
+        return capabilities;
+    }
+
     function canAccessAdminPanel(user) {
         return hasPermission(user, PERMISSIONS.ACCESS_ADMIN_PANEL);
     }
@@ -391,6 +447,7 @@
     return {
         ROLES,
         PERMISSIONS,
+        TEMPLATE_WORKSPACE_CAPABILITIES,
         ROLE_PERMISSION_MAP,
         OWNER_ONLY_PERMISSIONS,
         PERMISSION_CATALOG,
@@ -402,10 +459,13 @@
         getAuthenticatedPermissionKeys,
         getRolePermissionKeys,
         getRoleTogglePermissions,
+        createEmptyTemplateWorkspaceCapabilities,
         getPermissionMatrix,
         getAccessProfile,
         getRoleDisplayLabel,
+        getTemplateWorkspaceRoleCapabilities,
         hasPermission,
+        isTemplateWorkspaceTeamMemberRole,
         canAccessAdminPanel,
         canManagePayments,
         canManageTeamMembers,

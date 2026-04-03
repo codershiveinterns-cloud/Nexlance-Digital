@@ -13,6 +13,34 @@
     let isWorkspaceEditMode = false;
     let workspaceActionInFlight = false;
     let lastWorkspaceError = { message: '', at: 0 };
+    let workspaceCapabilities = createEmptyWorkspaceCapabilities();
+
+    function createEmptyWorkspaceCapabilities() {
+        return {
+            view_template_workspace: false,
+            edit_template: false,
+            save_template: false,
+            complete_template_project: false,
+            download_template_output: false,
+            admin_override: false
+        };
+    }
+
+    function normalizeWorkspaceCapabilities(capabilities) {
+        const fallback = createEmptyWorkspaceCapabilities();
+        if (!capabilities || typeof capabilities !== 'object') {
+            return fallback;
+        }
+
+        return Object.keys(fallback).reduce((result, key) => {
+            result[key] = capabilities[key] === true;
+            return result;
+        }, { ...fallback });
+    }
+
+    function hasWorkspaceCapability(capability) {
+        return workspaceCapabilities && workspaceCapabilities[capability] === true;
+    }
 
     function getCurrentProject() {
         if (typeof window.getProjectDetailProject === 'function') {
@@ -50,6 +78,21 @@
     function persistWorkspaceState(projectId, payload) {
         if (!projectId || !payload || typeof payload !== 'object') return;
         localStorage.setItem(getWorkspaceStateStorageKey(projectId), JSON.stringify(payload));
+    }
+
+    function persistWorkspaceServerSnapshot(project) {
+        if (!project || !project.id) return;
+        persistWorkspaceState(project.id, {
+            template_state: project.template_state || null,
+            template_last_saved_at: project.template_last_saved_at || null,
+            template_saved_html: project.template_saved_html || '',
+            template_workflow_status: project.template_workflow_status || 'draft',
+            template_completed_at: project.template_completed_at || null,
+            template_download_paid: project.template_download_paid === true,
+            template_download_paid_at: project.template_download_paid_at || null,
+            template_download_payment_intent_id: project.template_download_payment_intent_id || '',
+            template_download_amount_gbp: project.template_download_amount_gbp || null
+        });
     }
 
     function getPendingWorkspaceCheckout(projectId) {
@@ -185,6 +228,59 @@
 
     function wait(ms) {
         return new Promise(resolve => window.setTimeout(resolve, ms));
+    }
+
+    async function authorizedWorkspaceRequest(path, method = 'GET', payload = null) {
+        if (typeof authorizedApiRequest === 'function') {
+            return authorizedApiRequest(path, method, payload);
+        }
+
+        if (typeof getDashboardBearerToken !== 'function') {
+            throw new Error('Template workspace authentication is unavailable right now.');
+        }
+
+        const token = await getDashboardBearerToken();
+        const response = await fetch(path, {
+            method,
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: payload !== null ? JSON.stringify(payload) : undefined
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const error = new Error(data.error || data.message || 'Template workspace request failed.');
+            error.status = response.status;
+            throw error;
+        }
+        return data;
+    }
+
+    function syncProjectDetailRecord(project) {
+        if (!project || !project.id) return project;
+        const nextProject = resolveWorkspaceProject(project);
+        if (typeof upsertLocalEntityRecord === 'function') {
+            upsertLocalEntityRecord('projects', nextProject);
+        }
+        if (typeof window.setProjectDetailProject === 'function') {
+            window.setProjectDetailProject(nextProject);
+        }
+        persistWorkspaceServerSnapshot(nextProject);
+        return nextProject;
+    }
+
+    async function fetchWorkspaceContext(projectId) {
+        const payload = await authorizedWorkspaceRequest(`/api/project-template-workspace?projectId=${encodeURIComponent(projectId)}`, 'GET');
+        workspaceCapabilities = normalizeWorkspaceCapabilities(payload && payload.capabilities ? payload.capabilities : null);
+        const syncedProject = payload && payload.project
+            ? syncProjectDetailRecord(payload.project)
+            : getCurrentProject();
+        return {
+            project: syncedProject,
+            capabilities: workspaceCapabilities
+        };
     }
 
     async function waitForProject() {
@@ -486,6 +582,7 @@
         const resolvedProject = mergeWorkspaceStateIntoProject(project);
         const statusEl = document.getElementById('workspaceStatus');
         const saveMetaEl = document.getElementById('workspaceSaveMeta');
+        const descriptionEl = document.getElementById('workspaceDescription');
         const editBtn = document.getElementById('workspaceEditBtn');
         const saveBtn = document.getElementById('workspaceSaveBtn');
         const downloadBtn = document.getElementById('workspaceDownloadBtn');
@@ -500,22 +597,44 @@
             || null;
         const completed = workflowStatus === 'completed';
         const needsSave = hasUnsavedChanges || isWorkspaceEditMode;
+        const canEdit = hasWorkspaceCapability('edit_template');
+        const canSave = hasWorkspaceCapability('save_template');
+        const canComplete = hasWorkspaceCapability('complete_template_project');
+        const canDownload = hasWorkspaceCapability('download_template_output');
+        const canView = hasWorkspaceCapability('view_template_workspace');
 
         statusEl.textContent = completed ? 'Completed' : (workflowStatus === 'in_progress' ? 'In Progress' : 'Draft');
         if (needsSave) {
             saveMetaEl.textContent = 'Unsaved changes. Save before completing or downloading.';
+        } else if (!canView) {
+            saveMetaEl.textContent = 'Template workspace access is unavailable for this project.';
+        } else if (!canEdit) {
+            saveMetaEl.textContent = 'Read-only access. You can preview the template but cannot change it.';
         } else {
             saveMetaEl.textContent = savedAt
                 ? `Last saved ${new Date(savedAt).toLocaleString()}`
                 : 'No saved changes yet';
         }
 
-        editBtn.disabled = workspaceActionInFlight || completed;
+        if (descriptionEl) {
+            descriptionEl.textContent = !canView
+                ? 'Template workspace access is unavailable right now.'
+                : (!canEdit
+                    ? 'Preview this assigned template in read-only mode.'
+                    : 'Edit this template, save your changes, complete the project, and download the final version after payment.');
+        }
+
+        editBtn.style.display = canEdit ? '' : 'none';
+        saveBtn.style.display = canSave ? '' : 'none';
+        completeBtn.style.display = canComplete ? '' : 'none';
+        downloadBtn.style.display = canDownload ? '' : 'none';
+
+        editBtn.disabled = workspaceActionInFlight || completed || !canEdit;
         editBtn.textContent = isWorkspaceEditMode ? 'Editing Enabled' : 'Edit Mode';
-        saveBtn.disabled = workspaceActionInFlight || !needsSave || completed;
-        completeBtn.disabled = workspaceActionInFlight || completed || needsSave;
+        saveBtn.disabled = workspaceActionInFlight || !needsSave || completed || !canSave;
+        completeBtn.disabled = workspaceActionInFlight || completed || needsSave || !canComplete;
         completeBtn.textContent = completed ? 'Project Completed' : 'Complete Project';
-        downloadBtn.disabled = workspaceActionInFlight || !completed || needsSave;
+        downloadBtn.disabled = workspaceActionInFlight || !completed || needsSave || !canDownload;
         downloadBtn.textContent = !completed
             ? 'Download After Completion'
             : (resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)');
@@ -526,54 +645,55 @@
         if (!currentProject) {
             throw new Error('Project could not be found for saving.');
         }
-        const savedAt = new Date().toISOString();
-        const alreadyCompleted = String(currentProject.template_workflow_status || '').trim().toLowerCase() === 'completed';
-        const nextWorkflow = options.completed ? 'completed' : (alreadyCompleted ? 'completed' : 'in_progress');
-        const nextCompletedAt = options.completed
-            ? new Date().toISOString()
-            : (alreadyCompleted ? (currentProject.template_completed_at || savedAt) : null);
+        if (!hasWorkspaceCapability('save_template')) {
+            throw new Error('You have read-only access to this template workspace.');
+        }
         const serializableTemplateState = getSerializableTemplateState({
-            ...templateState,
-            savedAt
+            ...templateState
         }, currentProject);
         const renderedHtml = String(options.renderedHtml || currentProject.template_saved_html || '').trim();
-        const nextProgress = (options.completed || alreadyCompleted)
-            ? 100
-            : Math.max(Number(currentProject.progress || 0), 50);
-        const nextStatus = (options.completed || alreadyCompleted)
-            ? 'Live'
-            : (currentProject.status === 'Planning' ? 'Development' : currentProject.status || 'Development');
-        const workspaceSnapshot = {
-            template_state: serializableTemplateState,
-            template_last_saved_at: savedAt,
-            template_saved_html: renderedHtml,
-            template_workflow_status: nextWorkflow,
-            template_completed_at: nextCompletedAt,
-            template_download_paid: Boolean(currentProject.template_download_paid),
-            template_download_paid_at: currentProject.template_download_paid_at || null,
-            template_download_payment_intent_id: currentProject.template_download_payment_intent_id || '',
-            template_download_amount_gbp: currentProject.template_download_amount_gbp || null
-        };
         console.debug('[TemplateWorkspace] Persisting template state', {
             projectId,
-            completed: Boolean(options.completed),
             templateState: serializableTemplateState
         });
-        persistWorkspaceState(projectId, workspaceSnapshot);
-        await updateProject(projectId, {
-            template_state: serializableTemplateState,
-            template_last_saved_at: savedAt,
-            template_saved_html: renderedHtml,
-            template_workflow_status: nextWorkflow,
-            template_completed_at: nextCompletedAt,
-            status: nextStatus,
-            progress: nextProgress
-        }, { templateWorkspace: true });
+        const response = await authorizedWorkspaceRequest('/api/project-template-workspace-save', 'POST', {
+            projectId,
+            templateState: serializableTemplateState,
+            renderedHtml
+        });
+        workspaceCapabilities = normalizeWorkspaceCapabilities(response && response.capabilities ? response.capabilities : workspaceCapabilities);
+        const refreshedProject = response && response.project
+            ? syncProjectDetailRecord(response.project)
+            : getCurrentProject();
+        updateWorkspaceChrome(refreshedProject);
+        setWorkspaceEditMode(false);
+        setWorkspaceDirty(false);
+        return refreshedProject;
+    }
 
-        const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
-            ? await window.refreshProjectDetailProject()
-            : window.getProjectDetailProject();
-        if (options.completed && typeof trackPlatformActivity === 'function') {
+    async function completeTemplateProject(projectId) {
+        const currentProject = getCurrentProject();
+        if (!currentProject) {
+            throw new Error('Project could not be found for completion.');
+        }
+        if (!hasWorkspaceCapability('complete_template_project')) {
+            throw new Error('You do not have permission to complete this template project.');
+        }
+        if (hasUnsavedChanges || isWorkspaceEditMode) {
+            throw new Error('Save changes before completing the project.');
+        }
+
+        const response = await authorizedWorkspaceRequest('/api/project-template-workspace-complete', 'POST', {
+            projectId,
+            expectedLastSavedAt: currentProject.template_last_saved_at || (currentProject.template_state && currentProject.template_state.savedAt) || '',
+            hasUnsavedChanges: hasUnsavedChanges || isWorkspaceEditMode
+        });
+        workspaceCapabilities = normalizeWorkspaceCapabilities(response && response.capabilities ? response.capabilities : workspaceCapabilities);
+        const refreshedProject = response && response.project
+            ? syncProjectDetailRecord(response.project)
+            : getCurrentProject();
+
+        if (typeof trackPlatformActivity === 'function') {
             await trackPlatformActivity('project_completed', {
                 targetType: 'project',
                 targetId: projectId,
@@ -581,10 +701,11 @@
                 metadata: {
                     template_id: currentProject.template_id || '',
                     template_name: currentProject.template_name || '',
-                    workflow_status: nextWorkflow
+                    workflow_status: 'completed'
                 }
             });
         }
+
         updateWorkspaceChrome(refreshedProject);
         setWorkspaceEditMode(false);
         setWorkspaceDirty(false);
@@ -622,7 +743,7 @@
             },
             body: JSON.stringify({
                 projectId,
-                renderedHtml: String(payload.renderedHtml || '').trim()
+                hasUnsavedChanges: hasUnsavedChanges || isWorkspaceEditMode
             })
         });
 
@@ -638,6 +759,9 @@
 
     async function unlockTemplateDownload(project, templateName) {
         if (project.template_download_paid) return project;
+        if (!hasWorkspaceCapability('download_template_output')) {
+            throw new Error('You do not have permission to unlock the final template output.');
+        }
 
         if (!window.NexlancePayments || typeof window.NexlancePayments.startTemplatePayment !== 'function') {
             throw new Error('Secure template checkout is not available right now.');
@@ -679,19 +803,17 @@
                         || paymentRecord.providerSessionId
                         || ''
                     ).trim();
-                    await updateProject(project.id, {
-                        template_download_paid: true,
-                        template_download_paid_at: new Date().toISOString(),
-                        template_download_payment_intent_id: providerPaymentId,
-                        template_download_amount_gbp: 199
-                    }, { templateWorkspace: true });
-                    persistWorkspaceState(project.id, {
-                        ...(getStoredWorkspaceState(project.id) || {}),
-                        template_download_paid: true,
-                        template_download_paid_at: new Date().toISOString(),
-                        template_download_payment_intent_id: providerPaymentId,
-                        template_download_amount_gbp: 199
+                    const response = await authorizedWorkspaceRequest('/api/project-template-workspace-unlock', 'POST', {
+                        projectId: project.id,
+                        providerPaymentId,
+                        amount: 199,
+                        currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
+                        hasUnsavedChanges: hasUnsavedChanges || isWorkspaceEditMode
                     });
+                    workspaceCapabilities = normalizeWorkspaceCapabilities(response && response.capabilities ? response.capabilities : workspaceCapabilities);
+                    const refreshedProject = response && response.project
+                        ? syncProjectDetailRecord(response.project)
+                        : getCurrentProject();
                     persistPendingWorkspaceCheckout(project.id, null);
                     if (typeof recordPaymentRecord === 'function') {
                         await recordPaymentRecord({
@@ -717,9 +839,6 @@
                             }
                         });
                     }
-                    const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
-                        ? await window.refreshProjectDetailProject()
-                        : window.getProjectDetailProject();
                     updateWorkspaceChrome(refreshedProject);
                 }
             });
@@ -741,6 +860,10 @@
 
         editBtn.onclick = () => {
             if (workspaceActionInFlight) return;
+            if (!hasWorkspaceCapability('edit_template')) {
+                showWorkspaceError('You have read-only access to this template workspace.');
+                return;
+            }
             if (iframe.contentWindow && typeof iframe.contentWindow.enterTemplateWorkspaceEditMode === 'function') {
                 iframe.contentWindow.enterTemplateWorkspaceEditMode();
             }
@@ -788,15 +911,11 @@
             },
             async saveProjectTemplateState(projectId, templateState, renderOptions = {}) {
                 return saveTemplateState(projectId, templateState, {
-                    completed: false,
                     renderedHtml: renderOptions && renderOptions.renderedHtml ? renderOptions.renderedHtml : ''
                 });
             },
-            async completeProjectTemplate(projectId, templateState, renderOptions = {}) {
-                return saveTemplateState(projectId, templateState, {
-                    completed: true,
-                    renderedHtml: renderOptions && renderOptions.renderedHtml ? renderOptions.renderedHtml : ''
-                });
+            async completeProjectTemplate(projectId) {
+                return completeTemplateProject(projectId);
             },
             async downloadProjectTemplate(projectId, payload) {
                 const currentProject = getCurrentProject();
@@ -849,31 +968,22 @@
             || paymentRecord.providerSessionId
             || ''
         ).trim();
-        const paidAt = new Date().toISOString();
-
-        await updateProject(currentProject.id, {
-            template_download_paid: true,
-            template_download_paid_at: paidAt,
-            template_download_payment_intent_id: providerPaymentId,
-            template_download_amount_gbp: 199
-        }, { templateWorkspace: true });
-        persistWorkspaceState(currentProject.id, {
-            ...(getStoredWorkspaceState(currentProject.id) || {}),
-            template_download_paid: true,
-            template_download_paid_at: paidAt,
-            template_download_payment_intent_id: providerPaymentId,
-            template_download_amount_gbp: 199
+        const response = await authorizedWorkspaceRequest('/api/project-template-workspace-unlock', 'POST', {
+            projectId: currentProject.id,
+            providerPaymentId,
+            amount: 199,
+            currency: DEFAULT_BILLING_CURRENCY.toUpperCase(),
+            hasUnsavedChanges: hasUnsavedChanges || isWorkspaceEditMode
         });
+        workspaceCapabilities = normalizeWorkspaceCapabilities(response && response.capabilities ? response.capabilities : workspaceCapabilities);
         persistPendingWorkspaceCheckout(currentProject.id, null);
 
-        const refreshedProject = typeof window.refreshProjectDetailProject === 'function'
-            ? await window.refreshProjectDetailProject()
-            : window.getProjectDetailProject();
+        const refreshedProject = response && response.project
+            ? syncProjectDetailRecord(response.project)
+            : getCurrentProject();
         updateWorkspaceChrome(refreshedProject);
 
-        await downloadProjectTemplateBundle(currentProject.id, {
-            renderedHtml: String((refreshedProject && refreshedProject.template_saved_html) || '').trim()
-        });
+        await downloadProjectTemplateBundle(currentProject.id);
         showToast('Template payment confirmed. Your final project package is downloading.', 'success');
     }
 
@@ -897,6 +1007,7 @@
 
     function ensureWorkspaceLoaded(project) {
         if (workspaceMounted || !project || !project.template_id || !project.template_page) return;
+        if (!hasWorkspaceCapability('view_template_workspace')) return;
 
         const iframe = document.getElementById('templateWorkspaceFrame');
         if (!iframe) return;
@@ -913,6 +1024,8 @@
         ensureWorkspaceStyles();
         injectWorkspaceTab();
         updateWorkspaceChrome(project);
+        await fetchWorkspaceContext(project.id);
+        updateWorkspaceChrome(getCurrentProject() || project);
         registerWorkspaceBridge();
         bindWorkspaceCheckoutEvents();
     }
@@ -923,7 +1036,12 @@
 
         const project = resolveWorkspaceProject(await waitForProject());
         if (!project || !project.template_id || !project.template_page) return;
-        await mountWorkspace(project);
+        try {
+            await mountWorkspace(project);
+        } catch (error) {
+            console.error('Template workspace could not be initialized:', error);
+            showWorkspaceError(error.message || 'Template workspace could not be loaded.');
+        }
     }
 
     window.addEventListener('beforeunload', event => {

@@ -21,8 +21,24 @@
       "destination": "/api/commerce/payment-config"
     },
     {
+      "source": "/api/project-template-workspace",
+      "destination": "/api/commerce/project-template-workspace"
+    },
+    {
+      "source": "/api/project-template-workspace-complete",
+      "destination": "/api/commerce/project-template-workspace-complete"
+    },
+    {
       "source": "/api/project-template-download",
       "destination": "/api/commerce/project-template-download"
+    },
+    {
+      "source": "/api/project-template-workspace-save",
+      "destination": "/api/commerce/project-template-workspace-save"
+    },
+    {
+      "source": "/api/project-template-workspace-unlock",
+      "destination": "/api/commerce/project-template-workspace-unlock"
     },
     {
       "source": "/api/stripe-webhook",

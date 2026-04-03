@@ -1854,6 +1854,8 @@ async function updateProject(id, d, options = {}) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const sanitizedPayload = sanitizeFirestoreData(d);
     const doc = sanitizeFirestoreData(withOwnerFields(d));
+    // Template Workspace now uses dedicated backend endpoints. This compatibility
+    // branch remains so legacy callers do not get reclassified by injected metadata.
     const isTemplateWorkspaceUpdate = options && options.templateWorkspace === true && isTemplateWorkspaceProjectUpdate(sanitizedPayload);
     const dashboardPayload = isTemplateWorkspaceUpdate ? sanitizedPayload : doc;
     if (Object.prototype.hasOwnProperty.call(doc, 'template_state')) {

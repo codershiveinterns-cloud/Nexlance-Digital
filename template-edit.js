@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const state = serializeState();
         const renderedHtml = buildRenderedHtml();
         if (options.completed) {
-            await parentWorkspace.completeProjectTemplate(projectId, state, { renderedHtml });
+            await parentWorkspace.completeProjectTemplate(projectId);
         } else {
             await parentWorkspace.saveProjectTemplateState(projectId, state, { renderedHtml });
         }
@@ -277,9 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error('Save changes before completing the project.');
         }
 
-        const currentState = serializeState();
-        const renderedHtml = buildRenderedHtml();
-        await parentWorkspace.completeProjectTemplate(projectId, currentState, { renderedHtml });
+        await parentWorkspace.completeProjectTemplate(projectId);
         isEditMode = false;
         setAllEditable(false);
         if (typeof parentWorkspace.setEditMode === 'function') {

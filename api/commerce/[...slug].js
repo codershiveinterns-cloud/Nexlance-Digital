@@ -3,7 +3,11 @@ const checkoutStartHandler = require('../../backend/api/checkout-start');
 const confirmBusinessUpgradeHandler = require('../../backend/api/confirm-business-upgrade');
 const createPaymentIntentHandler = require('../../backend/api/create-payment-intent');
 const paymentConfigHandler = require('../../backend/api/payment-config');
+const projectTemplateWorkspaceCompleteHandler = require('../../backend/api/project-template-workspace-complete');
 const projectTemplateDownloadHandler = require('../../backend/api/project-template-download');
+const projectTemplateWorkspaceHandler = require('../../backend/api/project-template-workspace');
+const projectTemplateWorkspaceSaveHandler = require('../../backend/api/project-template-workspace-save');
+const projectTemplateWorkspaceUnlockHandler = require('../../backend/api/project-template-workspace-unlock');
 const stripeWebhookHandler = require('../../backend/api/stripe-webhook');
 const templateAccessCompleteHandler = require('../../backend/api/template-access-complete');
 const templateAccessStartHandler = require('../../backend/api/template-access-start');
@@ -15,7 +19,11 @@ const ROUTE_HANDLERS = {
     'confirm-business-upgrade': confirmBusinessUpgradeHandler,
     'create-payment-intent': createPaymentIntentHandler,
     'payment-config': paymentConfigHandler,
+    'project-template-workspace': projectTemplateWorkspaceHandler,
+    'project-template-workspace-complete': projectTemplateWorkspaceCompleteHandler,
     'project-template-download': projectTemplateDownloadHandler,
+    'project-template-workspace-save': projectTemplateWorkspaceSaveHandler,
+    'project-template-workspace-unlock': projectTemplateWorkspaceUnlockHandler,
     'stripe-webhook': stripeWebhookHandler,
     'template-access-complete': templateAccessCompleteHandler,
     'template-access-start': templateAccessStartHandler,

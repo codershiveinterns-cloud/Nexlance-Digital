@@ -42,7 +42,11 @@ const checkoutStartHandler = require('./api/checkout-start');
 const confirmBusinessUpgradeHandler = require('./api/confirm-business-upgrade');
 const polarWebhookHandler = require('./api/polar-webhook');
 const stripeWebhookHandler = require('./api/stripe-webhook');
+const projectTemplateWorkspaceCompleteHandler = require('./api/project-template-workspace-complete');
 const projectTemplateDownloadHandler = require('./api/project-template-download');
+const projectTemplateWorkspaceHandler = require('./api/project-template-workspace');
+const projectTemplateWorkspaceSaveHandler = require('./api/project-template-workspace-save');
+const projectTemplateWorkspaceUnlockHandler = require('./api/project-template-workspace-unlock');
 const templateAccessCompleteHandler = require('./api/template-access-complete');
 const templateAccessStartHandler = require('./api/template-access-start');
 const templateDownloadHandler = require('./api/template-download');
@@ -82,6 +86,7 @@ const {
     patchCollectionDocument,
     queryCollectionDocuments
 } = require('./services/firebase-service');
+const { isTemplateWorkspaceProjectPatch } = require('./services/template-workspace');
 
 const PORT = Number(process.env.PORT || 4242);
 const MAX_PORT_ATTEMPTS = 10;
@@ -376,20 +381,6 @@ const DASHBOARD_COLLECTIONS = new Set([
     'team_members'
 ]);
 
-const TEMPLATE_WORKSPACE_PATCH_FIELDS = new Set([
-    'template_state',
-    'template_last_saved_at',
-    'template_saved_html',
-    'template_workflow_status',
-    'template_completed_at',
-    'template_download_paid',
-    'template_download_paid_at',
-    'template_download_payment_intent_id',
-    'template_download_amount_gbp',
-    'status',
-    'progress'
-]);
-
 function parseDashboardRoute(pathname) {
     const match = String(pathname || '').match(/^\/api\/dashboard\/([^/]+)(?:\/([^/]+))?$/);
     if (!match) return null;
@@ -546,14 +537,9 @@ function isTemplateWorkspacePatchPayload(collectionId, payload) {
     if (collectionId !== 'projects' || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
         return false;
     }
-
-    const sanitizedPayload = sanitizeDashboardPayload(payload);
-    const keys = Object.keys(sanitizedPayload);
-    if (!keys.length) {
-        return false;
-    }
-
-    return keys.every(key => TEMPLATE_WORKSPACE_PATCH_FIELDS.has(String(key || '').trim()));
+    // Dedicated template workspace endpoints are the primary path now. This fallback
+    // keeps legacy project PATCH calls from being misclassified by server-managed metadata.
+    return isTemplateWorkspaceProjectPatch(payload);
 }
 
 async function handleDashboardApi(req, res, url) {
@@ -1162,6 +1148,47 @@ const server = http.createServer(async (req, res) => {
         } catch (error) {
             sendJson(res, error.statusCode || 400, {
                 error: error.message || 'Project template download could not be prepared.'
+            });
+        }
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/project-template-workspace') {
+        await projectTemplateWorkspaceHandler(req, augmentResponse(res));
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/project-template-workspace-save') {
+        try {
+            req.body = await readBody(req);
+            await projectTemplateWorkspaceSaveHandler(req, augmentResponse(res));
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, {
+                error: error.message || 'Template changes could not be saved.'
+            });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/project-template-workspace-complete') {
+        try {
+            req.body = await readBody(req);
+            await projectTemplateWorkspaceCompleteHandler(req, augmentResponse(res));
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, {
+                error: error.message || 'Template project could not be completed.'
+            });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/project-template-workspace-unlock') {
+        try {
+            req.body = await readBody(req);
+            await projectTemplateWorkspaceUnlockHandler(req, augmentResponse(res));
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, {
+                error: error.message || 'Template download could not be unlocked.'
             });
         }
         return;
