@@ -41,6 +41,10 @@
       "destination": "/api/commerce/project-template-workspace-unlock"
     },
     {
+      "source": "/api/project-sync",
+      "destination": "/api/commerce/project-sync"
+    },
+    {
       "source": "/api/stripe-webhook",
       "destination": "/api/commerce/stripe-webhook"
     },

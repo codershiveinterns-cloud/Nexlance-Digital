@@ -2118,23 +2118,61 @@ async function syncProjectToBackend(projectId) {
 
     let createdRecord = null;
     try {
-        createdRecord = await dashboardApiRequest('POST', 'projects', '', payload);
+        const syncResponse = await authorizedApiRequest('/api/project-sync', 'POST', {
+            localId,
+            project: payload
+        });
+        createdRecord = syncResponse && syncResponse.record ? syncResponse.record : null;
     } catch (error) {
-        if (!isDashboardApiUnavailableError(error)) {
-            throw normalizeDashboardApiError(error, 'projects', 'create');
+        const status = Number(error && error.status);
+        const routeUnavailable = status === 404 || status === 405;
+        console.error('[ProjectSync] /api/project-sync failed', {
+            localId,
+            status,
+            message: error && error.message ? error.message : '',
+            response: error && error.response ? error.response : null
+        });
+
+        if (!routeUnavailable) {
+            throw error;
         }
     }
 
     if (!createdRecord) {
         try {
-            const ref = await db.collection('projects').add(payload);
-            createdRecord = { id: ref.id, ...payload };
+            createdRecord = await dashboardApiRequest('POST', 'projects', '', payload);
         } catch (error) {
-            throw new Error('Project could not be synced to backend. Please try again.');
+            if (!isDashboardApiUnavailableError(error)) {
+                throw normalizeDashboardApiError(error, 'projects', 'create');
+            }
         }
     }
 
-    const persistedProject = decorateProjectRecord(createdRecord, 'database');
+    if (!createdRecord) {
+        console.error('[ProjectSync] Backend create routes unavailable', {
+            localId,
+            attemptedRoutes: ['/api/project-sync', '/api/dashboard/projects']
+        });
+        throw new Error('Project sync service is unavailable right now. Please try again in a moment.');
+    }
+
+    const createdRecordId = String(createdRecord && createdRecord.id ? createdRecord.id : '').trim();
+    if (!createdRecordId) {
+        console.error('[ProjectSync] Backend response missing ID', {
+            localId,
+            createdRecord
+        });
+        throw new Error('Project sync completed without a valid backend ID.');
+    }
+
+    const normalizedCreatedRecord = {
+        ...createdRecord,
+        id: createdRecordId,
+        backend_id: String(createdRecord.backend_id || createdRecord.backendId || createdRecordId).trim() || createdRecordId,
+        backendId: String(createdRecord.backendId || createdRecord.backend_id || createdRecordId).trim() || createdRecordId
+    };
+
+    const persistedProject = decorateProjectRecord(normalizedCreatedRecord, 'database');
     const backendId = String(persistedProject && persistedProject.id ? persistedProject.id : '').trim();
     if (!backendId) {
         throw new Error('Backend sync completed without a valid project ID.');

@@ -47,6 +47,7 @@ const projectTemplateDownloadHandler = require('./api/project-template-download'
 const projectTemplateWorkspaceHandler = require('./api/project-template-workspace');
 const projectTemplateWorkspaceSaveHandler = require('./api/project-template-workspace-save');
 const projectTemplateWorkspaceUnlockHandler = require('./api/project-template-workspace-unlock');
+const projectSyncHandler = require('./api/project-sync');
 const templateAccessCompleteHandler = require('./api/template-access-complete');
 const templateAccessStartHandler = require('./api/template-access-start');
 const templateDownloadHandler = require('./api/template-download');
@@ -1189,6 +1190,18 @@ const server = http.createServer(async (req, res) => {
         } catch (error) {
             sendJson(res, error.statusCode || 400, {
                 error: error.message || 'Template download could not be unlocked.'
+            });
+        }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/project-sync') {
+        try {
+            req.body = await readBody(req);
+            await projectSyncHandler(req, augmentResponse(res));
+        } catch (error) {
+            sendJson(res, error.statusCode || 400, {
+                error: error.message || 'Project could not be synced to backend.'
             });
         }
         return;

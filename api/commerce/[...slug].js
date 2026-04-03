@@ -8,6 +8,7 @@ const projectTemplateDownloadHandler = require('../../backend/api/project-templa
 const projectTemplateWorkspaceHandler = require('../../backend/api/project-template-workspace');
 const projectTemplateWorkspaceSaveHandler = require('../../backend/api/project-template-workspace-save');
 const projectTemplateWorkspaceUnlockHandler = require('../../backend/api/project-template-workspace-unlock');
+const projectSyncHandler = require('../../backend/api/project-sync');
 const stripeWebhookHandler = require('../../backend/api/stripe-webhook');
 const templateAccessCompleteHandler = require('../../backend/api/template-access-complete');
 const templateAccessStartHandler = require('../../backend/api/template-access-start');
@@ -24,6 +25,7 @@ const ROUTE_HANDLERS = {
     'project-template-download': projectTemplateDownloadHandler,
     'project-template-workspace-save': projectTemplateWorkspaceSaveHandler,
     'project-template-workspace-unlock': projectTemplateWorkspaceUnlockHandler,
+    'project-sync': projectSyncHandler,
     'stripe-webhook': stripeWebhookHandler,
     'template-access-complete': templateAccessCompleteHandler,
     'template-access-start': templateAccessStartHandler,
