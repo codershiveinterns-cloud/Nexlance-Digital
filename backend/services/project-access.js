@@ -58,6 +58,14 @@ function canAccessProjectRecord(sessionUser = {}, projectId, project = {}) {
     }
 
     const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
+    const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole || sessionUser.dashboardRole);
+    const hasExplicitProjectScope = assignedProjectIds.length > 0;
+    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
+
+    if (!shouldRestrictProjects) {
+        return true;
+    }
+
     return assignedProjectIds.includes(String(projectId || '').trim());
 }
 
