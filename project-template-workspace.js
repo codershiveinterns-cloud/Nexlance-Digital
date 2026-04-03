@@ -15,6 +15,11 @@
     let lastWorkspaceError = { message: '', at: 0 };
     let workspaceCapabilities = createEmptyWorkspaceCapabilities();
 
+    function isServerProject(project) {
+        if (!project) return false;
+        return project.is_persisted_project !== false && project.project_source !== 'local_fallback';
+    }
+
     function createEmptyWorkspaceCapabilities() {
         return {
             view_template_workspace: false,
@@ -462,9 +467,18 @@
         }
     }
 
-    function openWorkspaceTab() {
+    async function openWorkspaceTab() {
         const project = getCurrentProject();
         if (!project || !project.template_id || !project.template_page) return;
+
+        if (!workspaceMounted) {
+            await loadWorkspaceContextIfServer(project);
+        } else {
+            const content = document.getElementById('tab-workspace');
+            if (!content || !content.querySelector('.workspace-frame-card')) {
+                await loadWorkspaceContextIfServer(project);
+            }
+        }
 
         ensureWorkspaceLoaded(project);
 
@@ -1024,10 +1038,49 @@
         ensureWorkspaceStyles();
         injectWorkspaceTab();
         updateWorkspaceChrome(project);
-        await fetchWorkspaceContext(project.id);
-        updateWorkspaceChrome(getCurrentProject() || project);
         registerWorkspaceBridge();
         bindWorkspaceCheckoutEvents();
+    }
+
+    async function loadWorkspaceContextIfServer(project) {
+        if (!isServerProject(project)) {
+            showLocalOnlyWorkspaceMessage();
+            return null;
+        }
+        try {
+            const result = await fetchWorkspaceContext(project.id);
+            updateWorkspaceChrome(getCurrentProject() || project);
+            return result;
+        } catch (error) {
+            console.error('Template workspace could not be loaded:', error);
+            const errorMessage = error && error.message ? error.message : '';
+            if (errorMessage.includes('not found') || errorMessage.includes('Project could not be found')) {
+                showLocalOnlyWorkspaceMessage();
+            } else {
+                showWorkspaceError(error.message || 'Template workspace could not be loaded.');
+            }
+            return null;
+        }
+    }
+
+    function showLocalOnlyWorkspaceMessage() {
+        const content = document.getElementById('tab-workspace');
+        if (content) {
+            content.innerHTML = `
+                <div class="workspace-shell">
+                    <div class="workspace-toolbar">
+                        <div>
+                            <h3>Template Workspace</h3>
+                        </div>
+                    </div>
+                    <div class="workspace-frame-card" style="padding: 40px; text-align: center;">
+                        <p style="margin-bottom: 12px;">This project is only stored locally.</p>
+                        <p>Sync it to the server to use shared workspace features.</p>
+                    </div>
+                </div>
+            `;
+        }
+        workspaceMounted = true;
     }
 
     async function initProjectTemplateWorkspace() {

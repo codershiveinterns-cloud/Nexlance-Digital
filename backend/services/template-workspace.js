@@ -126,9 +126,15 @@ async function loadTemplateWorkspaceContext(session, projectId) {
         throw createHttpError('Project ID is required.', 400);
     }
 
+    const LOCAL_ONLY_PATTERNS = ['fashion-store-template', 'ecommerce-template', '-template'];
+    const isLikelyLocalOnly = LOCAL_ONLY_PATTERNS.some(pattern => normalizedProjectId.includes(pattern));
+
     const projectRecord = await getCollectionDocument('projects', normalizedProjectId);
     if (!projectRecord || !projectRecord.data) {
-        throw createHttpError('Project could not be found.', 404);
+        if (isLikelyLocalOnly) {
+            throw createHttpError('Project not yet synced to server. Save project to backend to use workspace features.', 404);
+        }
+        throw createHttpError('Project could not be found. It may not be synced to the server.', 404);
     }
 
     const capabilities = resolveTemplateWorkspaceCapabilities(session.sessionUser, projectRecord.data, normalizedProjectId);
