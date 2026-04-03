@@ -2,7 +2,7 @@ const AccessControl = require('../../rbac.js');
 
 const COLLECTION_PERMISSION_MAP = {
     clients: { create: 'clients.create', read: 'clients.read', update: 'clients.update', delete: 'clients.delete' },
-    invoices: { create: 'create_invoices', read: 'create_invoices', update: 'create_invoices', delete: 'create_invoices' },
+    invoices: { create: 'create_invoices', read: 'view_invoices', update: 'create_invoices', delete: 'create_invoices' },
     projects: { create: 'projects.create', read: 'projects.read', update: 'projects.update', delete: 'projects.delete' },
     services: { create: 'services.create', read: 'services.read', update: 'services.update', delete: 'services.delete' },
     tasks: { create: 'tasks.create', read: 'tasks.read', update: 'tasks.update', delete: 'tasks.delete' },

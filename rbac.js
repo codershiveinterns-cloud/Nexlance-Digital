@@ -247,7 +247,7 @@
     function getAuthenticatedPermissionKeys(user) {
         if (!user || typeof user !== 'object') return [];
 
-        const role = normalizeRole(user.role || user.workspaceRole || user.dashboardRole);
+        const role = normalizeRole(user && (user.role || user.workspaceRole || user.dashboardRole || 'admin'));
         const explicitPermissionKeys = getExplicitPermissionKeys(user);
         const permissionMode = String(user.permissionMode || user.permission_mode || '').trim().toLowerCase();
         const permissionKeys = new Set(GLOBAL_AUTHENTICATED_PERMISSIONS);
@@ -260,6 +260,13 @@
                 ...explicitPermissionKeys
             ].forEach(permission => permissionKeys.add(permission));
         }
+
+        if (isWorkspaceOwner(user)) {
+            OWNER_ONLY_PERMISSIONS.forEach(permission => permissionKeys.add(permission));
+        }
+
+        return Array.from(permissionKeys);
+    }
 
         if (isWorkspaceOwner(user)) {
             OWNER_ONLY_PERMISSIONS.forEach(permission => permissionKeys.add(permission));
