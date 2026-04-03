@@ -563,6 +563,9 @@ document.addEventListener("DOMContentLoaded", () => {
       membershipStatus: profile?.membershipStatus || "active",
       inviteType: profile?.inviteType || "",
       permissions,
+      businessName: profile?.businessName || "",
+      businessEmail: profile?.businessEmail || "",
+      businessAddress: profile?.businessAddress || "",
     });
 
     if (isVipEmail(user.email)) {

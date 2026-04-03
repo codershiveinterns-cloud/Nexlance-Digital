@@ -143,8 +143,8 @@
           <!-- Header -->
           <div class="inv-header">
             <div>
-              <div class="inv-logo">Nexlance</div>
-              <div style="font-size:0.8rem;color:#888;">Web Design Agency<br>vijaypratap@nexlancedigital.com</div>
+              <div class="inv-logo" id="pvHeaderName"></div>
+              <div style="font-size:0.8rem;color:#888;" id="pvHeaderEmail"></div>
             </div>
             <div class="inv-meta" style="text-align:right;">
               <h2>INVOICE</h2>
@@ -158,7 +158,9 @@
           <div class="inv-parties">
             <div class="inv-party">
               <h4>From</h4>
-              <p><strong>Nexlance Agency</strong><br>Your Agency Name<br>City, State — 400001</p>
+              <p id="pvFromName"><em style="color:#ccc;">Your Name...</em></p>
+              <p id="pvFromEmail" style="font-size:0.8rem;color:#888;"></p>
+              <p id="pvFromBusiness" style="font-size:0.8rem;color:#888;"></p>
             </div>
             <div class="inv-party">
               <h4>Bill To</h4>
@@ -217,7 +219,41 @@ window.addEventListener('load', () => {
   document.getElementById('fInvNum').value = num;
   renderLineItems();
   updatePreview();
+  loadCurrentUserForInvoice();
 });
+
+function loadCurrentUserForInvoice() {
+  try {
+    const userData = JSON.parse(localStorage.getItem('nexlance_user') || 'null');
+    if (!userData) return;
+    
+    const fromName = document.getElementById('pvFromName');
+    const fromEmail = document.getElementById('pvFromEmail');
+    const fromBusiness = document.getElementById('pvFromBusiness');
+    const headerName = document.getElementById('pvHeaderName');
+    const headerEmail = document.getElementById('pvHeaderEmail');
+    
+    const displayName = userData.name || userData.email || 'Account';
+    
+    if (fromName) {
+      fromName.innerHTML = `<strong>${displayName}</strong>`;
+    }
+    if (fromEmail && userData.email) {
+      fromEmail.textContent = userData.email;
+    }
+    if (fromBusiness && userData.businessName) {
+      fromBusiness.textContent = userData.businessName;
+    }
+    if (headerName) {
+      headerName.textContent = userData.businessName || displayName;
+    }
+    if (headerEmail && userData.email) {
+      headerEmail.textContent = userData.email;
+    }
+  } catch (e) {
+    console.warn('Could not load user data for invoice:', e);
+  }
+}
 
 function renderLineItems() {
   const container = document.getElementById('lineItems');
