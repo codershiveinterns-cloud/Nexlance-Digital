@@ -150,7 +150,7 @@
         const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
 
         return {
-            name: localRecord.name || currentUser.name || currentUser.email || 'Account',
+            name: currentUser.name || localRecord.name || currentUser.email || 'Account',
             email: localRecord.email || currentUser.email || '',
             avatar: authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL || '' : ''
         };
@@ -203,11 +203,10 @@
                 firebaseRecord = {};
             }
 
-            const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
             topbarProfileCache = {
-                name: firebaseRecord.name || localRecord.name || currentUser.name || (fallbackProfile && fallbackProfile.name) || 'Account',
-                email: firebaseRecord.email || localRecord.email || currentUser.email || (fallbackProfile && fallbackProfile.email) || '',
-                avatar: authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL || '' : ((fallbackProfile && fallbackProfile.avatar) || '')
+                name: currentUser.name || firebaseRecord.name || localRecord.name || 'Account',
+                email: currentUser.email || firebaseRecord.email || localRecord.email || '',
+                avatar: (authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL : '') || ''
             };
 
             return topbarProfileCache;

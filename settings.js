@@ -201,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const authInstance = typeof firebase !== 'undefined' && firebase.auth ? firebase.auth() : null;
 
         return {
-            name: firebaseRecord.name || localRecord.name || (sessionUser && sessionUser.name) || 'Nexlance User',
-            email: firebaseRecord.email || localRecord.email || (sessionUser && sessionUser.email) || 'Not available',
+            name: (sessionUser && sessionUser.name) || firebaseRecord.name || localRecord.name || 'Nexlance User',
+            email: (sessionUser && sessionUser.email) || firebaseRecord.email || localRecord.email || 'Not available',
             accountType: firebaseRecord.accountType || localRecord.accountType || 'personal',
             createdAt: firebaseRecord.createdAt || localRecord.createdAt || null,
             avatar: authInstance && authInstance.currentUser ? authInstance.currentUser.photoURL : '',
