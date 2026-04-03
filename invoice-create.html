@@ -108,8 +108,8 @@
                 <span>Subtotal</span>
                 <span id="subtotalDisplay">₹0</span>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;color:#555;">
-                <span>GST <input type="number" id="fGst" value="18" min="0" max="28" style="width:48px;padding:3px 6px;border-radius:6px;border:1px solid #e0d6ff;font-size:0.82rem;" oninput="calcTotals()"> %</span>
+              <div style="display:flex;justify-content:space-between;font-size:0.875rem;color:#555;">
+                <span>GST (18%)</span>
                 <span id="gstDisplay">₹0</span>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:700;color:#4b3fbf;border-top:2px solid #e0d6ff;padding-top:10px;">
@@ -280,8 +280,9 @@ function addLineItem() { lineItems.push({ desc: '', amount: 0 }); renderLineItem
 function removeItem(i) { lineItems.splice(i, 1); renderLineItems(); updatePreview(); }
 
 function calcTotals() {
+  const GST_PERCENT = 18;
   const subtotal = lineItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-  const gstPct = Number(document.getElementById('fGst').value) || 18;
+  const gstPct = GST_PERCENT;
   const gst = (subtotal * gstPct) / 100;
   const total = subtotal + gst;
   document.getElementById('subtotalDisplay').textContent = formatCurrency(subtotal);

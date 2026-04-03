@@ -38,6 +38,7 @@
         DELETE_TASKS: 'delete_tasks',
         VIEW_REVENUE: 'view_revenue',
         CREATE_INVOICES: 'create_invoices',
+        VIEW_INVOICES: 'view_invoices',
         MANAGE_PAYMENTS: 'manage_payments',
         UPLOAD_FILES: 'upload_files',
         MANAGE_TEAM_MEMBERS: 'manage_team_members',
@@ -92,6 +93,7 @@
             PERMISSIONS.DELETE_TASKS,
             PERMISSIONS.VIEW_REVENUE,
             PERMISSIONS.CREATE_INVOICES,
+            PERMISSIONS.VIEW_INVOICES,
             PERMISSIONS.UPLOAD_FILES,
             PERMISSIONS.VIEW_SERVICES,
             PERMISSIONS.MANAGE_TEAM_MEMBERS,
@@ -115,6 +117,7 @@
             PERMISSIONS.DELETE_TASKS,
             PERMISSIONS.VIEW_REVENUE,
             PERMISSIONS.CREATE_INVOICES,
+            PERMISSIONS.VIEW_INVOICES,
             PERMISSIONS.UPLOAD_FILES,
             PERMISSIONS.VIEW_SERVICES
         ]),
@@ -150,6 +153,7 @@
         Object.freeze({ key: PERMISSIONS.DELETE_TASKS, label: 'Delete Tasks' }),
         Object.freeze({ key: PERMISSIONS.VIEW_REVENUE, label: 'View Revenue Data' }),
         Object.freeze({ key: PERMISSIONS.CREATE_INVOICES, label: 'Create Invoices' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_INVOICES, label: 'View Invoices' }),
         Object.freeze({ key: PERMISSIONS.MANAGE_PAYMENTS, label: 'Manage Payments' }),
         Object.freeze({ key: PERMISSIONS.UPLOAD_FILES, label: 'Upload Files' }),
         Object.freeze({ key: PERMISSIONS.MANAGE_TEAM_MEMBERS, label: 'Manage Team Members' }),
@@ -285,7 +289,7 @@
                 create: permissionSet.has(PERMISSIONS.CREATE_INVOICES),
                 update: permissionSet.has(PERMISSIONS.CREATE_INVOICES),
                 delete: canDeleteManagedRecords && permissionSet.has(PERMISSIONS.CREATE_INVOICES),
-                read: permissionSet.has(PERMISSIONS.CREATE_INVOICES) || permissionSet.has(PERMISSIONS.VIEW_REVENUE)
+                read: permissionSet.has(PERMISSIONS.VIEW_INVOICES) || permissionSet.has(PERMISSIONS.CREATE_INVOICES) || permissionSet.has(PERMISSIONS.VIEW_REVENUE)
             },
             projects: {
                 create: permissionSet.has(PERMISSIONS.MANAGE_PROJECTS),
