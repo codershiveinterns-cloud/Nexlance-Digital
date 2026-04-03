@@ -547,7 +547,8 @@ function isTemplateWorkspacePatchPayload(collectionId, payload) {
         return false;
     }
 
-    const keys = Object.keys(payload);
+    const sanitizedPayload = sanitizeDashboardPayload(payload);
+    const keys = Object.keys(sanitizedPayload);
     if (!keys.length) {
         return false;
     }

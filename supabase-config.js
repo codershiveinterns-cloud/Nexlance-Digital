@@ -1823,6 +1823,11 @@ async function addProject(d) {
 }
 
 function isTemplateWorkspaceProjectUpdate(payload) {
+    const templateWorkspaceMetadataFields = new Set([
+        'owner_key',
+        'owner_email',
+        'updated_at'
+    ]);
     const templateWorkspacePatchFields = new Set([
         'template_state',
         'template_last_saved_at',
@@ -1839,7 +1844,7 @@ function isTemplateWorkspaceProjectUpdate(payload) {
 
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
 
-    const keys = Object.keys(payload);
+    const keys = Object.keys(payload).filter(key => !templateWorkspaceMetadataFields.has(String(key || '').trim()));
     if (!keys.length) return false;
 
     return keys.every(key => templateWorkspacePatchFields.has(String(key || '').trim()));
@@ -1847,8 +1852,10 @@ function isTemplateWorkspaceProjectUpdate(payload) {
 
 async function updateProject(id, d, options = {}) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
+    const sanitizedPayload = sanitizeFirestoreData(d);
     const doc = sanitizeFirestoreData(withOwnerFields(d));
-    const isTemplateWorkspaceUpdate = options && options.templateWorkspace === true && isTemplateWorkspaceProjectUpdate(doc);
+    const isTemplateWorkspaceUpdate = options && options.templateWorkspace === true && isTemplateWorkspaceProjectUpdate(sanitizedPayload);
+    const dashboardPayload = isTemplateWorkspaceUpdate ? sanitizedPayload : doc;
     if (Object.prototype.hasOwnProperty.call(doc, 'template_state')) {
         console.debug('[Nexlance] Saving sanitized template_state', {
             projectId: id,
@@ -1861,7 +1868,7 @@ async function updateProject(id, d, options = {}) {
         }
         if (isFirebaseUserAuthenticated()) {
             try {
-                const record = await dashboardApiRequest('PATCH', 'projects', id, doc);
+                const record = await dashboardApiRequest('PATCH', 'projects', id, dashboardPayload);
                 if (record) {
                     upsertLocalEntityRecord('projects', record);
                 }
