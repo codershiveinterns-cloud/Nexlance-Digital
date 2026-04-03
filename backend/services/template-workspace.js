@@ -1,5 +1,11 @@
 const AccessControl = require('../../rbac.js');
 const { getCollectionDocument, patchCollectionDocument } = require('./firebase-service');
+const {
+    PROJECT_CAPABILITIES,
+    canAccessProjectRecord,
+    createEmptyProjectCapabilities,
+    resolveProjectCapabilities
+} = require('./project-access');
 
 const TEMPLATE_WORKSPACE_PROJECT_PATCH_FIELDS = new Set([
     'template_state',
@@ -94,43 +100,17 @@ function isTemplateWorkspaceProjectPatch(payload) {
     return keys.every(key => TEMPLATE_WORKSPACE_PROJECT_PATCH_FIELDS.has(String(key || '').trim()));
 }
 
-function hasAllProjectsAccess(sessionUser = {}) {
-    return sessionUser.allProjectsAccess === true
-        || sessionUser.all_projects_access === true
-        || String(sessionUser.projectAccessScope || sessionUser.project_access_scope || '').trim().toLowerCase() === 'all';
-}
-
-function canAccessProjectRecord(sessionUser = {}, projectId, project = {}) {
-    const ownerEmail = AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email);
-    const recordOwner = AccessControl.normalizeEmail(project.owner_key || project.owner_email || '');
-    const workspaceMatch = String(project.workspace_id || '').trim() === String(sessionUser.workspaceId || '').trim();
-    if (!((recordOwner && recordOwner === ownerEmail) || workspaceMatch)) {
-        return false;
-    }
-
-    if (AccessControl.isWorkspaceOwner(sessionUser) || hasAllProjectsAccess(sessionUser)) {
-        return true;
-    }
-
-    const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
-    const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
-    if (role !== AccessControl.ROLES.CLIENT && !assignedProjectIds.length) {
-        return true;
-    }
-
-    return assignedProjectIds.includes(String(projectId || '').trim());
-}
-
 function resolveTemplateWorkspaceCapabilities(sessionUser = {}, project = {}, projectId = '') {
     const emptyCapabilities = AccessControl.createEmptyTemplateWorkspaceCapabilities();
-    if (!canAccessProjectRecord(sessionUser, projectId, project)) {
-        return emptyCapabilities;
-    }
-
-    const roleCapabilities = AccessControl.getTemplateWorkspaceRoleCapabilities(sessionUser);
+    const projectCapabilities = resolveProjectCapabilities(sessionUser, projectId, project);
     return {
         ...emptyCapabilities,
-        ...roleCapabilities
+        [AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE]: projectCapabilities[PROJECT_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE] === true,
+        [AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.EDIT_TEMPLATE]: projectCapabilities[PROJECT_CAPABILITIES.EDIT_TEMPLATE] === true,
+        [AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.SAVE_TEMPLATE]: projectCapabilities[PROJECT_CAPABILITIES.SAVE_TEMPLATE] === true,
+        [AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.COMPLETE_TEMPLATE_PROJECT]: projectCapabilities[PROJECT_CAPABILITIES.COMPLETE_PROJECT] === true,
+        [AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.DOWNLOAD_TEMPLATE_OUTPUT]: projectCapabilities[PROJECT_CAPABILITIES.DOWNLOAD_OUTPUT] === true,
+        [AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.ADMIN_OVERRIDE]: projectCapabilities[PROJECT_CAPABILITIES.ADMIN_OVERRIDE] === true
     };
 }
 

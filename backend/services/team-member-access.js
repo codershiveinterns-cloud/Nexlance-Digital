@@ -30,6 +30,17 @@ function buildTeamPermissionFields(role) {
     };
 }
 
+function getExplicitTeamPermissionState(teamMemberData = {}) {
+    const permissionKeys = Array.isArray(teamMemberData.permission_keys)
+        ? teamMemberData.permission_keys
+        : (Array.isArray(teamMemberData.permissionKeys) ? teamMemberData.permissionKeys : []);
+    const permissionMode = String(teamMemberData.permission_mode || teamMemberData.permissionMode || '').trim().toLowerCase();
+    return {
+        permissionKeys,
+        permissionMode: permissionMode === 'explicit' ? 'explicit' : 'default'
+    };
+}
+
 async function resolveLinkedUser(teamMemberData = {}) {
     const explicitUserId = String(teamMemberData.invited_user_id || teamMemberData.userId || '').trim();
     if (explicitUserId) {
@@ -70,6 +81,12 @@ async function syncWorkspaceMemberRecord({ workspaceId, userId, email, teamMembe
         workspaceRole: role,
         email,
         isWorkspaceOwner: false,
+        permissionKeys: Array.isArray(teamMemberData.permission_keys)
+            ? teamMemberData.permission_keys
+            : (Array.isArray(teamMemberData.permissionKeys) ? teamMemberData.permissionKeys : []),
+        permissionMode: String(teamMemberData.permission_mode || teamMemberData.permissionMode || '').trim().toLowerCase() === 'explicit'
+            ? 'explicit'
+            : 'default',
         assignedProjectIds: access.assignedProjectIds,
         allProjectsAccess: access.allProjectsAccess,
         projectAccessScope: access.projectAccessScope
@@ -86,6 +103,7 @@ async function syncWorkspaceMemberRecord({ workspaceId, userId, email, teamMembe
         isWorkspaceOwner: false,
         permissionKeys: permissionFields.permissionKeys,
         permissions: permissionFields.permissions,
+        permissionMode: permissionFields.permissionMode,
         assignedProjectIds: access.assignedProjectIds,
         allProjectsAccess: access.allProjectsAccess,
         projectAccessScope: access.projectAccessScope,
@@ -127,10 +145,13 @@ async function syncTeamMemberState(teamMemberInput) {
         project_id: access.primaryProjectId,
         primary_project_id: access.primaryProjectId
     };
+    const explicitPermissionState = getExplicitTeamPermissionState(teamMemberRecord.data);
 
     await patchCollectionDocument('team_members', teamMemberRecord.id, {
         ...roleFields,
         ...teamMemberAccessFields,
+        permission_keys: explicitPermissionState.permissionKeys,
+        permission_mode: explicitPermissionState.permissionMode,
         updated_at: new Date().toISOString()
     }).catch(() => undefined);
 
@@ -138,6 +159,8 @@ async function syncTeamMemberState(teamMemberInput) {
         await patchCollectionDocument('invitations', teamMemberRecord.data.invitation_id, {
             role: roleFields.canonical_role,
             ...buildInvitationAccessFields(access),
+            permissionKeys: explicitPermissionState.permissionKeys,
+            permissionMode: explicitPermissionState.permissionMode,
             updatedAt: new Date().toISOString()
         }).catch(() => undefined);
     }
@@ -154,6 +177,8 @@ async function syncTeamMemberState(teamMemberInput) {
             workspaceRole: roleFields.canonical_role,
             email,
             isWorkspaceOwner: false,
+            permissionKeys: explicitPermissionState.permissionKeys,
+            permissionMode: explicitPermissionState.permissionMode,
             assignedProjectIds: access.assignedProjectIds,
             allProjectsAccess: access.allProjectsAccess,
             projectAccessScope: access.projectAccessScope
@@ -164,6 +189,7 @@ async function syncTeamMemberState(teamMemberInput) {
             workspaceRole: roleFields.canonical_role,
             permissionKeys: permissionFields.permissionKeys,
             permissions: permissionFields.permissions,
+            permissionMode: permissionFields.permissionMode,
             assignedProjectIds: access.assignedProjectIds,
             allProjectsAccess: access.allProjectsAccess,
             projectAccessScope: access.projectAccessScope,
@@ -200,6 +226,8 @@ async function syncTeamMemberState(teamMemberInput) {
             ...teamMemberRecord.data,
             ...roleFields,
             ...teamMemberAccessFields,
+            permission_keys: explicitPermissionState.permissionKeys,
+            permission_mode: explicitPermissionState.permissionMode,
             invited_user_id: linkedUserId || String(teamMemberRecord.data.invited_user_id || '').trim()
         }
     };

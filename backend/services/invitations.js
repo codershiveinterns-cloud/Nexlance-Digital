@@ -170,7 +170,8 @@ function buildInvitationRecord({
     sessionUser,
     rawToken,
     targetRecord,
-    origin
+    origin,
+    metadata = {}
 }) {
     const now = new Date().toISOString();
     const invitationAccessFields = buildInvitationAccessFields({
@@ -197,6 +198,12 @@ function buildInvitationRecord({
         inviteLink: buildInvitationLink(rawToken, origin),
         createdAt: now,
         updatedAt: now,
+        permissionKeys: Array.isArray(metadata.permissionKeys)
+            ? metadata.permissionKeys.map(permission => String(permission || '').trim()).filter(Boolean)
+            : (Array.isArray(metadata.permission_keys)
+                ? metadata.permission_keys.map(permission => String(permission || '').trim()).filter(Boolean)
+                : []),
+        permissionMode: String(metadata.permissionMode || metadata.permission_mode || '').trim().toLowerCase() === 'explicit' ? 'explicit' : 'default',
         ...invitationAccessFields
     };
 }
@@ -246,7 +253,8 @@ async function createInvitation({
         sessionUser,
         rawToken,
         targetRecord,
-        origin
+        origin,
+        metadata
     });
 
     await upsertCollectionDocument('invitations', invitationId, invitationRecord);
@@ -462,6 +470,8 @@ async function acceptInvitation({ session, token }) {
         ...session.userProfile,
         role,
         workspaceRole: role,
+        permissionKeys: Array.isArray(record.permissionKeys) ? record.permissionKeys : [],
+        permissionMode: record.permissionMode || 'default',
         workspaceId: record.workspaceId,
         workspaceOwnerEmail: record.workspaceOwnerEmail,
         workspaceOwnerUserId: record.workspaceOwnerUserId,
@@ -486,6 +496,7 @@ async function acceptInvitation({ session, token }) {
         workspaceRole: role,
         permissionKeys: profileFields.permissionKeys,
         permissions: profileFields.permissions,
+        permissionMode: profileFields.permissionMode,
         assignedProjectIds: accessFields.assignedProjectIds,
         allProjectsAccess: accessFields.allProjectsAccess,
         projectAccessScope: accessFields.projectAccessScope,
@@ -506,6 +517,9 @@ async function acceptInvitation({ session, token }) {
         role,
         workspaceRole: role,
         isWorkspaceOwner: false,
+        permissionKeys: profileFields.permissionKeys,
+        permissions: profileFields.permissions,
+        permissionMode: profileFields.permissionMode,
         assignedProjectIds: accessFields.assignedProjectIds,
         allProjectsAccess: accessFields.allProjectsAccess,
         projectAccessScope: accessFields.projectAccessScope,

@@ -556,6 +556,7 @@ document.addEventListener("DOMContentLoaded", () => {
       workspaceOwnerUserId: profile?.workspaceOwnerUserId || profile?.ownerUserId || user.uid,
       isWorkspaceOwner: Boolean(profile?.isWorkspaceOwner),
       permissionKeys: profile?.permissionKeys || accessFields.permissionKeys,
+      permissionMode: profile?.permissionMode || "default",
       assignedProjectIds: profile?.assignedProjectIds || [],
       allProjectsAccess: Boolean(profile?.allProjectsAccess),
       projectAccessScope: profile?.projectAccessScope || (profile?.allProjectsAccess ? "all" : "selected"),
@@ -697,6 +698,7 @@ document.addEventListener("DOMContentLoaded", () => {
         workspaceOwnerEmail: email,
         workspaceOwnerUserId: "",
         permissionKeys: accessFields.permissionKeys,
+        permissionMode: "default",
         permissions: accessFields.permissions,
       },
     });

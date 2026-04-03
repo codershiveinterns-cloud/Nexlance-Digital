@@ -100,7 +100,7 @@
     <div style="margin-top:18px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
         <h4 style="font-size:0.82rem;color:#6c5ce7;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Permissions</h4>
-        <span style="font-size:0.78rem;color:#888;">Auto-filled from Access / Roles</span>
+        <span style="font-size:0.78rem;color:#888;">Role defaults are preselected, but you can narrow or extend access here.</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
@@ -120,6 +120,10 @@
           <label class="toggle"><input type="checkbox" id="pUpload" disabled><span class="toggle-slider"></span></label>
         </label>
       </div>
+      <div class="form-group" style="margin-top:18px;">
+        <label>Dashboard & Workspace Access</label>
+        <div id="memberPermissionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px;"></div>
+      </div>
     </div>
 
     <div class="modal-footer">
@@ -138,6 +142,18 @@ let availableProjects = [];
 let editingId = null;
 
 const accessControl = window.NexlanceAccessControl;
+const editablePermissionKeys = accessControl && Array.isArray(accessControl.PERMISSION_CATALOG)
+  ? accessControl.PERMISSION_CATALOG
+      .map(permission => ({ key: permission.key, label: permission.label }))
+      .filter(permission => ![
+        accessControl.PERMISSIONS.MANAGE_PAYMENTS,
+        accessControl.PERMISSIONS.MANAGE_TEAM_MEMBERS,
+        accessControl.PERMISSIONS.ACCESS_SYSTEM_SETTINGS,
+        accessControl.PERMISSIONS.ACCESS_ADMIN_PANEL,
+        accessControl.PERMISSIONS.ACCESS_INVITATION_CONTROL,
+        accessControl.PERMISSIONS.SIGN_OUT
+      ].includes(permission.key))
+  : [];
 const roleColors = {
   'Admin': 'badge-red',
   'Project Manager': 'badge-blue',
@@ -194,6 +210,50 @@ function getRoleToggleState(role) {
   return presets[getRoleLabel(role)] || presets.Admin;
 }
 
+function getRolePermissionKeys(role) {
+  return accessControl && typeof accessControl.getRolePermissionKeys === 'function'
+    ? accessControl.getRolePermissionKeys(role)
+    : [];
+}
+
+function getMemberExplicitPermissionKeys(member) {
+  return Array.isArray(member && member.permission_keys)
+    ? member.permission_keys
+    : (Array.isArray(member && member.permissionKeys) ? member.permissionKeys : []);
+}
+
+function getMemberPermissionMode(member) {
+  const mode = String(member && (member.permission_mode || member.permissionMode) || '').trim().toLowerCase();
+  return mode === 'explicit' ? 'explicit' : 'default';
+}
+
+function renderPermissionChecklist(selectedKeys = []) {
+  const container = document.getElementById('memberPermissionGrid');
+  if (!container) return;
+  if (!editablePermissionKeys.length) {
+    container.innerHTML = '<div style="color:#888;font-size:0.82rem;">Permission catalog unavailable.</div>';
+    return;
+  }
+
+  const selected = new Set((Array.isArray(selectedKeys) ? selectedKeys : []).map(String));
+  container.innerHTML = editablePermissionKeys.map(permission => `
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #ece7fb;border-radius:12px;background:#faf8ff;font-size:0.84rem;color:#4b3f65;">
+      <input type="checkbox" class="member-permission-checkbox" value="${permission.key}" ${selected.has(permission.key) ? 'checked' : ''} style="margin-top:2px;">
+      <span>${permission.label}</span>
+    </label>
+  `).join('');
+}
+
+function getSelectedPermissionKeys() {
+  return Array.from(document.querySelectorAll('.member-permission-checkbox:checked'))
+    .map(input => String(input.value || '').trim())
+    .filter(Boolean);
+}
+
+function applyRolePermissionDefaults(role) {
+  renderPermissionChecklist(getRolePermissionKeys(role));
+}
+
 function applyRolePermissions(role) {
   const state = getRoleToggleState(role);
   document.getElementById('pTasks').checked = state.tasks;
@@ -203,7 +263,22 @@ function applyRolePermissions(role) {
 }
 
 function getMemberPermissionState(member) {
-  return getRoleToggleState(member.canonical_role || member.role);
+  const userLike = {
+    role: member && (member.canonical_role || member.role),
+    workspaceRole: member && (member.canonical_role || member.role),
+    permissionKeys: getMemberExplicitPermissionKeys(member),
+    permissionMode: getMemberPermissionMode(member)
+  };
+  if (accessControl && typeof accessControl.getPermissionMatrix === 'function') {
+    const matrix = accessControl.getPermissionMatrix(userLike);
+    return {
+      tasks: Boolean(matrix && matrix.tasks && matrix.tasks.update),
+      revenue: Boolean(accessControl.hasPermission && accessControl.hasPermission(userLike, accessControl.PERMISSIONS.VIEW_REVENUE)),
+      invoice: Boolean(accessControl.hasPermission && accessControl.hasPermission(userLike, accessControl.PERMISSIONS.CREATE_INVOICES)),
+      upload: Boolean(accessControl.hasPermission && accessControl.hasPermission(userLike, accessControl.PERMISSIONS.UPLOAD_FILES))
+    };
+  }
+  return getRoleToggleState(member && (member.canonical_role || member.role));
 }
 
 async function refreshTeamData() {
@@ -320,6 +395,7 @@ function openAddModal() {
   document.getElementById('fRole').value = 'Developer';
   renderProjectAccessOptions([]);
   applyRolePermissions('Developer');
+  applyRolePermissionDefaults('Developer');
   document.getElementById('memberModal').classList.add('active');
 }
 
@@ -335,6 +411,11 @@ function openEditModal(id) {
   document.getElementById('fRole').value = getRoleLabel(member.canonical_role || member.role);
   renderProjectAccessOptions(member.assigned_project_ids || member.assignedProjectIds || []);
   applyRolePermissions(member.canonical_role || member.role);
+  renderPermissionChecklist(
+    getMemberPermissionMode(member) === 'explicit'
+      ? getMemberExplicitPermissionKeys(member)
+      : getRolePermissionKeys(member.canonical_role || member.role)
+  );
   document.getElementById('memberModal').classList.add('active');
 }
 
@@ -355,6 +436,7 @@ async function saveMember() {
 
   const assignedProjectIds = getSelectedProjectIds();
   const rolePermissions = getRoleToggleState(role);
+  const permissionKeys = getSelectedPermissionKeys();
   const data = {
     name,
     email,
@@ -363,7 +445,11 @@ async function saveMember() {
     can_see_revenue: rolePermissions.revenue,
     can_create_invoices: rolePermissions.invoice,
     can_upload_files: rolePermissions.upload,
-    assigned_project_ids: assignedProjectIds
+    assigned_project_ids: assignedProjectIds,
+    permission_keys: permissionKeys,
+    permission_mode: 'explicit',
+    permissionKeys,
+    permissionMode: 'explicit'
   };
 
   try {
@@ -377,6 +463,8 @@ async function saveMember() {
         email,
         role,
         assignedProjectIds,
+        permissionKeys,
+        permissionMode: 'explicit',
         metadata: data
       });
       await refreshTeamData();
@@ -414,6 +502,7 @@ document.getElementById('memberModal').addEventListener('click', function (event
 
 document.getElementById('fRole').addEventListener('change', function () {
   applyRolePermissions(this.value);
+  applyRolePermissionDefaults(this.value);
 });
 
 window.addEventListener('focus', () => {

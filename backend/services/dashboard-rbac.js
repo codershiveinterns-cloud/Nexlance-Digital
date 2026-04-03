@@ -29,7 +29,11 @@ function getResolvedAccessProfile(userProfile = {}, authUser = {}) {
         ...userProfile,
         email: normalizeEmail(userProfile.email || authUser.email),
         uid: authUser.uid || userProfile.uid || userProfile.userId || '',
-        role: normalizeRole(userProfile.role || userProfile.workspaceRole || userProfile.dashboardRole || 'admin')
+        role: normalizeRole(userProfile.role || userProfile.workspaceRole || userProfile.dashboardRole || 'admin'),
+        permissionMode: String(userProfile.permissionMode || userProfile.permission_mode || '').trim().toLowerCase() || '',
+        permissionKeys: Array.isArray(userProfile.permissionKeys)
+            ? userProfile.permissionKeys
+            : (Array.isArray(userProfile.permission_keys) ? userProfile.permission_keys : [])
     };
 
     const accessProfile = AccessControl.getAccessProfile(mergedUser);

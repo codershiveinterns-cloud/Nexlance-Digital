@@ -17,12 +17,25 @@
         CLIENT: 'client'
     });
 
+    const USER_KINDS = Object.freeze({
+        ADMIN: 'admin',
+        TEAM_MEMBER: 'team_member',
+        CLIENT: 'client'
+    });
+
     const PERMISSIONS = Object.freeze({
         VIEW_DASHBOARD: 'view_dashboard',
         VIEW_CLIENTS: 'view_clients',
         EDIT_CLIENT_INFO: 'edit_client_info',
         VIEW_PROJECTS: 'view_projects',
         MANAGE_PROJECTS: 'manage_projects',
+        VIEW_TEMPLATE_WORKSPACE: 'view_template_workspace',
+        EDIT_TEMPLATE: 'edit_template',
+        SAVE_TEMPLATE: 'save_template',
+        COMPLETE_PROJECT: 'complete_project',
+        DOWNLOAD_OUTPUT: 'download_output',
+        VIEW_TASK_BOARD: 'view_task_board',
+        EDIT_TASK_BOARD: 'edit_task_board',
         EDIT_TASKS: 'edit_tasks',
         DELETE_TASKS: 'delete_tasks',
         VIEW_REVENUE: 'view_revenue',
@@ -68,6 +81,13 @@
             PERMISSIONS.EDIT_CLIENT_INFO,
             PERMISSIONS.VIEW_PROJECTS,
             PERMISSIONS.MANAGE_PROJECTS,
+            PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
+            PERMISSIONS.EDIT_TEMPLATE,
+            PERMISSIONS.SAVE_TEMPLATE,
+            PERMISSIONS.COMPLETE_PROJECT,
+            PERMISSIONS.DOWNLOAD_OUTPUT,
+            PERMISSIONS.VIEW_TASK_BOARD,
+            PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
             PERMISSIONS.DELETE_TASKS,
             PERMISSIONS.VIEW_REVENUE,
@@ -81,6 +101,13 @@
             PERMISSIONS.EDIT_CLIENT_INFO,
             PERMISSIONS.VIEW_PROJECTS,
             PERMISSIONS.MANAGE_PROJECTS,
+            PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
+            PERMISSIONS.EDIT_TEMPLATE,
+            PERMISSIONS.SAVE_TEMPLATE,
+            PERMISSIONS.COMPLETE_PROJECT,
+            PERMISSIONS.DOWNLOAD_OUTPUT,
+            PERMISSIONS.VIEW_TASK_BOARD,
+            PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
             PERMISSIONS.DELETE_TASKS,
             PERMISSIONS.VIEW_REVENUE,
@@ -91,6 +118,13 @@
         [ROLES.DEVELOPER]: Object.freeze([
             PERMISSIONS.VIEW_DASHBOARD,
             PERMISSIONS.VIEW_PROJECTS,
+            PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
+            PERMISSIONS.EDIT_TEMPLATE,
+            PERMISSIONS.SAVE_TEMPLATE,
+            PERMISSIONS.COMPLETE_PROJECT,
+            PERMISSIONS.DOWNLOAD_OUTPUT,
+            PERMISSIONS.VIEW_TASK_BOARD,
+            PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
             PERMISSIONS.UPLOAD_FILES,
             PERMISSIONS.VIEW_SERVICES
@@ -98,12 +132,21 @@
         [ROLES.DESIGNER]: Object.freeze([
             PERMISSIONS.VIEW_DASHBOARD,
             PERMISSIONS.VIEW_PROJECTS,
+            PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
+            PERMISSIONS.EDIT_TEMPLATE,
+            PERMISSIONS.SAVE_TEMPLATE,
+            PERMISSIONS.COMPLETE_PROJECT,
+            PERMISSIONS.DOWNLOAD_OUTPUT,
+            PERMISSIONS.VIEW_TASK_BOARD,
+            PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
             PERMISSIONS.UPLOAD_FILES,
             PERMISSIONS.VIEW_SERVICES
         ]),
         [ROLES.CLIENT]: Object.freeze([
-            PERMISSIONS.VIEW_PROJECTS
+            PERMISSIONS.VIEW_PROJECTS,
+            PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
+            PERMISSIONS.VIEW_TASK_BOARD
         ])
     });
 
@@ -121,6 +164,13 @@
         Object.freeze({ key: PERMISSIONS.EDIT_CLIENT_INFO, label: 'Edit Client Info' }),
         Object.freeze({ key: PERMISSIONS.VIEW_PROJECTS, label: 'View Projects' }),
         Object.freeze({ key: PERMISSIONS.MANAGE_PROJECTS, label: 'Manage Projects' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_TEMPLATE_WORKSPACE, label: 'View Template Workspace' }),
+        Object.freeze({ key: PERMISSIONS.EDIT_TEMPLATE, label: 'Edit Template Workspace' }),
+        Object.freeze({ key: PERMISSIONS.SAVE_TEMPLATE, label: 'Save Template Workspace' }),
+        Object.freeze({ key: PERMISSIONS.COMPLETE_PROJECT, label: 'Complete Project Workspace' }),
+        Object.freeze({ key: PERMISSIONS.DOWNLOAD_OUTPUT, label: 'Download Project Output' }),
+        Object.freeze({ key: PERMISSIONS.VIEW_TASK_BOARD, label: 'View Task Board' }),
+        Object.freeze({ key: PERMISSIONS.EDIT_TASK_BOARD, label: 'Edit Task Board' }),
         Object.freeze({ key: PERMISSIONS.EDIT_TASKS, label: 'Edit Tasks' }),
         Object.freeze({ key: PERMISSIONS.DELETE_TASKS, label: 'Delete Tasks' }),
         Object.freeze({ key: PERMISSIONS.VIEW_REVENUE, label: 'View Revenue Data' }),
@@ -176,6 +226,27 @@
         return ROLE_ALIASES[normalized] || ROLES.ADMIN;
     }
 
+    function getUserKind(user) {
+        const role = normalizeRole(user && (user.role || user.workspaceRole || user.dashboardRole));
+        if (isWorkspaceOwner(user) || role === ROLES.ADMIN) {
+            return USER_KINDS.ADMIN;
+        }
+        if (role === ROLES.CLIENT) {
+            return USER_KINDS.CLIENT;
+        }
+        return USER_KINDS.TEAM_MEMBER;
+    }
+
+    function getExplicitPermissionKeys(user) {
+        if (!user || typeof user !== 'object') return [];
+        const rawPermissionKeys = Array.isArray(user.permissionKeys)
+            ? user.permissionKeys
+            : (Array.isArray(user.permission_keys) ? user.permission_keys : []);
+        return Array.from(new Set(rawPermissionKeys
+            .map(permission => String(permission || '').trim())
+            .filter(Boolean)));
+    }
+
     function isWorkspaceOwner(user) {
         if (!user || typeof user !== 'object') return false;
         if (user.isWorkspaceOwner === true || user.workspaceOwner === true || user.owner === true) {
@@ -198,21 +269,22 @@
         if (!user || typeof user !== 'object') return [];
 
         const role = normalizeRole(user.role || user.workspaceRole || user.dashboardRole);
-        const permissionKeys = new Set([
-            ...(ROLE_PERMISSION_MAP[role] || ROLE_PERMISSION_MAP[ROLES.ADMIN]),
-            ...GLOBAL_AUTHENTICATED_PERMISSIONS
-        ]);
+        const explicitPermissionKeys = getExplicitPermissionKeys(user);
+        const permissionMode = String(user.permissionMode || user.permission_mode || '').trim().toLowerCase();
+        const permissionKeys = new Set(GLOBAL_AUTHENTICATED_PERMISSIONS);
+
+        if (permissionMode === 'explicit') {
+            explicitPermissionKeys.forEach(permission => permissionKeys.add(permission));
+        } else {
+            [
+                ...(ROLE_PERMISSION_MAP[role] || ROLE_PERMISSION_MAP[ROLES.ADMIN]),
+                ...explicitPermissionKeys
+            ].forEach(permission => permissionKeys.add(permission));
+        }
 
         if (isWorkspaceOwner(user)) {
             OWNER_ONLY_PERMISSIONS.forEach(permission => permissionKeys.add(permission));
         }
-
-        const explicitPermissions = Array.isArray(user.permissionKeys)
-            ? user.permissionKeys
-            : (Array.isArray(user.permissions) ? user.permissions : []);
-        explicitPermissions.forEach(permission => {
-            if (permission) permissionKeys.add(String(permission));
-        });
 
         return Array.from(permissionKeys);
     }
@@ -272,6 +344,7 @@
         const permissionKeys = getAuthenticatedPermissionKeys(user);
         return {
             role,
+            userKind: getUserKind(user),
             isWorkspaceOwner: isWorkspaceOwner(user),
             permissionKeys,
             permissionMatrix: getPermissionMatrix({ ...(user || {}), role })
@@ -446,6 +519,7 @@
 
     return {
         ROLES,
+        USER_KINDS,
         PERMISSIONS,
         TEMPLATE_WORKSPACE_CAPABILITIES,
         ROLE_PERMISSION_MAP,
@@ -455,6 +529,7 @@
         GLOBAL_AUTHENTICATED_PERMISSIONS,
         normalizeEmail,
         normalizeRole,
+        getUserKind,
         isWorkspaceOwner,
         getAuthenticatedPermissionKeys,
         getRolePermissionKeys,

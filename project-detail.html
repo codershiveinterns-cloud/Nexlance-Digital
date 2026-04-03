@@ -54,6 +54,8 @@
       </div>
     </div>
 
+    <div id="projectSourceNotice" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:14px;border:1px solid #f5d0a9;background:#fff7ed;color:#9a3412;font-size:0.88rem;"></div>
+
     <!-- Tabs -->
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this,'overview')">Overview</div>
@@ -220,7 +222,8 @@ function getRoleAccessState() {
   return {
     canManageProjects: !accessControl || !currentUser || accessControl.canManageProjects(currentUser),
     canEditTasks: !accessControl || !currentUser || accessControl.canEditTasks(currentUser),
-    canDeleteTasks: !accessControl || !currentUser || accessControl.canDeleteTasks(currentUser)
+    canDeleteTasks: !accessControl || !currentUser || accessControl.canDeleteTasks(currentUser),
+    canViewTaskBoard: !accessControl || !currentUser || accessControl.hasPermission(currentUser, accessControl.PERMISSIONS.VIEW_TASK_BOARD)
   };
 }
 
@@ -228,8 +231,10 @@ function applyPermissionUi() {
   const access = getRoleAccessState();
   const editProjectBtn = document.querySelector('.page-header-actions .btn-primary');
   const addTaskBtn = document.querySelector('#tab-kanban .btn-primary.btn-sm');
+  const taskBoardTab = Array.from(document.querySelectorAll('.tab')).find(tab => String(tab.textContent || '').trim() === 'Task Board');
   if (editProjectBtn) editProjectBtn.style.display = access.canManageProjects ? '' : 'none';
   if (addTaskBtn) addTaskBtn.style.display = access.canEditTasks ? '' : 'none';
+  if (taskBoardTab) taskBoardTab.style.display = access.canViewTaskBoard ? '' : 'none';
 }
 
 function getActiveProjectId() {
@@ -263,6 +268,21 @@ function syncProjectUrl(projectRecord, requestedId) {
   window.history.replaceState({}, document.title, nextUrl);
 }
 
+function renderProjectSourceNotice() {
+  const notice = document.getElementById('projectSourceNotice');
+  if (!notice || !project) return;
+
+  const isPersisted = project.is_persisted_project !== false && project.project_source !== 'local_fallback';
+  if (isPersisted) {
+    notice.style.display = 'none';
+    notice.textContent = '';
+    return;
+  }
+
+  notice.style.display = 'block';
+  notice.textContent = 'This project is stored only on this browser and is not yet synced to the server. Shared workspace features are unavailable until it is saved to the backend.';
+}
+
 async function init() {
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); window.location.href = 'projects.html'; return; }
   if (!projectId) { window.location.href = 'projects.html'; return; }
@@ -272,6 +292,7 @@ async function init() {
   syncProjectUrl(project, projectId);
   tasks = await fetchTasks(getActiveProjectId());
   populateOverview();
+  renderProjectSourceNotice();
   renderKanban();
 }
 
@@ -502,6 +523,7 @@ window.getProjectDetailProjectId = function() {
 window.setProjectDetailProject = function(nextProject) {
   project = nextProject;
   populateOverview();
+  renderProjectSourceNotice();
 };
 window.refreshProjectDetailProject = async function() {
   const allProjects = await fetchProjects();
@@ -509,6 +531,7 @@ window.refreshProjectDetailProject = async function() {
   if (refreshedProject) {
     project = refreshedProject;
     populateOverview();
+    renderProjectSourceNotice();
   }
   return project;
 };

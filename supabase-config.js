@@ -677,6 +677,7 @@ function getDefaultDashboardPermissions(role = 'admin', isWorkspaceOwner = false
 function getCurrentDashboardUserContext() {
     const user = getCurrentSessionUser() || {};
     const accessControl = getAccessControl();
+    const permissionMode = String(user.permissionMode || user.permission_mode || '').trim().toLowerCase();
     const normalizedRole = normalizeDashboardRole(user.role || user.workspaceRole || user.dashboardRole || 'admin');
     const derivedPermissions = accessControl
         ? accessControl.getPermissionMatrix({
@@ -694,7 +695,9 @@ function getCurrentDashboardUserContext() {
             return accumulator;
         }, {});
     };
-    const permissions = user.permissions && typeof user.permissions === 'object'
+    const permissions = permissionMode === 'explicit'
+        ? derivedPermissions
+        : (user.permissions && typeof user.permissions === 'object'
         ? {
             ...derivedPermissions,
             projects: mergePermissionGroup('projects'),
@@ -704,11 +707,12 @@ function getCurrentDashboardUserContext() {
             services: mergePermissionGroup('services'),
             team: mergePermissionGroup('team')
         }
-        : derivedPermissions;
+        : derivedPermissions);
     return {
         role: normalizedRole,
         permissionKeys: accessControl ? accessControl.getAuthenticatedPermissionKeys(user) : [],
         isWorkspaceOwner: Boolean(user.isWorkspaceOwner),
+        permissionMode: permissionMode === 'explicit' ? 'explicit' : 'default',
         permissions
     };
 }
@@ -1308,6 +1312,45 @@ function mergeProjectCollections() {
     return merged;
 }
 
+function normalizeProjectSource(record = {}, fallbackSource = 'database') {
+    const explicitSource = String(record.project_source || record.projectSource || '').trim().toLowerCase();
+    if (explicitSource) return explicitSource;
+    if (record.storage_fallback === true || record.local_fallback === true) {
+        return 'local_fallback';
+    }
+    return fallbackSource;
+}
+
+function decorateProjectRecord(record, fallbackSource = 'database') {
+    if (!record || typeof record !== 'object') return record;
+    const projectSource = normalizeProjectSource(record, fallbackSource);
+    return {
+        ...record,
+        project_source: projectSource,
+        is_persisted_project: projectSource === 'database',
+        is_shared_workspace_available: projectSource === 'database'
+    };
+}
+
+function decorateProjectRecords(records, fallbackSource = 'database') {
+    return (Array.isArray(records) ? records : []).map(record => decorateProjectRecord(record, fallbackSource));
+}
+
+function filterVisibleProjectSourcesForCurrentUser(records) {
+    const currentUser = getCurrentSessionUser();
+    const accessControl = getAccessControl();
+    const safeRecords = Array.isArray(records) ? records : [];
+    if (!currentUser || !accessControl || !currentUser.workspaceId) {
+        return safeRecords;
+    }
+
+    if (accessControl.isWorkspaceOwner(currentUser)) {
+        return safeRecords;
+    }
+
+    return safeRecords.filter(record => record && record.is_persisted_project !== false);
+}
+
 function sortProjectsByRecent(records) {
     return records.slice().sort((a, b) => new Date(b.created_at || b.completedAt || b.template_last_saved_at || 0) - new Date(a.created_at || a.completedAt || a.template_last_saved_at || 0));
 }
@@ -1743,46 +1786,55 @@ async function deleteClient(id) {
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
 
-    const scopedProjects = filterRecordsForCurrentUserScope('projects', getLocalEntityData('projects'));
-    const templateProjects = filterRecordsForCurrentUserScope('projects', getLegacyTemplateProjects());
+    const scopedProjects = decorateProjectRecords(
+        filterRecordsForCurrentUserScope('projects', getLocalEntityData('projects')),
+        'database'
+    );
+    const templateProjects = decorateProjectRecords(
+        filterRecordsForCurrentUserScope('projects', getLegacyTemplateProjects()),
+        'local_fallback'
+    );
 
     if (!isFirebaseConfigured) {
-        const records = createAccessFilteredDataset('projects', sampleProjects);
-        const combined = sortProjectsByRecent(mergeProjectCollections(records, scopedProjects, templateProjects));
+        const records = decorateProjectRecords(createAccessFilteredDataset('projects', sampleProjects), 'local_fallback');
+        const combined = filterVisibleProjectSourcesForCurrentUser(
+            sortProjectsByRecent(mergeProjectCollections(records, scopedProjects, templateProjects))
+        );
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     }
     try {
         if (isFirebaseUserAuthenticated()) {
             try {
-                const records = await dashboardApiRequest('GET', 'projects');
+                const records = decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database');
                 const combinedApiRecords = sortProjectsByRecent(mergeProjectCollections(
                     Array.isArray(records) ? records : [],
                     scopedProjects,
                     templateProjects
                 ));
-                return clientId ? combinedApiRecords.filter(p => p.client_id === clientId) : combinedApiRecords;
+                const visibleRecords = filterVisibleProjectSourcesForCurrentUser(combinedApiRecords);
+                return clientId ? visibleRecords.filter(p => p.client_id === clientId) : visibleRecords;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'read');
             }
         }
         if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
-            const combinedScoped = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
+            const combinedScoped = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
             return clientId ? combinedScoped.filter(p => p.client_id === clientId) : combinedScoped;
         }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) {
-            const combinedWithoutOwner = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
+            const combinedWithoutOwner = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
             return clientId ? combinedWithoutOwner.filter(p => p.client_id === clientId) : combinedWithoutOwner;
         }
         let q = db.collection('projects').where('owner_key', '==', ownerKey);
         if (clientId) q = q.where('client_id', '==', clientId);
         const snap = await q.get();
-        const firebaseProjects = _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        const combined = sortProjectsByRecent(filterRecordsForCurrentUserScope('projects', mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects)));
+        const firebaseProjects = decorateProjectRecords(_snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), 'database');
+        const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(filterRecordsForCurrentUserScope('projects', mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects))));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     } catch (e) {
         console.error(e);
-        const combined = sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects));
+        const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     }
 }
@@ -1794,7 +1846,10 @@ async function addProject(d) {
         if (!hasDashboardPermission('projects', 'create')) throw createDashboardPermissionError('projects', 'create');
         if (isFirebaseUserAuthenticated()) {
             try {
-                return await dashboardApiRequest('POST', 'projects', '', doc);
+                const createdRecord = await dashboardApiRequest('POST', 'projects', '', doc);
+                const decoratedRecord = decorateProjectRecord(createdRecord, 'database');
+                if (decoratedRecord) upsertLocalEntityRecord('projects', decoratedRecord);
+                return decoratedRecord;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'create');
             }
@@ -1802,18 +1857,18 @@ async function addProject(d) {
     }
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('projects');
-        const r = { ...doc, id: 'p' + Date.now() };
+        const r = decorateProjectRecord({ ...doc, id: 'p' + Date.now(), storage_fallback: true }, 'local_fallback');
         records.unshift(r);
         setLocalEntityData('projects', records);
         return r;
     }
     try {
         const ref = await db.collection('projects').add(doc);
-        return { id: ref.id, ...doc };
+        return decorateProjectRecord({ id: ref.id, ...doc }, 'database');
     } catch (error) {
         if (shouldUseLocalEntityFallback(error)) {
             const records = getLocalEntityData('projects');
-            const r = { ...doc, id: 'p' + Date.now(), storage_fallback: true };
+            const r = decorateProjectRecord({ ...doc, id: 'p' + Date.now(), storage_fallback: true }, 'local_fallback');
             records.unshift(r);
             setLocalEntityData('projects', records);
             return r;
@@ -1872,9 +1927,9 @@ async function updateProject(id, d, options = {}) {
             try {
                 const record = await dashboardApiRequest('PATCH', 'projects', id, dashboardPayload);
                 if (record) {
-                    upsertLocalEntityRecord('projects', record);
+                    upsertLocalEntityRecord('projects', decorateProjectRecord(record, 'database'));
                 }
-                return record;
+                return decorateProjectRecord(record, 'database');
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) {
                     throw normalizeDashboardApiError(error, 'projects', isTemplateWorkspaceUpdate ? 'read' : 'update');

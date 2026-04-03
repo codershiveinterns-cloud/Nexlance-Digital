@@ -64,7 +64,11 @@ function buildPermissionFields(profile = {}, authUser = {}) {
         ...profile,
         email: AccessControl.normalizeEmail(profile.email || authUser.email),
         uid: authUser.uid || profile.uid || profile.userId || '',
-        role
+        role,
+        permissionMode: String(profile.permissionMode || profile.permission_mode || '').trim().toLowerCase() || '',
+        permissionKeys: Array.isArray(profile.permissionKeys)
+            ? profile.permissionKeys
+            : (Array.isArray(profile.permission_keys) ? profile.permission_keys : [])
     };
     const accessProfile = AccessControl.getAccessProfile(enrichedProfile);
     return {
@@ -72,6 +76,7 @@ function buildPermissionFields(profile = {}, authUser = {}) {
         workspaceRole: accessProfile.role,
         permissionKeys: accessProfile.permissionKeys,
         permissions: accessProfile.permissionMatrix,
+        permissionMode: enrichedProfile.permissionMode === 'explicit' ? 'explicit' : 'default',
         isWorkspaceOwner: accessProfile.isWorkspaceOwner
     };
 }
@@ -87,6 +92,9 @@ function buildWorkspaceMemberDocument(profile = {}, authUser = {}) {
         role: permissionFields.role,
         workspaceRole: permissionFields.workspaceRole,
         isWorkspaceOwner: permissionFields.isWorkspaceOwner,
+        permissionKeys: permissionFields.permissionKeys,
+        permissions: permissionFields.permissions,
+        permissionMode: permissionFields.permissionMode,
         assignedProjectIds,
         allProjectsAccess: hasAllProjectsAccess(profile),
         projectAccessScope: hasAllProjectsAccess(profile) ? 'all' : 'selected',
@@ -248,6 +256,7 @@ async function ensureWorkspaceAccessProfile(authUser) {
         workspaceRole: nextProfile.workspaceRole,
         permissionKeys: nextProfile.permissionKeys,
         permissions: nextProfile.permissions,
+        permissionMode: nextProfile.permissionMode,
         assignedProjectIds: nextProfile.assignedProjectIds,
         allProjectsAccess: nextProfile.allProjectsAccess,
         projectAccessScope: nextProfile.projectAccessScope,
@@ -274,6 +283,7 @@ function buildSessionUser(profile = {}, authUser = {}) {
         email: AccessControl.normalizeEmail(profile.email || authUser.email),
         name: String(profile.name || authUser.email || '').trim(),
         role: accessProfile.role,
+        userKind: accessProfile.userKind,
         workspaceRole: accessProfile.role,
         workspaceId: String(profile.workspaceId || '').trim(),
         workspaceOwnerEmail: getWorkspaceOwnerEmail(profile, authUser),
@@ -281,6 +291,7 @@ function buildSessionUser(profile = {}, authUser = {}) {
         isWorkspaceOwner: accessProfile.isWorkspaceOwner,
         permissionKeys: accessProfile.permissionKeys,
         permissions: accessProfile.permissionMatrix,
+        permissionMode: String(profile.permissionMode || profile.permission_mode || '').trim().toLowerCase() === 'explicit' ? 'explicit' : 'default',
         assignedProjectIds: getNormalizedAssignedProjectIds(profile),
         allProjectsAccess: hasAllProjectsAccess(profile),
         projectAccessScope: hasAllProjectsAccess(profile) ? 'all' : 'selected',
