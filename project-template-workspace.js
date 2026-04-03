@@ -28,7 +28,7 @@
             complete_template_project: false,
             download_template_output: false,
             admin_override: false
-        };
+        };  
     }
 
     function normalizeWorkspaceCapabilities(capabilities) {

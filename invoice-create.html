@@ -84,8 +84,6 @@
               <select id="fStatus" oninput="updatePreview()">
                 <option value="pending">Pending</option>
                 <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-                <option value="recurring">Recurring</option>
               </select>
             </div>
             <div class="form-group">
@@ -284,8 +282,8 @@ function updatePreview() {
   document.getElementById('pvTotal').textContent = formatCurrency(total);
   document.getElementById('pvNotes').textContent = notes;
 
-  const statusMap = { paid:'badge-green', pending:'badge-orange', overdue:'badge-red', recurring:'badge-blue' };
-  const statusLabels = { paid:'✅ Paid', pending:'🕐 Pending', overdue:'🔴 Overdue', recurring:'🔄 Recurring' };
+  const statusMap = { paid:'badge-green', pending:'badge-orange' };
+  const statusLabels = { paid:'✅ Paid', pending:'🕐 Pending' };
   const pvSt = document.getElementById('pvStatus');
   pvSt.className = 'badge ' + (statusMap[status] || 'badge-gray');
   pvSt.textContent = statusLabels[status] || status;

@@ -57,16 +57,6 @@
         <div class="stat-value" id="sPending">₹0</div>
         <div class="stat-sub" id="sPendingCount">0 invoices</div>
       </div>
-      <div class="stat-card red">
-        <div class="stat-label">Overdue</div>
-        <div class="stat-value" id="sOverdue">₹0</div>
-        <div class="stat-sub" id="sOverdueCount">0 invoices</div>
-      </div>
-      <div class="stat-card blue">
-        <div class="stat-label">Recurring / Month</div>
-        <div class="stat-value" id="sRecurring">₹0</div>
-        <div class="stat-sub" id="sRecurringCount">0 active</div>
-      </div>
     </div>
 
     <!-- Tabs -->
@@ -74,8 +64,6 @@
       <div class="tab active" onclick="filterByStatus('')">All Invoices</div>
       <div class="tab" onclick="filterByStatus('paid')">✅ Paid</div>
       <div class="tab" onclick="filterByStatus('pending')">🕐 Pending</div>
-      <div class="tab" onclick="filterByStatus('overdue')">🔴 Overdue</div>
-      <div class="tab" onclick="filterByStatus('recurring')">🔄 Recurring</div>
     </div>
 
     <!-- Filter Bar -->
@@ -126,8 +114,8 @@ function ensureDataAccess() {
   return false;
 }
 
-const statusBadges = { paid:'badge-green', pending:'badge-orange', overdue:'badge-red', recurring:'badge-blue' };
-const statusLabels = { paid:'Paid ✓', pending:'Pending', overdue:'Overdue ⚠', recurring:'Recurring 🔄' };
+const statusBadges = { paid:'badge-green', pending:'badge-orange' };
+const statusLabels = { paid:'Paid ✓', pending:'Pending' };
 
 async function init() {
   invoices = await fetchInvoices();
@@ -138,8 +126,6 @@ async function init() {
 function renderStats() {
   const paid = invoices.filter(i => i.status === 'paid');
   const pending = invoices.filter(i => i.status === 'pending');
-  const overdue = invoices.filter(i => i.status === 'overdue');
-  const recurring = invoices.filter(i => i.status === 'recurring');
 
   const sum = arr => arr.reduce((s,i) => s + (i.total_amount || 0), 0);
 
@@ -147,10 +133,6 @@ function renderStats() {
   document.getElementById('sPaidCount').textContent = paid.length + ' invoices';
   document.getElementById('sPending').textContent = formatCurrency(sum(pending));
   document.getElementById('sPendingCount').textContent = pending.length + ' invoices';
-  document.getElementById('sOverdue').textContent = formatCurrency(sum(overdue));
-  document.getElementById('sOverdueCount').textContent = overdue.length + ' invoices';
-  document.getElementById('sRecurring').textContent = formatCurrency(sum(recurring));
-  document.getElementById('sRecurringCount').textContent = recurring.length + ' active';
 }
 
 function getFiltered() {
@@ -183,7 +165,7 @@ function renderTable(data) {
     <td>${formatCurrency(inv.amount)}</td>
     <td style="color:#888;font-size:0.85rem;">+${formatCurrency((inv.amount * (inv.gst_percent||18)) / 100)}</td>
     <td><strong style="color:#4b3fbf;">${formatCurrency(inv.total_amount)}</strong></td>
-    <td style="color:${inv.status==='overdue'?'#d63031':'#555'};font-size:0.85rem;">${formatDate(inv.due_date)}</td>
+    <td style="color:#555;font-size:0.85rem;">${formatDate(inv.due_date)}</td>
     <td><span class="badge ${statusBadges[inv.status] || 'badge-gray'}">${statusLabels[inv.status] || inv.status}</span></td>
     <td>
       <div class="table-actions">
@@ -199,7 +181,7 @@ function filterByStatus(status) {
   currentFilter = status;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   event.target.classList.add('active');
-  const titles = { '': 'All Invoices', paid: 'Paid Invoices', pending: 'Pending Invoices', overdue: 'Overdue Invoices', recurring: 'Recurring Invoices' };
+  const titles = { '': 'All Invoices', paid: 'Paid Invoices', pending: 'Pending Invoices' };
   document.getElementById('tableTitle').textContent = titles[status] || 'Invoices';
   renderTable(getFiltered());
 }
