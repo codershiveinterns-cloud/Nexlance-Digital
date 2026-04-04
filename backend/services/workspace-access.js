@@ -8,6 +8,7 @@ const {
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
+const { resolveAssignedProjectIdsForWorkspace } = require('./project-assignment-resolution');
 
 function buildWorkspaceName(profile = {}, authUser = {}) {
     const businessName = String(profile.businessName || '').trim();
@@ -224,7 +225,26 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
 
     const safeEmail = AccessControl.normalizeEmail(authUser.email || existingProfile.email);
     const now = new Date().toISOString();
-    const access = getNormalizedClientInvitationAccess(invite);
+    const invitationAccess = getNormalizedClientInvitationAccess({
+        ...invite,
+        allProjectsAccess: false,
+        all_projects_access: false,
+        projectAccessScope: 'selected',
+        project_access_scope: 'selected'
+    });
+    const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
+        assignedProjectIds: invitationAccess.assignedProjectIds,
+        workspaceId,
+        workspaceOwnerEmail: AccessControl.normalizeEmail(invite.workspaceOwnerEmail || invite.ownerEmail)
+    }).catch(() => ({ assignedProjectIds: invitationAccess.assignedProjectIds }));
+    const access = getNormalizedClientInvitationAccess({
+        ...invitationAccess,
+        assignedProjectIds: resolvedScope.assignedProjectIds,
+        allProjectsAccess: false,
+        all_projects_access: false,
+        projectAccessScope: 'selected',
+        project_access_scope: 'selected'
+    });
     const workspaceOwnerEmail = AccessControl.normalizeEmail(invite.workspaceOwnerEmail || invite.ownerEmail);
     const workspaceOwnerUserId = String(invite.workspaceOwnerUserId || invite.ownerUserId || '').trim();
     const baseAutoProfile = {

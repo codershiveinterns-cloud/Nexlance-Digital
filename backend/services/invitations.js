@@ -24,6 +24,7 @@ const {
     getNormalizedAssignedProjectIds,
     getWorkspaceMemberDocumentId
 } = require('./workspace-access');
+const { resolveAssignedProjectIdsForWorkspace } = require('./project-assignment-resolution');
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -228,7 +229,25 @@ async function createInvitation({
     }
 
     const normalizedAccess = normalizeProjectAccess({ assignedProjectIds, allProjectsAccess });
-    const safeAssignedProjectIds = normalizedAccess.assignedProjectIds;
+    let safeAssignedProjectIds = normalizedAccess.assignedProjectIds;
+    let safeAllProjectsAccess = inviteType === 'client'
+        ? false
+        : normalizedAccess.allProjectsAccess;
+    if (inviteType === 'client') {
+        const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
+            assignedProjectIds: safeAssignedProjectIds,
+            workspaceId: String(sessionUser.workspaceId || '').trim(),
+            workspaceOwnerEmail: AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email)
+        }).catch(() => ({
+            assignedProjectIds: safeAssignedProjectIds
+        }));
+        const normalizedResolvedScope = normalizeProjectAccess({
+            assignedProjectIds: resolvedScope.assignedProjectIds,
+            allProjectsAccess: false
+        });
+        safeAssignedProjectIds = normalizedResolvedScope.assignedProjectIds;
+        safeAllProjectsAccess = normalizedResolvedScope.allProjectsAccess;
+    }
     const rawToken = createRawInviteToken();
     const invitationId = getInvitationDocumentId();
     const targetRecord = await createPendingTargetRecord({
@@ -237,7 +256,7 @@ async function createInvitation({
         email: safeEmail,
         role: normalizedRole,
         assignedProjectIds: safeAssignedProjectIds,
-        allProjectsAccess: normalizedAccess.allProjectsAccess,
+        allProjectsAccess: safeAllProjectsAccess,
         sessionUser,
         invitationId,
         metadata
@@ -249,7 +268,7 @@ async function createInvitation({
         email: safeEmail,
         role: normalizedRole,
         assignedProjectIds: safeAssignedProjectIds,
-        allProjectsAccess: normalizedAccess.allProjectsAccess,
+        allProjectsAccess: safeAllProjectsAccess,
         sessionUser,
         rawToken,
         targetRecord,
@@ -465,7 +484,21 @@ async function acceptInvitation({ session, token }) {
     }
 
     const role = AccessControl.normalizeRole(record.role);
-    const accessFields = buildProfileAccessFields(record);
+    let accessFields = buildProfileAccessFields(record);
+    if (role === AccessControl.ROLES.CLIENT) {
+        const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
+            assignedProjectIds: accessFields.assignedProjectIds,
+            workspaceId: String(record.workspaceId || '').trim(),
+            workspaceOwnerEmail: AccessControl.normalizeEmail(record.workspaceOwnerEmail || record.ownerEmail)
+        }).catch(() => ({
+            assignedProjectIds: accessFields.assignedProjectIds
+        }));
+        accessFields = buildProfileAccessFields({
+            ...accessFields,
+            assignedProjectIds: resolvedScope.assignedProjectIds,
+            allProjectsAccess: false
+        });
+    }
     const profileFields = buildPermissionFields({
         ...session.userProfile,
         role,

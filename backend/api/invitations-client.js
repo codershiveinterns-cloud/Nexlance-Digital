@@ -1,6 +1,7 @@
 const { requireAuth, requireOwnerOnly } = require('../services/request-guards');
 const { createInvitation } = require('../services/invitations');
 const { buildClientAccessFields, normalizeProjectAccess } = require('../services/client-access');
+const { resolveAssignedProjectIdsForWorkspace } = require('../services/project-assignment-resolution');
 const {
     handleOptions,
     normalizeBody,
@@ -31,7 +32,7 @@ function normalizeProjectIdList(value) {
     return [...new Set(source.map(entry => String(entry || '').trim()).filter(Boolean))];
 }
 
-function normalizeClientInvitePayload(body = {}) {
+async function normalizeClientInvitePayload(body = {}, sessionUser = {}) {
     const metadata = body && typeof body.metadata === 'object' && body.metadata !== null ? body.metadata : {};
     const inviteeName = String(body.name || body.clientName || metadata.name || '').trim();
     const email = String(body.email || body.clientEmail || metadata.email || '').trim().toLowerCase();
@@ -40,14 +41,21 @@ function normalizeClientInvitePayload(body = {}) {
             ? body.assignedProjectIds
             : (metadata.assigned_project_ids !== undefined ? metadata.assigned_project_ids : metadata.assignedProjectIds)
     );
-    const allProjectsAccess = body.allProjectsAccess === true
-        || body.all_projects_access === true
-        || metadata.allProjectsAccess === true
-        || metadata.all_projects_access === true
-        || String(body.projectAccessScope || body.project_access_scope || metadata.projectAccessScope || metadata.project_access_scope || '').trim().toLowerCase() === 'all';
+    const allProjectsAccess = false;
     const access = normalizeProjectAccess({
         assignedProjectIds: rawAssignedProjectIds,
         allProjectsAccess
+    });
+    const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
+        assignedProjectIds: access.assignedProjectIds,
+        workspaceId: String(sessionUser.workspaceId || '').trim(),
+        workspaceOwnerEmail: String(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email || '').trim()
+    }).catch(() => ({
+        assignedProjectIds: access.assignedProjectIds
+    }));
+    const resolvedAccess = normalizeProjectAccess({
+        assignedProjectIds: resolvedScope.assignedProjectIds,
+        allProjectsAccess: access.allProjectsAccess
     });
     const totalContractValue = parseNonNegativeNumber(
         metadata.total_contract_value !== undefined ? metadata.total_contract_value : metadata.totalContractValue,
@@ -74,18 +82,18 @@ function normalizeClientInvitePayload(body = {}) {
     return {
         inviteeName,
         email,
-        assignedProjectIds: access.assignedProjectIds,
-        allProjectsAccess: access.allProjectsAccess,
+        assignedProjectIds: resolvedAccess.assignedProjectIds,
+        allProjectsAccess: resolvedAccess.allProjectsAccess,
         metadata: {
             ...metadata,
             name: inviteeName,
             email,
             total_contract_value: totalContractValue,
             paid_amount: paidAmount,
-            assigned_project_ids: access.assignedProjectIds,
-            all_projects_access: access.allProjectsAccess,
-            project_access_scope: access.projectAccessScope,
-            ...buildClientAccessFields(access)
+            assigned_project_ids: resolvedAccess.assignedProjectIds,
+            all_projects_access: resolvedAccess.allProjectsAccess,
+            project_access_scope: resolvedAccess.projectAccessScope,
+            ...buildClientAccessFields(resolvedAccess)
         }
     };
 }
@@ -103,7 +111,7 @@ module.exports = async function handler(req, res) {
         const session = await requireAuth(req);
         requireOwnerOnly(session);
         const body = normalizeBody(req.body);
-        const normalizedPayload = normalizeClientInvitePayload(body);
+        const normalizedPayload = await normalizeClientInvitePayload(body, session.sessionUser);
         const result = await createInvitation({
             session,
             inviteType: 'client',

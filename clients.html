@@ -182,7 +182,6 @@ let clients = [];
 let availableProjects = [];
 let editingId = null;
 
-const ALL_PROJECT_ACCESS_VALUE = '__all_projects__';
 const CUSTOM_WEBSITE_TYPE_VALUE = '__custom__';
 const STANDARD_WEBSITE_TYPES = [
   'Business Website',
@@ -289,37 +288,19 @@ function renderProjectAccessOptions(selectedIds = [], allProjectsAccess = false)
   if (!select) return;
 
   const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(String));
-  const options = [
-    `<option value="${ALL_PROJECT_ACCESS_VALUE}" ${allProjectsAccess ? 'selected' : ''}>All Access</option>`
-  ];
 
   if (!availableProjects.length) {
-    options.push('<option value="" disabled>No projects available yet</option>');
-    select.innerHTML = options.join('');
+    select.innerHTML = '<option value="" disabled>No synced projects available yet</option>';
     return;
   }
 
-  select.innerHTML = options.concat(availableProjects.map(project => `
-    <option value="${escapeHtml(project.id)}" ${!allProjectsAccess && selected.has(String(project.id)) ? 'selected' : ''}>${escapeHtml(project.name)}</option>
-  `)).join('');
+  select.innerHTML = availableProjects.map(project => `
+    <option value="${escapeHtml(project.id)}" ${selected.has(String(project.id)) ? 'selected' : ''}>${escapeHtml(project.name)}</option>
+  `).join('');
 }
 
 function normalizeProjectAccessSelection() {
-  const select = document.getElementById('fAssignedProjects');
-  if (!select) return;
-
-  const selectedValues = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
-  if (selectedValues.includes(ALL_PROJECT_ACCESS_VALUE)) {
-    Array.from(select.options).forEach(option => {
-      option.selected = option.value === ALL_PROJECT_ACCESS_VALUE;
-    });
-    return;
-  }
-
-  const allAccessOption = Array.from(select.options).find(option => option.value === ALL_PROJECT_ACCESS_VALUE);
-  if (allAccessOption) {
-    allAccessOption.selected = false;
-  }
+  return;
 }
 
 function getSelectedProjectAccess() {
@@ -329,10 +310,9 @@ function getSelectedProjectAccess() {
   }
 
   const selectedValues = Array.from(select.selectedOptions || []).map(option => option.value).filter(Boolean);
-  const allProjectsAccess = selectedValues.includes(ALL_PROJECT_ACCESS_VALUE);
   return {
-    allProjectsAccess,
-    assignedProjectIds: allProjectsAccess ? [] : selectedValues.filter(value => value !== ALL_PROJECT_ACCESS_VALUE)
+    allProjectsAccess: false,
+    assignedProjectIds: selectedValues
   };
 }
 
@@ -347,7 +327,12 @@ async function refreshClientsData({ preserveSelection = true } = {}) {
   ]);
 
   clients = Array.isArray(nextClients) ? nextClients : [];
-  availableProjects = Array.isArray(nextProjects) ? nextProjects : [];
+  availableProjects = (Array.isArray(nextProjects) ? nextProjects : [])
+    .filter(project => project && project.isPersisted !== false && String(project.id || project.backend_id || project.backendId || '').trim())
+    .map(project => ({
+      ...project,
+      id: String(project.id || project.backend_id || project.backendId || '').trim()
+    }));
 
   renderProjectAccessOptions(currentSelection.assignedProjectIds, currentSelection.allProjectsAccess);
   renderStats();

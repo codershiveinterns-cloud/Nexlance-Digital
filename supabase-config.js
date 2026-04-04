@@ -1636,6 +1636,20 @@ function currentUserHasAllProjectsAccess() {
     );
 }
 
+function getAssignedProjectIdsForCurrentUser() {
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
+    const sourceIds = currentUser
+        ? (
+            currentUser.assignedProjectIds !== undefined
+                ? currentUser.assignedProjectIds
+                : currentUser.assigned_project_ids
+        )
+        : [];
+    const fallback = (Array.isArray(sourceIds) ? sourceIds : []).map(projectId => String(projectId || '').trim()).filter(Boolean);
+    return accessControl ? accessControl.sanitizeAssignedProjectIds(sourceIds) : fallback;
+}
+
 function getProjectScopedIdsForRecord(entity, record = {}) {
     if (!record || typeof record !== 'object') return [];
     if (entity === 'projects') {
@@ -1669,7 +1683,7 @@ function filterRecordsForCurrentUserScope(entity, records) {
         return safeRecords;
     }
 
-    const assignedProjectIds = new Set(accessControl.sanitizeAssignedProjectIds(currentUser.assignedProjectIds));
+    const assignedProjectIds = new Set(getAssignedProjectIdsForCurrentUser());
     const role = accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
     const isAdmin = role === accessControl.ROLES.ADMIN;
     const shouldRestrictProjects = role === accessControl.ROLES.CLIENT || assignedProjectIds.size > 0;

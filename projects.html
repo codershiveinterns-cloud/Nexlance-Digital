@@ -213,7 +213,7 @@
         <option>Live</option>
         <option>On Hold</option>
       </select>
-      <a href="templates.html" class="filter-action-link">Browse Templates</a>
+      <a href="templates.html" class="filter-action-link" id="browseTemplatesLink">Browse Templates</a>
       <div class="spacer"></div>
     </div>
 
@@ -352,9 +352,20 @@ const statusBadges = {
 async function init() {
   renderTrialBanner();
   projects = await fetchProjects();
+  applyProjectsUiPermissions();
   renderStats();
   renderTable(projects);
   handleTemplateUnlockState();
+}
+
+function applyProjectsUiPermissions() {
+  const browseLink = document.getElementById('browseTemplatesLink');
+  if (!browseLink) return;
+
+  const accessControl = window.NexlanceAccessControl;
+  const currentUser = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  const canBrowseTemplates = !accessControl || !currentUser || accessControl.canManageProjects(currentUser);
+  browseLink.style.display = canBrowseTemplates ? '' : 'none';
 }
 
 function renderStats() {
@@ -376,7 +387,15 @@ function renderTable(data) {
     return;
   }
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">📁</div><h3>No projects found</h3><p>Create your first project</p></div></td></tr>`;
+    const isClientUser = Boolean(
+      accessControl
+      && currentUser
+      && accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole) === accessControl.ROLES.CLIENT
+    );
+    const emptyMessage = isClientUser
+      ? 'No projects are currently assigned to your account.'
+      : 'Create your first project';
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">📁</div><h3>No projects found</h3><p>${emptyMessage}</p></div></td></tr>`;
     return;
   }
   const today = new Date();
