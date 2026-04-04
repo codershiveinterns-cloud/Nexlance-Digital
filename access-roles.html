@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Access & Roles — Nexlance</title>
+<title>Access & Roles â€” Nexlance</title>
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="app.css">
 <!-- Firebase SDK -->
@@ -50,17 +50,16 @@
   <aside class="sidebar">
     <h2 class="logo">Nexlance</h2>
     <ul class="nav">
-      <li><a href="dashboard.html">📊 Dashboard</a></li>
-      <li><a href="clients.html">👥 Clients</a></li>
-      <li><a href="team.html">🧑‍💼 Team</a></li>
-      <li><a href="projects.html">📁 Projects</a></li>
-      <li><a href="invoices.html">🧾 Invoices</a></li>
-      <li><a href="services.html">🛠 Services</a></li>
-      <li class="active"><a href="access-roles.html">🔐 Access / Roles</a></li>
-      <li id="adminNavItem" style="display:none;"><a href="owner-control.html">Owner Panel</a></li>
-      <li id="settingsNavItem"><a href="settings.html">⚙️ Settings</a></li>
+      <li><a href="dashboard.html">ðŸ“Š Dashboard</a></li>
+      <li><a href="clients.html">ðŸ‘¥ Clients</a></li>
+      <li><a href="team.html">ðŸ§‘â€ðŸ’¼ Team</a></li>
+      <li><a href="projects.html">ðŸ“ Projects</a></li>
+      <li><a href="invoices.html">ðŸ§¾ Invoices</a></li>
+      <li><a href="services.html">ðŸ›  Services</a></li>
+      <li class="active"><a href="access-roles.html">ðŸ” Access / Roles</a></li>
+      <li id="settingsNavItem"><a href="settings.html">âš™ï¸ Settings</a></li>
       <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
-      <li><a href="developer-info.html">👨‍💻 Support Info</a></li>
+      <li><a href="developer-info.html">ðŸ‘¨â€ðŸ’» Support Info</a></li>
     </ul>
   </aside>
 
@@ -81,28 +80,28 @@
     </div>
 
     <!-- Role Overview (badges are now clickable) -->
-    <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;">Role Overview <span style="font-size:0.78rem;font-weight:400;color:#aaa;">— click a badge to view permissions</span></h3>
+    <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;">Role Overview <span style="font-size:0.78rem;font-weight:400;color:#aaa;">â€” click a badge to view permissions</span></h3>
     <div class="roles-grid">
       <div class="role-card">
-        <div class="role-icon">👑</div>
+        <div class="role-icon">ðŸ‘‘</div>
         <h3>Admin</h3>
         <p>Full access to all features, data, and settings. Can manage team and billing.</p>
         <div style="margin-top:10px;"><span class="badge badge-red" onclick="showRoleDetail('Admin')">Full Access</span></div>
       </div>
       <div class="role-card">
-        <div class="role-icon">💻</div>
+        <div class="role-icon">ðŸ’»</div>
         <h3>Developer</h3>
         <p>Works on assigned tasks. Can update task status and upload files.</p>
         <div style="margin-top:10px;"><span class="badge badge-purple" onclick="showRoleDetail('Developer')">Task Access</span></div>
       </div>
       <div class="role-card">
-        <div class="role-icon">🎨</div>
+        <div class="role-icon">ðŸŽ¨</div>
         <h3>Designer</h3>
         <p>Manages design tasks, uploads assets, and updates design progress.</p>
         <div style="margin-top:10px;"><span class="badge badge-teal" onclick="showRoleDetail('Designer')">Design Access</span></div>
       </div>
       <div class="role-card">
-        <div class="role-icon">👤</div>
+        <div class="role-icon">ðŸ‘¤</div>
         <h3>Client</h3>
         <p>Limited view of their own project progress and invoice status only.</p>
         <div style="margin-top:10px;"><span class="badge badge-gray" onclick="showRoleDetail('Client')">Limited</span></div>
@@ -116,7 +115,7 @@
         <thead>
           <tr>
             <th style="min-width:200px;">Permission</th>
-            <th>👑 Admin</th><th>💻 Developer</th><th>🎨 Designer</th><th>👤 Client</th>
+            <th>ðŸ‘‘ Admin</th><th>ðŸ’» Developer</th><th>ðŸŽ¨ Designer</th><th>ðŸ‘¤ Client</th>
           </tr>
         </thead>
         <tbody id="permissionsBody"></tbody>
@@ -128,21 +127,21 @@
     <div class="table-card">
       <div class="table-header">
         <h3>Current Team</h3>
-        <a href="team.html" class="btn btn-sm btn-secondary">Manage Team →</a>
+        <a href="team.html" class="btn btn-sm btn-secondary">Manage Team â†’</a>
       </div>
       <table>
         <thead>
           <tr><th>Member</th><th>Email</th><th>Role</th><th>Edit Tasks</th><th>See Revenue</th><th>Create Invoices</th><th>Upload Files</th><th>Actions</th></tr>
         </thead>
         <tbody id="teamRolesBody">
-          <tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">⏳</div><h3>Loading...</h3></div></td></tr>
+          <tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">â³</div><h3>Loading...</h3></div></td></tr>
         </tbody>
       </table>
     </div>
 
     <!-- Pending Invitations -->
     <div class="pending-section" id="pendingSection" style="display:none;">
-      <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;">⏳ Pending Invitations</h3>
+      <h3 style="color:#4b3fbf;font-size:1rem;margin-bottom:14px;">â³ Pending Invitations</h3>
       <div class="pending-table-wrap">
         <div class="pending-row pending-header">
           <span>Name</span><span>Email</span><span>Role</span><span>Code</span><span>Actions</span>
@@ -160,8 +159,8 @@
 <div class="modal-overlay" id="editRoleModal">
   <div class="modal">
     <div class="modal-header">
-      <h2>Edit Role — <span id="editRoleName"></span></h2>
-      <button class="modal-close" onclick="closeModal('editRoleModal')">✕</button>
+      <h2>Edit Role â€” <span id="editRoleName"></span></h2>
+      <button class="modal-close" onclick="closeModal('editRoleModal')">âœ•</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:10px;">
       <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
@@ -203,7 +202,7 @@
   <div class="role-detail-box">
     <div class="role-detail-header">
       <h3 id="roleDetailTitle">Role Permissions</h3>
-      <button class="modal-close" onclick="closeModal('roleDetailOverlay')" style="border:none;background:#f0ecff;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+      <button class="modal-close" onclick="closeModal('roleDetailOverlay')" style="border:none;background:#f0ecff;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">âœ•</button>
     </div>
     <p id="roleDetailSubtitle" style="font-size:0.8rem;color:#aaa;margin:-8px 0 14px;"></p>
     <ul class="role-perm-list" id="rolePermList"></ul>
@@ -220,7 +219,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2>Invite Team Member</h2>
-      <button class="modal-close" onclick="closeModal('inviteModal')">✕</button>
+      <button class="modal-close" onclick="closeModal('inviteModal')">âœ•</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:10px;">
       <div class="form-group">
@@ -252,16 +251,16 @@
 <div class="modal-overlay" id="inviteSentModal">
   <div class="modal">
     <div class="modal-header">
-      <h2>✅ Invite Sent!</h2>
-      <button class="modal-close" onclick="closeModal('inviteSentModal')">✕</button>
+      <h2>âœ… Invite Sent!</h2>
+      <button class="modal-close" onclick="closeModal('inviteSentModal')">âœ•</button>
     </div>
     <div style="text-align:center;padding:10px 0 20px;">
       <p style="color:#555;font-size:0.9rem;margin-bottom:18px;">Share this <strong>6-digit confirmation code</strong> with <span id="invitedName" style="color:#6c5ce7;font-weight:600;"></span>.</p>
       <div style="font-size:2.4rem;font-weight:800;letter-spacing:10px;color:#6c5ce7;font-family:monospace;background:#f0ecff;padding:16px 24px;border-radius:14px;display:inline-block;" id="displayCode">------</div>
       <p style="color:#aaa;font-size:0.8rem;margin-top:14px;">The member must enter this code on the Access & Roles page to activate their account.</p>
       <div style="margin-top:16px;">
-        <a id="mailtoLink" href="#" class="btn btn-secondary btn-sm" style="margin-right:8px;">📧 Open Email</a>
-        <button class="btn btn-sm" style="background:#e0d6ff;color:#6c5ce7;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;" onclick="copyCode()">📋 Copy Code</button>
+        <a id="mailtoLink" href="#" class="btn btn-secondary btn-sm" style="margin-right:8px;">ðŸ“§ Open Email</a>
+        <button class="btn btn-sm" style="background:#e0d6ff;color:#6c5ce7;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;" onclick="copyCode()">ðŸ“‹ Copy Code</button>
       </div>
     </div>
     <div class="modal-footer">
@@ -276,8 +275,8 @@
 <div class="modal-overlay" id="verifyModal">
   <div class="modal" style="max-width:380px;">
     <div class="modal-header">
-      <h2>🔑 Enter Confirmation Code</h2>
-      <button class="modal-close" onclick="closeModal('verifyModal')">✕</button>
+      <h2>ðŸ”‘ Enter Confirmation Code</h2>
+      <button class="modal-close" onclick="closeModal('verifyModal')">âœ•</button>
     </div>
     <p style="font-size:0.875rem;color:#555;">Enter the 6-digit code sent to <strong id="verifyEmail"></strong> to activate this member.</p>
     <input type="text" id="verifyCodeInput" maxlength="6" placeholder="e.g. 482917" oninput="this.value=this.value.replace(/\D/g,'')">
@@ -353,7 +352,7 @@ function getEditableRole(role) {
 /* ============================================================
    ROLE DETAIL MODAL
 ============================================================ */
-const roleIcons = { Admin:'👑', Developer:'💻', Designer:'🎨', Client:'👤' };
+const roleIcons = { Admin:'ðŸ‘‘', Developer:'ðŸ’»', Designer:'ðŸŽ¨', Client:'ðŸ‘¤' };
 const roleBadgeLabel = { Admin:'Full Access', Developer:'Task Access', Designer:'Design Access', Client:'Limited' };
 
 function showRoleDetail(role) {
@@ -371,7 +370,7 @@ function showRoleDetail(role) {
   } else {
     document.getElementById('rolePermList').innerHTML = accessible.map(p => `
       <li>
-        <span class="tick">✓</span>
+        <span class="tick">âœ“</span>
         <span>${p.label}</span>
       </li>`).join('');
   }
@@ -391,8 +390,8 @@ function renderPermissionsMatrix() {
     <tr>
       <td>${p.label}</td>
       ${roleOrder.map(r => `<td>${p.roles[r]
-        ? '<span style="color:#00b894;font-size:1.1rem;">✓</span>'
-        : '<span style="color:#e0d6ff;font-size:1.1rem;">✗</span>'}</td>`).join('')}
+        ? '<span style="color:#00b894;font-size:1.1rem;">âœ“</span>'
+        : '<span style="color:#e0d6ff;font-size:1.1rem;">âœ—</span>'}</td>`).join('')}
     </tr>`).join('');
 }
 
@@ -402,10 +401,10 @@ function renderPermissionsMatrix() {
 function renderTeamRoles() {
   const tbody = document.getElementById('teamRolesBody');
   if (!members.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">🧑‍💼</div><h3>No team members</h3><p><a href="team.html" style="color:#6c5ce7;">Add team members</a></p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state" style="padding:30px;"><div class="e-icon">ðŸ§‘â€ðŸ’¼</div><h3>No team members</h3><p><a href="team.html" style="color:#6c5ce7;">Add team members</a></p></div></td></tr>`;
     return;
   }
-  const check = v => v ? '<span style="color:#00b894;">✓</span>' : '<span style="color:#ddd;">✗</span>';
+  const check = v => v ? '<span style="color:#00b894;">âœ“</span>' : '<span style="color:#ddd;">âœ—</span>';
   tbody.innerHTML = members.map(m => `<tr>
     <td><strong>${m.name}</strong></td>
     <td style="color:#888;font-size:0.85rem;">${m.email}</td>
@@ -414,7 +413,7 @@ function renderTeamRoles() {
     <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).revenue)}</td>
     <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).invoice)}</td>
     <td style="text-align:center;">${check(getRoleToggleState(m.canonical_role || m.role).upload)}</td>
-    <td><button class="action-btn action-edit" onclick="openEditRole('${m.id}')" title="Edit role">✏️</button></td>
+    <td><button class="action-btn action-edit" onclick="openEditRole('${m.id}')" title="Edit role">âœï¸</button></td>
   </tr>`).join('');
 }
 
@@ -515,8 +514,8 @@ function renderPendingInvites() {
       <span><span class="badge ${roleColors[getRoleLabel(inv.role)]||'badge-gray'}" style="font-size:0.75rem;">${getRoleLabel(inv.role)}</span></span>
       <span><span class="invite-code-chip">${new Date(inv.createdAt || inv.created_at || Date.now()).toLocaleDateString('en-IN')}</span></span>
       <span style="display:flex;gap:6px;">
-        <button class="action-btn action-edit" title="Verify code" onclick="openVerify('${inv.id}')">🔑 Verify</button>
-        <button class="action-btn action-delete" title="Cancel invite" onclick="cancelInvite('${inv.id}')">✕</button>
+        <button class="action-btn action-edit" title="Verify code" onclick="openVerify('${inv.id}')">ðŸ”‘ Verify</button>
+        <button class="action-btn action-delete" title="Cancel invite" onclick="cancelInvite('${inv.id}')">âœ•</button>
       </span>
     </div>`).join('');
 }
@@ -534,7 +533,7 @@ async function verifyCode() {
   if (!inv) return;
 
   if (entered !== inv.code) {
-    document.getElementById('verifyError').textContent = '✗ Incorrect code. Please try again.';
+    document.getElementById('verifyError').textContent = 'âœ— Incorrect code. Please try again.';
     return;
   }
 
@@ -564,7 +563,7 @@ async function verifyCode() {
     closeModal('verifyModal');
     renderTeamRoles();
     renderPendingInvites();
-    showToast(`${inv.name} has been added to the team! 🎉`, 'success');
+    showToast(`${inv.name} has been added to the team! ðŸŽ‰`, 'success');
   } catch(e) { showToast('Error adding member: ' + e.message, 'error'); }
 }
 
@@ -617,3 +616,4 @@ init();
 </script>
 </body>
 </html>
+
