@@ -108,6 +108,68 @@ const AUTHENTICATED_APP_PAGE_NAMES = [
     'reports.html',
     'unauthorized.html'
 ];
+const AUTH_NOTICE_KEY = 'nexlance_auth_notice';
+const AUTH_REDIRECT_LOCK_KEY = 'nexlance_auth_redirecting';
+
+function isAuthEntryPage(pageName = getCurrentPageName()) {
+    const normalizedPage = String(pageName || '').trim().toLowerCase();
+    return normalizedPage === 'login.html'
+        || normalizedPage === 'admin-login.html'
+        || normalizedPage === 'reset-password.html'
+        || normalizedPage === 'auth-action.html';
+}
+
+function clearAuthRedirectLock() {
+    try {
+        sessionStorage.removeItem(AUTH_REDIRECT_LOCK_KEY);
+    } catch (error) {
+        // no-op
+    }
+}
+
+function clearStaleLocalAuthState() {
+    try {
+        localStorage.removeItem('nexlance_auth');
+        localStorage.removeItem('nexlance_user');
+        localStorage.removeItem('nexlance_admin_ui');
+    } catch (error) {
+        // no-op
+    }
+}
+
+function getCurrentLocationForLoginRedirect() {
+    const pathname = String(window.location.pathname || '');
+    const search = String(window.location.search || '');
+    const hash = String(window.location.hash || '');
+    const target = `${pathname}${search}${hash}`.trim();
+    return target || 'dashboard.html';
+}
+
+function redirectToLoginForAuthMismatch(message = 'Your login session expired. Please sign in again to continue.') {
+    if (typeof window === 'undefined') return false;
+
+    const pageName = getCurrentPageName();
+    if (isAuthEntryPage(pageName)) {
+        clearAuthRedirectLock();
+        return false;
+    }
+
+    try {
+        if (sessionStorage.getItem(AUTH_REDIRECT_LOCK_KEY) === '1') {
+            return true;
+        }
+        sessionStorage.setItem(AUTH_REDIRECT_LOCK_KEY, '1');
+        sessionStorage.setItem(AUTH_NOTICE_KEY, message);
+    } catch (error) {
+        // no-op
+    }
+
+    clearStaleLocalAuthState();
+
+    const redirectTarget = getCurrentLocationForLoginRedirect();
+    window.location.href = `login.html?redirect=${encodeURIComponent(redirectTarget)}`;
+    return true;
+}
 
 function getAccessControl() {
     return window.NexlanceAccessControl || null;
@@ -795,10 +857,12 @@ function isDashboardApiUnavailableError(error) {
 async function getDashboardBearerToken() {
     await waitForFirebaseAuthSession();
     if (!isFirebaseUserAuthenticated()) {
+        redirectToLoginForAuthMismatch('Your login session expired. Please sign in again to continue.');
         const error = new Error('Please sign in again to continue.');
         error.code = 'auth/not-authenticated';
         throw error;
     }
+    clearAuthRedirectLock();
     return firebase.auth().currentUser.getIdToken();
 }
 
@@ -835,6 +899,7 @@ function normalizeDashboardApiError(error, entity, action) {
     const rawMessage = String(error && error.message ? error.message : '').toLowerCase();
     const status = Number(error && error.status);
     if (status === 401 || rawMessage.includes('bearer token')) {
+        redirectToLoginForAuthMismatch('Your login session expired. Please sign in again to continue.');
         return new Error('Your login session expired. Please sign in again and retry.');
     }
     if (status === 403 || rawMessage.includes('insufficient permissions') || rawMessage.includes('permission')) {
@@ -846,6 +911,12 @@ function normalizeDashboardApiError(error, entity, action) {
 async function dashboardApiRequest(method, collectionId, docId = '', payload = null) {
     await waitForFirebaseAuthSession();
     if (!isFirebaseUserAuthenticated()) {
+        const hasLocalSession = localStorage.getItem('nexlance_auth') === '1';
+        redirectToLoginForAuthMismatch(
+            hasLocalSession
+                ? 'Your login session expired. Please sign in again to continue.'
+                : 'You need to sign in to continue.'
+        );
         const error = new Error('Dashboard API requires a signed-in Firebase user.');
         error.code = 'api/not-configured';
         throw error;
@@ -887,6 +958,14 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
     }
 
     if (!response.ok) {
+        if (response.status === 401) {
+            const hasLocalSession = localStorage.getItem('nexlance_auth') === '1';
+            redirectToLoginForAuthMismatch(
+                hasLocalSession
+                    ? 'Your login session expired. Please sign in again to continue.'
+                    : 'You need to sign in to continue.'
+            );
+        }
         if (!contentType.includes('application/json') && (response.status === 404 || response.status === 405)) {
             const unavailable = new Error('Dashboard API is unavailable.');
             unavailable.code = 'api/unavailable';
@@ -914,6 +993,11 @@ async function authorizedApiRequest(path, method = 'GET', payload = null) {
     await waitForFirebaseAuthSession();
     if (!isFirebaseUserAuthenticated()) {
         const hasLocalSession = localStorage.getItem('nexlance_auth') === '1';
+        redirectToLoginForAuthMismatch(
+            hasLocalSession
+                ? 'Your login session expired. Please sign in again to continue.'
+                : 'You need to sign in to continue.'
+        );
         const error = new Error(
             hasLocalSession
                 ? 'Your login session expired. Please sign in again to continue.'
@@ -948,6 +1032,14 @@ async function authorizedApiRequest(path, method = 'GET', payload = null) {
     }
 
     if (!response.ok) {
+        if (response.status === 401) {
+            const hasLocalSession = localStorage.getItem('nexlance_auth') === '1';
+            redirectToLoginForAuthMismatch(
+                hasLocalSession
+                    ? 'Your login session expired. Please sign in again to continue.'
+                    : 'You need to sign in to continue.'
+            );
+        }
         const errorMessage = data.error || data.message || (rawText ? rawText.trim() : '') || 'Request failed.';
         const error = new Error(errorMessage);
         error.status = response.status;
@@ -1257,6 +1349,9 @@ function ensureStoredAccessConsistency() {
 }
 
 function syncAccessUiState() {
+    if (isFirebaseUserAuthenticated()) {
+        clearAuthRedirectLock();
+    }
     ensureStoredAccessConsistency();
     syncPlanUiVisibility();
     syncAdminUiVisibility();
