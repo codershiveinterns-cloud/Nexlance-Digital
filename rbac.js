@@ -58,13 +58,17 @@
         admin_owner: ROLES.ADMIN,
         adminowner: ROLES.ADMIN,
         administrator: ROLES.ADMIN,
+        [ROLES.ADMIN]: ROLES.ADMIN,
         pm: ROLES.TEAM_MEMBER,
         project_manager: ROLES.TEAM_MEMBER,
         'project manager': ROLES.TEAM_MEMBER,
+        team_member: ROLES.TEAM_MEMBER,
+        'team member': ROLES.TEAM_MEMBER,
         developer: ROLES.TEAM_MEMBER,
         designer: ROLES.TEAM_MEMBER,
         member: ROLES.TEAM_MEMBER,
         team: ROLES.TEAM_MEMBER,
+        [ROLES.CLIENT]: ROLES.CLIENT,
         client: ROLES.CLIENT,
         admin: ROLES.ADMIN
     });
@@ -94,6 +98,7 @@
             PERMISSIONS.VIEW_REVENUE,
             PERMISSIONS.CREATE_INVOICES,
             PERMISSIONS.VIEW_INVOICES,
+            PERMISSIONS.MANAGE_PAYMENTS,
             PERMISSIONS.UPLOAD_FILES,
             PERMISSIONS.VIEW_SERVICES,
             PERMISSIONS.MANAGE_TEAM_MEMBERS,
@@ -103,7 +108,6 @@
         ]),
         [ROLES.TEAM_MEMBER]: Object.freeze([
             PERMISSIONS.VIEW_DASHBOARD,
-            PERMISSIONS.VIEW_CLIENTS,
             PERMISSIONS.VIEW_PROJECTS,
             PERMISSIONS.MANAGE_PROJECTS,
             PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
@@ -116,10 +120,9 @@
             PERMISSIONS.EDIT_TASKS,
             PERMISSIONS.DELETE_TASKS,
             PERMISSIONS.VIEW_REVENUE,
-            PERMISSIONS.CREATE_INVOICES,
-            PERMISSIONS.VIEW_INVOICES,
             PERMISSIONS.UPLOAD_FILES,
-            PERMISSIONS.VIEW_SERVICES
+            PERMISSIONS.VIEW_SERVICES,
+            PERMISSIONS.ACCESS_SYSTEM_SETTINGS
         ]),
         [ROLES.CLIENT]: Object.freeze([
             PERMISSIONS.VIEW_PROJECTS,
@@ -131,7 +134,6 @@
     const OWNER_ONLY_PERMISSIONS = Object.freeze([
         PERMISSIONS.MANAGE_PAYMENTS,
         PERMISSIONS.MANAGE_TEAM_MEMBERS,
-        PERMISSIONS.ACCESS_SYSTEM_SETTINGS,
         PERMISSIONS.ACCESS_ADMIN_PANEL,
         PERMISSIONS.ACCESS_INVITATION_CONTROL
     ]);
@@ -158,7 +160,6 @@
         Object.freeze({ key: PERMISSIONS.UPLOAD_FILES, label: 'Upload Files' }),
         Object.freeze({ key: PERMISSIONS.MANAGE_TEAM_MEMBERS, label: 'Manage Team Members' }),
         Object.freeze({ key: PERMISSIONS.ACCESS_SYSTEM_SETTINGS, label: 'System Settings' }),
-        Object.freeze({ key: PERMISSIONS.ACCESS_ADMIN_PANEL, label: 'Access Admin Panel' }),
         Object.freeze({ key: PERMISSIONS.ACCESS_INVITATION_CONTROL, label: 'Invitation Control' }),
         Object.freeze({ key: PERMISSIONS.ACCESS_SETTINGS, label: 'Access Settings' }),
         Object.freeze({ key: PERMISSIONS.ACCESS_SUPPORT_INFO, label: 'Access Support Info' }),
@@ -289,7 +290,7 @@
                 create: permissionSet.has(PERMISSIONS.CREATE_INVOICES),
                 update: permissionSet.has(PERMISSIONS.CREATE_INVOICES),
                 delete: canDeleteManagedRecords && permissionSet.has(PERMISSIONS.CREATE_INVOICES),
-                read: permissionSet.has(PERMISSIONS.VIEW_INVOICES) || permissionSet.has(PERMISSIONS.CREATE_INVOICES) || permissionSet.has(PERMISSIONS.VIEW_REVENUE)
+                read: permissionSet.has(PERMISSIONS.VIEW_INVOICES)
             },
             projects: {
                 create: permissionSet.has(PERMISSIONS.MANAGE_PROJECTS),
