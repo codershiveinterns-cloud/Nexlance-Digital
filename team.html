@@ -211,8 +211,8 @@ function getMemberPermissionState(member) {
   const userLike = {
     role: member && (member.canonical_role || member.role),
     workspaceRole: member && (member.canonical_role || member.role),
-    permissionKeys: getMemberExplicitPermissionKeys(member),
-    permissionMode: getMemberPermissionMode(member)
+    permissionKeys: getRolePermissionKeys(member && (member.canonical_role || member.role)),
+    permissionMode: 'default'
   };
   if (accessControl && typeof accessControl.getPermissionMatrix === 'function') {
     const matrix = accessControl.getPermissionMatrix(userLike);

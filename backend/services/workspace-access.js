@@ -2,7 +2,9 @@ const AccessControl = require('../../rbac.js');
 const {
     findUserDocumentByEmail,
     getCollectionDocument,
+    listCollectionDocuments,
     patchCollectionDocument,
+    queryCollectionDocuments,
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
@@ -56,6 +58,252 @@ function hasAllProjectsAccess(profile = {}) {
     return profile.allProjectsAccess === true
         || profile.all_projects_access === true
         || String(profile.projectAccessScope || profile.project_access_scope || '').trim().toLowerCase() === 'all';
+}
+
+function getNormalizedClientInvitationAccess(invitation = {}) {
+    const allProjectsAccess = invitation.allProjectsAccess === true
+        || invitation.all_projects_access === true
+        || String(invitation.projectAccessScope || invitation.project_access_scope || '').trim().toLowerCase() === 'all';
+    const assignedProjectIds = allProjectsAccess
+        ? []
+        : AccessControl.sanitizeAssignedProjectIds(
+            invitation.assignedProjectIds !== undefined
+                ? invitation.assignedProjectIds
+                : invitation.assigned_project_ids
+        );
+
+    return {
+        assignedProjectIds,
+        allProjectsAccess,
+        projectAccessScope: allProjectsAccess ? 'all' : 'selected',
+        primaryProjectId: allProjectsAccess ? '' : (assignedProjectIds[0] || '')
+    };
+}
+
+function isUsableClientInvitation(record = {}) {
+    const inviteType = String(record.inviteType || '').trim().toLowerCase();
+    if (inviteType !== 'client') return false;
+
+    const role = AccessControl.normalizeRole(record.role || record.workspaceRole || record.dashboardRole || 'client');
+    if (role !== AccessControl.ROLES.CLIENT) return false;
+
+    const status = String(record.status || 'pending').trim().toLowerCase();
+    if (status === 'accepted' || status === 'cancelled' || status === 'revoked' || status === 'expired') {
+        return false;
+    }
+    if (record.usedAt) return false;
+
+    if (record.expiresAt) {
+        const expiresAtMs = new Date(record.expiresAt).getTime();
+        if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function getInvitationSortTimestamp(record = {}) {
+    const updatedAtMs = new Date(record.updatedAt || record.updated_at || '').getTime();
+    if (Number.isFinite(updatedAtMs) && updatedAtMs > 0) return updatedAtMs;
+    const createdAtMs = new Date(record.createdAt || record.created_at || '').getTime();
+    if (Number.isFinite(createdAtMs) && createdAtMs > 0) return createdAtMs;
+    return 0;
+}
+
+function shouldTryClientInvitationAutoBootstrap(profile = {}) {
+    if (AccessControl.isWorkspaceOwner(profile)) return false;
+    const workspaceId = String(profile.workspaceId || '').trim();
+    if (!workspaceId) return true;
+
+    const role = AccessControl.normalizeRole(profile.role || profile.workspaceRole || profile.dashboardRole || '');
+    const membershipStatus = String(profile.membershipStatus || profile.status || '').trim().toLowerCase();
+    return role === AccessControl.ROLES.CLIENT && membershipStatus === 'pending';
+}
+
+async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = '') {
+    const safeEmail = AccessControl.normalizeEmail(email);
+    if (!safeEmail) return null;
+
+    const normalizedPreferredWorkspaceId = String(preferredWorkspaceId || '').trim();
+    let invitations = await queryCollectionDocuments('invitations', {
+        fieldPath: 'email',
+        op: 'EQUAL',
+        value: safeEmail,
+        limit: 200
+    }).catch(() => []);
+
+    if (!Array.isArray(invitations) || !invitations.length) {
+        invitations = (await listCollectionDocuments('invitations', { pageSize: 500 }).catch(() => []))
+            .filter(record => AccessControl.normalizeEmail(record.email) === safeEmail)
+            .map(record => ({ id: record.id, data: record }));
+    }
+
+    const candidates = (Array.isArray(invitations) ? invitations : [])
+        .map(record => ({
+            id: record.id || (record.name ? record.name.split('/').pop() : ''),
+            data: record.data || record
+        }))
+        .filter(entry => {
+            const record = entry.data || {};
+            if (!isUsableClientInvitation(record)) return false;
+            if (!String(record.workspaceId || '').trim()) return false;
+            if (!normalizedPreferredWorkspaceId) return true;
+            return String(record.workspaceId || '').trim() === normalizedPreferredWorkspaceId;
+        })
+        .sort((left, right) => getInvitationSortTimestamp(right.data) - getInvitationSortTimestamp(left.data));
+
+    return candidates[0] || null;
+}
+
+async function syncProjectAssignmentsForUser({ workspaceId, userId, email, access }) {
+    if (!workspaceId || !userId) return;
+
+    const records = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
+    const currentAssignments = records.filter(record => (
+        String(record.workspaceId || '').trim() === String(workspaceId).trim()
+        && String(record.userId || '').trim() === String(userId).trim()
+    ));
+    const assignedProjectIdSet = new Set(access.assignedProjectIds);
+
+    for (const assignment of currentAssignments) {
+        const projectId = String(assignment.projectId || '').trim();
+        const shouldBeActive = access.allProjectsAccess || assignedProjectIdSet.has(projectId);
+        if (Boolean(assignment.active) === shouldBeActive) continue;
+        await patchCollectionDocument('project_assignments', assignment.id, {
+            active: shouldBeActive,
+            updatedAt: new Date().toISOString()
+        }).catch(() => undefined);
+    }
+
+    if (access.allProjectsAccess) {
+        return;
+    }
+
+    const existingProjectIdSet = new Set(
+        currentAssignments
+            .map(record => String(record.projectId || '').trim())
+            .filter(Boolean)
+    );
+
+    for (const projectId of access.assignedProjectIds) {
+        if (existingProjectIdSet.has(projectId)) continue;
+        const assignmentId = sanitizeDocumentId(`${workspaceId}_${projectId}_${userId}`);
+        await upsertCollectionDocument('project_assignments', assignmentId, {
+            workspaceId: String(workspaceId).trim(),
+            projectId,
+            userId: String(userId).trim(),
+            email: AccessControl.normalizeEmail(email),
+            role: AccessControl.ROLES.CLIENT,
+            inviteType: 'client',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            active: true
+        }).catch(() => undefined);
+    }
+}
+
+async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUser }) {
+    if (!shouldTryClientInvitationAutoBootstrap(existingProfile)) {
+        return null;
+    }
+
+    const invitation = await findPendingClientInvitationByEmail(
+        authUser.email,
+        existingProfile.workspaceId
+    );
+    if (!invitation || !invitation.data) {
+        return null;
+    }
+
+    const invite = invitation.data;
+    const workspaceId = String(invite.workspaceId || '').trim();
+    if (!workspaceId) {
+        return null;
+    }
+
+    const safeEmail = AccessControl.normalizeEmail(authUser.email || existingProfile.email);
+    const now = new Date().toISOString();
+    const access = getNormalizedClientInvitationAccess(invite);
+    const workspaceOwnerEmail = AccessControl.normalizeEmail(invite.workspaceOwnerEmail || invite.ownerEmail);
+    const workspaceOwnerUserId = String(invite.workspaceOwnerUserId || invite.ownerUserId || '').trim();
+    const baseAutoProfile = {
+        ...existingProfile,
+        email: safeEmail,
+        name: String(existingProfile.name || authUser.displayName || authUser.email).trim(),
+        workspaceId,
+        workspaceOwnerEmail,
+        workspaceOwnerUserId,
+        ownerEmail: workspaceOwnerEmail,
+        ownerUserId: workspaceOwnerUserId,
+        isWorkspaceOwner: false,
+        role: AccessControl.ROLES.CLIENT,
+        workspaceRole: AccessControl.ROLES.CLIENT,
+        permissionMode: String(invite.permissionMode || invite.permission_mode || '').trim().toLowerCase() === 'explicit'
+            ? 'explicit'
+            : 'default',
+        permissionKeys: Array.isArray(invite.permissionKeys)
+            ? invite.permissionKeys
+            : (Array.isArray(invite.permission_keys) ? invite.permission_keys : []),
+        assignedProjectIds: access.assignedProjectIds,
+        allProjectsAccess: access.allProjectsAccess,
+        projectAccessScope: access.projectAccessScope,
+        membershipStatus: 'active',
+        inviteType: 'client',
+        inviteAcceptedAt: now,
+        joinedAt: existingProfile.joinedAt || now
+    };
+    const permissionFields = buildPermissionFields(baseAutoProfile, authUser);
+    const autoProfile = {
+        ...baseAutoProfile,
+        ...permissionFields,
+        updatedAt: now
+    };
+
+    const clientProfileId = sanitizeDocumentId(`${workspaceId}_${safeEmail}`);
+    await upsertCollectionDocument('client_profiles', clientProfileId, {
+        workspaceId,
+        userId: String(authUser.uid || '').trim(),
+        email: safeEmail,
+        assignedProjectIds: access.assignedProjectIds,
+        allProjectsAccess: access.allProjectsAccess,
+        projectAccessScope: access.projectAccessScope,
+        status: 'active',
+        updatedAt: now
+    }).catch(() => undefined);
+
+    await syncProjectAssignmentsForUser({
+        workspaceId,
+        userId: String(authUser.uid || '').trim(),
+        email: safeEmail,
+        access
+    }).catch(() => undefined);
+
+    if (invite.targetRecordCollection && invite.targetRecordId) {
+        await patchCollectionDocument(invite.targetRecordCollection, invite.targetRecordId, {
+            invite_status: 'accepted',
+            canonical_role: AccessControl.ROLES.CLIENT,
+            role: AccessControl.getRoleDisplayLabel(AccessControl.ROLES.CLIENT),
+            assigned_project_ids: access.assignedProjectIds,
+            all_projects_access: access.allProjectsAccess,
+            project_access_scope: access.projectAccessScope,
+            project_id: access.primaryProjectId,
+            primary_project_id: access.primaryProjectId,
+            invited_user_id: String(authUser.uid || '').trim(),
+            invite_accepted_at: now,
+            updated_at: now
+        }).catch(() => undefined);
+    }
+
+    await patchCollectionDocument('invitations', invitation.id, {
+        status: 'accepted',
+        usedAt: now,
+        acceptedByUserId: String(authUser.uid || '').trim(),
+        acceptedByEmail: safeEmail,
+        updatedAt: now
+    }).catch(() => undefined);
+
+    return autoProfile;
 }
 
 function buildPermissionFields(profile = {}, authUser = {}) {
@@ -200,7 +448,14 @@ async function ensureWorkspaceMember(profile = {}, authUser = {}) {
 
 async function ensureWorkspaceAccessProfile(authUser) {
     const profileDocument = await loadUserProfileDocument(authUser);
-    const existingProfile = profileDocument && profileDocument.data ? profileDocument.data : {};
+    let existingProfile = profileDocument && profileDocument.data ? profileDocument.data : {};
+    const autoBootstrappedClientProfile = await autoBootstrapClientAccessFromInvitation({
+        existingProfile,
+        authUser
+    }).catch(() => null);
+    if (autoBootstrappedClientProfile) {
+        existingProfile = autoBootstrappedClientProfile;
+    }
     const pendingInviteBootstrap = hasPendingInviteState(existingProfile);
     const ownerEmail = getWorkspaceOwnerEmail(existingProfile, authUser);
     const ownerUserId = getWorkspaceOwnerUserId(existingProfile, authUser);
