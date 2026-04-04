@@ -90,12 +90,6 @@
         <div style="margin-top:10px;"><span class="badge badge-red" onclick="showRoleDetail('Admin')">Full Access</span></div>
       </div>
       <div class="role-card">
-        <div class="role-icon">🗂</div>
-        <h3>Project Manager</h3>
-        <p>Manages projects, tasks, team assignments, and client communication.</p>
-        <div style="margin-top:10px;"><span class="badge badge-blue" onclick="showRoleDetail('Project Manager')">High Access</span></div>
-      </div>
-      <div class="role-card">
         <div class="role-icon">💻</div>
         <h3>Developer</h3>
         <p>Works on assigned tasks. Can update task status and upload files.</p>
@@ -122,7 +116,7 @@
         <thead>
           <tr>
             <th style="min-width:200px;">Permission</th>
-            <th>👑 Admin</th><th>🗂 PM</th><th>💻 Developer</th><th>🎨 Designer</th><th>👤 Client</th>
+            <th>👑 Admin</th><th>💻 Developer</th><th>🎨 Designer</th><th>👤 Client</th>
           </tr>
         </thead>
         <tbody id="permissionsBody"></tbody>
@@ -173,7 +167,7 @@
       <label style="display:flex;justify-content:space-between;align-items:center;font-size:0.875rem;">
         Role
         <select id="erRole" style="padding:8px 12px;border-radius:9px;border:1px solid #e0d6ff;font-family:Segoe UI,sans-serif;">
-          <option>Admin</option><option>Project Manager</option>
+          <option>Admin</option>
           <option>Developer</option><option>Designer</option><option>Client</option>
         </select>
       </label>
@@ -241,7 +235,7 @@
         <label>Assign Role</label>
         <select id="invRole" style="padding:10px 12px;border-radius:9px;border:1px solid #e0d6ff;font-family:Segoe UI,sans-serif;font-size:0.875rem;width:100%;">
           <option>Admin</option><option selected>Developer</option>
-          <option>Project Manager</option><option>Designer</option><option>Client</option>
+          <option>Designer</option><option>Client</option>
         </select>
       </div>
     </div>
@@ -307,10 +301,9 @@ let editingMemberId = null;
    PERMISSIONS DATA
 ============================================================ */
 const accessControl = window.NexlanceAccessControl;
-const roleOrder = ['Admin', 'Project Manager', 'Developer', 'Designer', 'Client'];
+const roleOrder = ['Admin', 'Developer', 'Designer', 'Client'];
 const roleColors = {
   Admin: 'badge-red',
-  'Project Manager': 'badge-blue',
   Developer: 'badge-purple',
   Designer: 'badge-teal',
   Client: 'badge-gray'
@@ -352,14 +345,19 @@ function applyEditRolePermissions(role) {
   document.getElementById('erUpload').checked = state.upload;
 }
 
+function getEditableRole(role) {
+  const label = getRoleLabel(role);
+  return label === 'Project Manager' ? 'Developer' : label;
+}
+
 /* ============================================================
    ROLE DETAIL MODAL
 ============================================================ */
-const roleIcons = { Admin:'👑', 'Project Manager':'🗂', Developer:'💻', Designer:'🎨', Client:'👤' };
-const roleBadgeLabel = { Admin:'Full Access', 'Project Manager':'High Access', Developer:'Task Access', Designer:'Design Access', Client:'Limited' };
+const roleIcons = { Admin:'👑', Developer:'💻', Designer:'🎨', Client:'👤' };
+const roleBadgeLabel = { Admin:'Full Access', Developer:'Task Access', Designer:'Design Access', Client:'Limited' };
 
 function showRoleDetail(role) {
-  const badgeColors = { Admin:'#d63031', 'Project Manager':'#0984e3', Developer:'#6c5ce7', Designer:'#00b894', Client:'#888' };
+  const badgeColors = { Admin:'#d63031', Developer:'#6c5ce7', Designer:'#00b894', Client:'#888' };
   document.getElementById('roleDetailTitle').innerHTML =
     `${roleIcons[role]||''} ${role}
      <span style="font-size:0.78rem;font-weight:600;background:${badgeColors[role]||'#888'};color:#fff;padding:2px 10px;border-radius:20px;margin-left:8px;">${roleBadgeLabel[role]||role}</span>`;
@@ -428,8 +426,9 @@ function openEditRole(id) {
   if (!m) return;
   editingMemberId = id;
   document.getElementById('editRoleName').textContent = m.name;
-  document.getElementById('erRole').value = getRoleLabel(m.canonical_role || m.role);
-  applyEditRolePermissions(m.canonical_role || m.role);
+  const selectedRole = getEditableRole(m.canonical_role || m.role);
+  document.getElementById('erRole').value = selectedRole;
+  applyEditRolePermissions(selectedRole);
   document.getElementById('editRoleModal').classList.add('active');
 }
 
@@ -546,7 +545,6 @@ async function verifyCode() {
   // Add member to team
   const presets = {
     Admin:           {t:true,  r:true,  i:true,  u:true},
-    'Project Manager':{t:true, r:true,  i:true,  u:true},
     Developer:       {t:true,  r:false, i:false, u:true},
     Designer:        {t:true,  r:false, i:false, u:true},
     Client:          {t:false, r:false, i:false, u:false}

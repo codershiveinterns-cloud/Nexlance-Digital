@@ -49,7 +49,7 @@
       <div class="stat-card"><div class="stat-label">Total Members</div><div class="stat-value" id="sTotal">0</div></div>
       <div class="stat-card blue"><div class="stat-label">Developers</div><div class="stat-value" id="sDev">0</div></div>
       <div class="stat-card purple" style="--c:#6c5ce7"><div class="stat-label">Designers</div><div class="stat-value" id="sDes">0</div></div>
-      <div class="stat-card green"><div class="stat-label">Project Managers</div><div class="stat-value" id="sPM">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Admins</div><div class="stat-value" id="sAdm">0</div></div>
     </div>
 
     <div class="filter-bar">
@@ -57,7 +57,6 @@
       <select id="filterRole">
         <option value="">All Roles</option>
         <option>Admin</option>
-        <option>Project Manager</option>
         <option>Developer</option>
         <option>Designer</option>
         <option>Client</option>
@@ -82,7 +81,6 @@
       <div class="form-group"><label>Role</label>
         <select id="fRole">
           <option>Admin</option>
-          <option>Project Manager</option>
           <option>Developer</option>
           <option>Designer</option>
           <option>Client</option>
@@ -156,14 +154,12 @@ const editablePermissionKeys = accessControl && Array.isArray(accessControl.PERM
   : [];
 const roleColors = {
   'Admin': 'badge-red',
-  'Project Manager': 'badge-blue',
   'Developer': 'badge-purple',
   'Designer': 'badge-teal',
   'Client': 'badge-gray'
 };
 const roleGradients = {
   'Admin': 'linear-gradient(135deg,#d63031,#e17055)',
-  'Project Manager': 'linear-gradient(135deg,#0984e3,#74b9ff)',
   'Developer': 'linear-gradient(135deg,#6c5ce7,#a29bfe)',
   'Designer': 'linear-gradient(135deg,#00cec9,#55efc4)',
   'Client': 'linear-gradient(135deg,#b2bec3,#dfe6e9)'
@@ -202,7 +198,6 @@ function getRoleToggleState(role) {
 
   const presets = {
     'Admin': { tasks: true, revenue: true, invoice: true, upload: true },
-    'Project Manager': { tasks: true, revenue: true, invoice: true, upload: true },
     'Developer': { tasks: true, revenue: false, invoice: false, upload: true },
     'Designer': { tasks: true, revenue: false, invoice: false, upload: true },
     'Client': { tasks: false, revenue: false, invoice: false, upload: false }
@@ -214,6 +209,11 @@ function getRolePermissionKeys(role) {
   return accessControl && typeof accessControl.getRolePermissionKeys === 'function'
     ? accessControl.getRolePermissionKeys(role)
     : [];
+}
+
+function getSelectableRole(role) {
+  const label = getRoleLabel(role);
+  return label === 'Project Manager' ? 'Developer' : label;
 }
 
 function getMemberExplicitPermissionKeys(member) {
@@ -330,7 +330,7 @@ function renderStats() {
   document.getElementById('sTotal').textContent = members.length;
   document.getElementById('sDev').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Developer').length;
   document.getElementById('sDes').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Designer').length;
-  document.getElementById('sPM').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Project Manager').length;
+  document.getElementById('sAdm').textContent = members.filter(member => getRoleLabel(member.canonical_role || member.role) === 'Admin').length;
 }
 
 function renderGrid(data) {
@@ -408,13 +408,14 @@ function openEditModal(id) {
   document.getElementById('modalTitle').textContent = 'Edit Member';
   document.getElementById('fName').value = member.name || '';
   document.getElementById('fEmail').value = member.email || '';
-  document.getElementById('fRole').value = getRoleLabel(member.canonical_role || member.role);
+  const selectedRole = getSelectableRole(member.canonical_role || member.role);
+  document.getElementById('fRole').value = selectedRole;
   renderProjectAccessOptions(member.assigned_project_ids || member.assignedProjectIds || []);
-  applyRolePermissions(member.canonical_role || member.role);
+  applyRolePermissions(selectedRole);
   renderPermissionChecklist(
     getMemberPermissionMode(member) === 'explicit'
       ? getMemberExplicitPermissionKeys(member)
-      : getRolePermissionKeys(member.canonical_role || member.role)
+      : getRolePermissionKeys(selectedRole)
   );
   document.getElementById('memberModal').classList.add('active');
 }
