@@ -747,11 +747,53 @@ function isFirebaseUserAuthenticated() {
     return Boolean(typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser);
 }
 
+async function waitForFirebaseAuthSession(timeoutMs = 1800) {
+    if (!(typeof firebase !== 'undefined' && firebase.auth)) {
+        return null;
+    }
+
+    const authInstance = firebase.auth();
+    if (authInstance.currentUser) {
+        return authInstance.currentUser;
+    }
+
+    return new Promise(resolve => {
+        let settled = false;
+        let unsubscribe = null;
+
+        const finish = user => {
+            if (settled) return;
+            settled = true;
+            if (typeof unsubscribe === 'function') {
+                try {
+                    unsubscribe();
+                } catch (error) {
+                    // no-op
+                }
+            }
+            resolve(user || null);
+        };
+
+        const timer = window.setTimeout(() => finish(authInstance.currentUser || null), Math.max(Number(timeoutMs) || 0, 0));
+        unsubscribe = authInstance.onAuthStateChanged(
+            user => {
+                window.clearTimeout(timer);
+                finish(user || null);
+            },
+            () => {
+                window.clearTimeout(timer);
+                finish(null);
+            }
+        );
+    });
+}
+
 function isDashboardApiUnavailableError(error) {
     return Boolean(error && (error.code === 'api/unavailable' || error.code === 'api/not-configured'));
 }
 
 async function getDashboardBearerToken() {
+    await waitForFirebaseAuthSession();
     if (!isFirebaseUserAuthenticated()) {
         const error = new Error('Please sign in again to continue.');
         error.code = 'auth/not-authenticated';
@@ -802,6 +844,7 @@ function normalizeDashboardApiError(error, entity, action) {
 }
 
 async function dashboardApiRequest(method, collectionId, docId = '', payload = null) {
+    await waitForFirebaseAuthSession();
     if (!isFirebaseUserAuthenticated()) {
         const error = new Error('Dashboard API requires a signed-in Firebase user.');
         error.code = 'api/not-configured';
@@ -868,8 +911,14 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
 }
 
 async function authorizedApiRequest(path, method = 'GET', payload = null) {
+    await waitForFirebaseAuthSession();
     if (!isFirebaseUserAuthenticated()) {
-        const error = new Error('You need to sign in to continue.');
+        const hasLocalSession = localStorage.getItem('nexlance_auth') === '1';
+        const error = new Error(
+            hasLocalSession
+                ? 'Your login session expired. Please sign in again to continue.'
+                : 'You need to sign in to continue.'
+        );
         error.code = 'auth/not-authenticated';
         throw error;
     }
