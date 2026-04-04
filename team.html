@@ -15,16 +15,16 @@
   <aside class="sidebar">
     <h2 class="logo">Nexlance</h2>
     <ul class="nav">
-      <li><a href="dashboard.html">ðŸ“Š Dashboard</a></li>
-      <li><a href="clients.html">ðŸ‘¥ Clients</a></li>
-      <li class="active"><a href="team.html">ðŸ§‘â€ðŸ’¼ Team</a></li>
-      <li><a href="projects.html">ðŸ“ Projects</a></li>
-      <li><a href="invoices.html">ðŸ§¾ Invoices</a></li>
-      <li><a href="services.html">ðŸ›  Services</a></li>
-      <li><a href="access-roles.html">ðŸ” Access / Roles</a></li>
-      <li id="settingsNavItem"><a href="settings.html">âš™ï¸ Settings</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="clients.html">Clients</a></li>
+      <li class="active"><a href="team.html">Team</a></li>
+      <li><a href="projects.html">Projects</a></li>
+      <li><a href="invoices.html">Invoices</a></li>
+      <li><a href="services.html">Services</a></li>
+      <li><a href="access-roles.html">Access / Roles</a></li>
+      <li id="settingsNavItem"><a href="settings.html">Settings</a></li>
       <hr style="border:none;border-top:1px solid #c9bfff;margin:12px 0 8px;">
-      <li><a href="developer-info.html">ðŸ‘¨â€ðŸ’» Support Info</a></li>
+      <li><a href="developer-info.html">Support Info</a></li>
     </ul>
   </aside>
 
@@ -72,7 +72,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="modalTitle">Add Team Member</h2>
-      <button class="modal-close" type="button" onclick="closeModal()">Ã—</button>
+      <button class="modal-close" type="button" onclick="closeModal()">x</button>
     </div>
     <div class="form-grid single">
       <div class="form-group"><label>Full Name *</label><input type="text" id="fName" placeholder="Arjun Kapoor"></div>
@@ -335,12 +335,12 @@ function renderStats() {
 function renderGrid(data) {
   const grid = document.getElementById('teamGrid');
   if (isUpgradeRequiredForData()) {
-    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">ðŸ”’</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></div>`;
+    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">LOCK</div><h3>Upgrade required</h3><p>${getUpgradeRequiredMessage()}</p></div></div>`;
     return;
   }
 
   if (!data.length) {
-    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">ðŸ§‘â€ðŸ’¼</div><h3>No team members found</h3><p>Add team members to get started</p></div></div>`;
+    grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">TEAM</div><h3>No team members found</h3><p>Add team members to get started</p></div></div>`;
     return;
   }
 
@@ -360,8 +360,8 @@ function renderGrid(data) {
       <span class="badge ${roleColors[role] || 'badge-gray'}">${role}</span>
       ${permissionTags.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${permissionTags.map(permission => `<span style="background:#f9f7ff;color:#6c5ce7;border-radius:6px;padding:2px 7px;font-size:0.7rem;font-weight:600;">${permission}</span>`).join('')}</div>` : ''}
       <div class="team-card-actions">
-        <button class="action-btn action-edit" type="button" onclick="openEditModal('${member.id}')" title="Edit">âœï¸</button>
-        <button class="action-btn action-delete" type="button" onclick="handleDelete('${member.id}')" title="Remove">ðŸ—‘</button>
+        <button class="action-btn action-edit" type="button" onclick="openEditModal('${member.id}')" title="Edit">Edit</button>
+        <button class="action-btn action-delete" type="button" onclick="handleDelete('${member.id}')" title="Remove">Delete</button>
       </div>
     </div>`;
   }).join('');
