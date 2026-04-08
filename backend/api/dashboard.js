@@ -67,13 +67,32 @@ function ensureOwnedDocument(record, sessionUser) {
     );
 }
 
+function getRecordWorkspaceId(record = {}) {
+    return String(record && (record.workspace_id || record.workspaceId) || '').trim();
+}
+
+function isProjectWorkspaceConsistent(record = {}, sessionUser = {}) {
+    const expectedWorkspaceId = String(sessionUser.workspaceId || '').trim();
+    if (!expectedWorkspaceId) return true;
+    const actualWorkspaceId = getRecordWorkspaceId(record);
+    if (actualWorkspaceId && actualWorkspaceId === expectedWorkspaceId) {
+        return true;
+    }
+    console.error('[WorkspaceConsistency] Dashboard project record workspace mismatch', {
+        projectId: String(record.id || '').trim(),
+        expectedWorkspaceId,
+        actualWorkspaceId
+    });
+    return false;
+}
+
 async function listDashboardCollectionRecords(collectionId, sessionUser) {
     const ownerKey = getWorkspaceOwnerKey(sessionUser);
     const workspaceId = String(sessionUser.workspaceId || '').trim();
     if (!ownerKey && !workspaceId) return [];
 
     const queryResults = [];
-    if (ownerKey) {
+    if (ownerKey && (!workspaceId || collectionId !== 'projects')) {
         const ownerMatched = await queryCollectionDocuments(collectionId, {
             fieldPath: 'owner_key',
             op: 'EQUAL',
@@ -95,9 +114,10 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
 
     if (!queryResults.length) {
         const all = await listCollectionDocuments(collectionId, { pageSize: 500 }).catch(() => []);
+        const requireWorkspaceMatch = collectionId === 'projects' && Boolean(workspaceId);
         return all
             .filter(record => (
-                (ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
+                (!requireWorkspaceMatch && ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
                 || (workspaceId && String(record.workspace_id || '').trim() === workspaceId)
             ))
             .map(record => ({
@@ -247,6 +267,10 @@ module.exports = async function handler(req, res) {
                     res.status(404).json({ error: 'Document not found.' });
                     return;
                 }
+                if (route.collectionId === 'projects' && !isProjectWorkspaceConsistent(existing.data, sessionUser)) {
+                    res.status(403).json({ error: 'You do not have access to this record.' });
+                    return;
+                }
                 if (!ensureOwnedDocument(existing.data, sessionUser)) {
                     res.status(403).json({ error: 'You do not have access to this record.' });
                     return;
@@ -267,7 +291,10 @@ module.exports = async function handler(req, res) {
             }
 
             const records = await listDashboardCollectionRecords(route.collectionId, sessionUser);
-            const filteredRecords = filterDashboardRecordsForSession(route.collectionId, records, sessionUser)
+            const workspaceConsistentRecords = route.collectionId === 'projects'
+                ? records.filter(record => isProjectWorkspaceConsistent(record && record.data ? record.data : record, sessionUser))
+                : records;
+            const filteredRecords = filterDashboardRecordsForSession(route.collectionId, workspaceConsistentRecords, sessionUser)
                 .map(record => ({ id: record.id, ...record.data }));
             res.status(200).json({ ok: true, records: filteredRecords });
             return;

@@ -29,6 +29,20 @@ const { resolveAssignedProjectIdsForWorkspace } = require('./project-assignment-
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+function getAuthoritativeAssignmentScope(profile = {}) {
+    const workspaceId = String(profile.workspaceId || '').trim();
+    const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(profile.assignedProjectIds);
+    const allProjectsAccess = profile.allProjectsAccess === true
+        || profile.all_projects_access === true
+        || String(profile.projectAccessScope || profile.project_access_scope || '').trim().toLowerCase() === 'all';
+    return {
+        workspaceId,
+        assignedProjectIds: allProjectsAccess ? [] : assignedProjectIds,
+        allProjectsAccess,
+        projectAccessScope: allProjectsAccess ? 'all' : 'selected'
+    };
+}
+
 function createRawInviteToken() {
     return crypto.randomBytes(32).toString('base64url');
 }
@@ -370,8 +384,17 @@ async function createInvitation({
             workspaceId: String(sessionUser.workspaceId || '').trim(),
             workspaceOwnerEmail: AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email)
         }).catch(() => ({
-            assignedProjectIds: safeAssignedProjectIds
+            assignedProjectIds: safeAssignedProjectIds,
+            unresolvedProjectIds: safeAssignedProjectIds
         }));
+        const unresolvedProjectIds = Array.isArray(resolvedScope.unresolvedProjectIds)
+            ? resolvedScope.unresolvedProjectIds
+            : [];
+        if (unresolvedProjectIds.length) {
+            const assignmentError = new Error('Assigned projects must belong to the selected workspace.');
+            assignmentError.statusCode = 400;
+            throw assignmentError;
+        }
         const normalizedResolvedScope = normalizeProjectAccess({
             assignedProjectIds: resolvedScope.assignedProjectIds,
             allProjectsAccess: false
@@ -681,8 +704,17 @@ async function acceptInvitation({ session, token }) {
             workspaceId: invitationWorkspaceId,
             workspaceOwnerEmail: AccessControl.normalizeEmail(record.workspaceOwnerEmail || record.ownerEmail)
         }).catch(() => ({
-            assignedProjectIds: accessFields.assignedProjectIds
+            assignedProjectIds: accessFields.assignedProjectIds,
+            unresolvedProjectIds: accessFields.assignedProjectIds
         }));
+        const unresolvedProjectIds = Array.isArray(resolvedScope.unresolvedProjectIds)
+            ? resolvedScope.unresolvedProjectIds
+            : [];
+        if (unresolvedProjectIds.length) {
+            const assignmentError = new Error('Invitation contains projects outside the workspace scope.');
+            assignmentError.statusCode = 400;
+            throw assignmentError;
+        }
         accessFields = buildProfileAccessFields({
             ...accessFields,
             assignedProjectIds: resolvedScope.assignedProjectIds,
@@ -730,10 +762,21 @@ async function acceptInvitation({ session, token }) {
     };
 
     await patchCollectionDocument('users', session.authUser.uid, nextUserProfile);
+    const authoritativeScope = getAuthoritativeAssignmentScope(nextUserProfile);
+    if (!authoritativeScope.workspaceId) {
+        const scopeError = new Error('Authoritative workspace scope is missing after invitation acceptance.');
+        scopeError.statusCode = 500;
+        throw scopeError;
+    }
+    console.info('[WorkspaceSourceOfTruth] Using users document scope for assignment sync', {
+        userId: String(session.authUser.uid || '').trim(),
+        workspaceId: authoritativeScope.workspaceId,
+        assignedProjectIds: authoritativeScope.assignedProjectIds
+    });
 
-    const memberDocId = getWorkspaceMemberDocumentId(invitationWorkspaceId, session.authUser.uid, safeSessionEmail);
+    const memberDocId = getWorkspaceMemberDocumentId(authoritativeScope.workspaceId, session.authUser.uid, safeSessionEmail);
     await upsertCollectionDocument('workspace_members', memberDocId, {
-        workspaceId: invitationWorkspaceId,
+        workspaceId: authoritativeScope.workspaceId,
         userId: session.authUser.uid,
         email: safeSessionEmail,
         name: sessionUser.name || safeSessionEmail,
@@ -743,21 +786,21 @@ async function acceptInvitation({ session, token }) {
         permissionKeys: profileFields.permissionKeys,
         permissions: profileFields.permissions,
         permissionMode: profileFields.permissionMode,
-        assignedProjectIds: accessFields.assignedProjectIds,
-        allProjectsAccess: accessFields.allProjectsAccess,
-        projectAccessScope: accessFields.projectAccessScope,
+        assignedProjectIds: authoritativeScope.assignedProjectIds,
+        allProjectsAccess: authoritativeScope.allProjectsAccess,
+        projectAccessScope: authoritativeScope.projectAccessScope,
         status: 'active',
         inviteType: record.inviteType,
         joinedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     });
 
-    const assignmentIds = AccessControl.sanitizeAssignedProjectIds(accessFields.assignedProjectIds);
-    if (!accessFields.allProjectsAccess) {
+    const assignmentIds = AccessControl.sanitizeAssignedProjectIds(authoritativeScope.assignedProjectIds);
+    if (!authoritativeScope.allProjectsAccess) {
         for (const projectId of assignmentIds) {
-            const assignmentId = sanitizeDocumentId(`${invitationWorkspaceId}_${projectId}_${session.authUser.uid}`);
+            const assignmentId = sanitizeDocumentId(`${authoritativeScope.workspaceId}_${projectId}_${session.authUser.uid}`);
             await upsertCollectionDocument('project_assignments', assignmentId, {
-                workspaceId: invitationWorkspaceId,
+                workspaceId: authoritativeScope.workspaceId,
                 projectId,
                 userId: session.authUser.uid,
                 email: safeSessionEmail,
@@ -776,10 +819,10 @@ async function acceptInvitation({ session, token }) {
             canonical_role: role,
             role: AccessControl.getRoleDisplayLabel(role),
             assigned_project_ids: assignmentIds,
-            all_projects_access: accessFields.allProjectsAccess,
-            project_access_scope: accessFields.projectAccessScope,
-            project_id: accessFields.allProjectsAccess ? '' : (assignmentIds[0] || ''),
-            primary_project_id: accessFields.allProjectsAccess ? '' : (assignmentIds[0] || ''),
+            all_projects_access: authoritativeScope.allProjectsAccess,
+            project_access_scope: authoritativeScope.projectAccessScope,
+            project_id: authoritativeScope.allProjectsAccess ? '' : (assignmentIds[0] || ''),
+            primary_project_id: authoritativeScope.allProjectsAccess ? '' : (assignmentIds[0] || ''),
             invited_user_id: session.authUser.uid,
             invite_accepted_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -787,14 +830,14 @@ async function acceptInvitation({ session, token }) {
     }
 
     if (record.inviteType === 'client') {
-        const clientProfileId = sanitizeDocumentId(`${invitationWorkspaceId}_${safeSessionEmail}`);
+        const clientProfileId = sanitizeDocumentId(`${authoritativeScope.workspaceId}_${safeSessionEmail}`);
         await upsertCollectionDocument('client_profiles', clientProfileId, {
-            workspaceId: invitationWorkspaceId,
+            workspaceId: authoritativeScope.workspaceId,
             userId: session.authUser.uid,
             email: safeSessionEmail,
             assignedProjectIds: assignmentIds,
-            allProjectsAccess: accessFields.allProjectsAccess,
-            projectAccessScope: accessFields.projectAccessScope,
+            allProjectsAccess: authoritativeScope.allProjectsAccess,
+            projectAccessScope: authoritativeScope.projectAccessScope,
             status: 'active',
             updatedAt: new Date().toISOString()
         });

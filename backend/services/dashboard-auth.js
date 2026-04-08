@@ -55,6 +55,11 @@ function getBearerToken(req) {
 
 async function authenticateDashboardRequest(req) {
     const idToken = getBearerToken(req);
+    console.info('[AuthContext] Dashboard request token check', {
+        hasBearerToken: Boolean(idToken),
+        method: String(req && req.method || '').trim().toUpperCase(),
+        url: String(req && req.url || '').trim()
+    });
     if (!idToken) {
         const error = new Error('Missing Bearer token.');
         error.statusCode = 401;
@@ -64,6 +69,12 @@ async function authenticateDashboardRequest(req) {
     const authUser = await verifyFirebaseIdToken(idToken);
     const userProfile = await ensureWorkspaceAccessProfile(authUser);
     const sessionUser = buildSessionUser(userProfile, authUser);
+    console.info('[AuthContext] Dashboard session resolved', {
+        uid: String(authUser.uid || '').trim(),
+        email: AccessControl.normalizeEmail(authUser.email),
+        workspaceId: String(sessionUser.workspaceId || '').trim(),
+        role: AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole)
+    });
 
     return {
         authUser,

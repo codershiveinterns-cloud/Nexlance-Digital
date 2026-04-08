@@ -871,6 +871,10 @@ async function refreshCurrentSessionUserFromApi() {
 
     try {
         const token = await getDashboardBearerToken();
+        console.info('[AuthContext] Refreshing session user from /api/me', {
+            hasBearerToken: Boolean(token),
+            hasCachedSession: localStorage.getItem('nexlance_auth') === '1'
+        });
         const response = await fetch('/api/me', {
             method: 'GET',
             headers: {
@@ -883,38 +887,65 @@ async function refreshCurrentSessionUserFromApi() {
             return null;
         }
 
+        const accessControl = getAccessControl();
+        const normalizeProjectIdList = value => {
+            const source = Array.isArray(value) ? value : [];
+            const fallback = source.map(projectId => String(projectId || '').trim()).filter(Boolean);
+            return accessControl ? accessControl.sanitizeAssignedProjectIds(source) : fallback;
+        };
+
         const currentUser = getCurrentSessionUser() || {};
+        const nextWorkspaceId = String(payload.user.workspaceId || payload.user.workspace_id || '').trim();
+        const nextAllProjectsAccess = (
+            payload.user.allProjectsAccess === true
+            || payload.user.all_projects_access === true
+            || String(payload.user.projectAccessScope || payload.user.project_access_scope || '').trim().toLowerCase() === 'all'
+        );
+        const nextAssignedProjectIds = nextAllProjectsAccess
+            ? []
+            : normalizeProjectIdList(
+                payload.user.assignedProjectIds !== undefined
+                    ? payload.user.assignedProjectIds
+                    : payload.user.assigned_project_ids
+            );
+        const nextProjectAccessScope = nextAllProjectsAccess ? 'all' : 'selected';
         const nextUser = {
             ...currentUser,
-            ...payload.user
+            ...payload.user,
+            workspaceId: nextWorkspaceId,
+            workspace_id: nextWorkspaceId,
+            allProjectsAccess: nextAllProjectsAccess,
+            all_projects_access: nextAllProjectsAccess,
+            assignedProjectIds: nextAssignedProjectIds,
+            assigned_project_ids: nextAssignedProjectIds,
+            projectAccessScope: nextProjectAccessScope,
+            project_access_scope: nextProjectAccessScope
         };
 
         const previousWorkspaceId = String(currentUser.workspaceId || '').trim();
-        const nextWorkspaceId = String(payload.user.workspaceId || '').trim();
-        const previousAssignedProjectIds = (Array.isArray(currentUser.assignedProjectIds) ? currentUser.assignedProjectIds : [])
-            .map(projectId => String(projectId || '').trim())
-            .filter(Boolean)
-            .sort();
-        const nextAssignedProjectIds = (Array.isArray(payload.user.assignedProjectIds) ? payload.user.assignedProjectIds : [])
-            .map(projectId => String(projectId || '').trim())
-            .filter(Boolean)
-            .sort();
+        const previousAssignedProjectIds = normalizeProjectIdList(
+            currentUser.assignedProjectIds !== undefined
+                ? currentUser.assignedProjectIds
+                : currentUser.assigned_project_ids
+        ).sort();
+        const sortedNextAssignedProjectIds = nextAssignedProjectIds.slice().sort();
 
         if (
             previousWorkspaceId !== nextWorkspaceId
-            || JSON.stringify(previousAssignedProjectIds) !== JSON.stringify(nextAssignedProjectIds)
+            || JSON.stringify(previousAssignedProjectIds) !== JSON.stringify(sortedNextAssignedProjectIds)
         ) {
             console.info('[WorkspaceSync] Refreshed session scope from API', {
                 previousWorkspaceId,
                 nextWorkspaceId,
                 previousAssignedProjectIds,
-                nextAssignedProjectIds
+                nextAssignedProjectIds: sortedNextAssignedProjectIds
             });
         }
 
         localStorage.setItem('nexlance_user', JSON.stringify(nextUser));
         return nextUser;
     } catch (error) {
+        console.warn('[AuthContext] Failed to refresh /api/me session', error);
         return null;
     }
 }
@@ -950,6 +981,12 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
     const path = docId
         ? `/api/dashboard/${encodeURIComponent(collectionId)}/${encodeURIComponent(docId)}`
         : `/api/dashboard/${encodeURIComponent(collectionId)}`;
+    console.info('[AuthContext] Dashboard API request prepared', {
+        method,
+        collectionId: String(collectionId || '').trim(),
+        hasBearerToken: Boolean(token),
+        path
+    });
 
     let response;
     try {
@@ -1032,6 +1069,11 @@ async function authorizedApiRequest(path, method = 'GET', payload = null) {
     }
 
     const token = await getDashboardBearerToken();
+    console.info('[AuthContext] Authorized API request prepared', {
+        method,
+        path: String(path || '').trim(),
+        hasBearerToken: Boolean(token)
+    });
     const response = await fetch(path, {
         method,
         headers: {
@@ -1554,6 +1596,42 @@ function decorateProjectRecords(records, fallbackSource = 'database') {
     return (Array.isArray(records) ? records : []).map(record => decorateProjectRecord(record, fallbackSource));
 }
 
+function getRecordWorkspaceId(record = {}) {
+    return String(record && (record.workspace_id || record.workspaceId) || '').trim();
+}
+
+function enforceWorkspaceConsistencyForProjects(records, sourceLabel = 'unknown') {
+    const currentUser = getCurrentSessionUser();
+    const expectedWorkspaceId = String(currentUser && currentUser.workspaceId || '').trim();
+    const safeRecords = Array.isArray(records) ? records : [];
+    if (!expectedWorkspaceId) return safeRecords;
+
+    const mismatchedProjects = [];
+    const consistentProjects = safeRecords.filter(record => {
+        if (!record || typeof record !== 'object') return false;
+        if (record.is_persisted_project === false) return true;
+        const actualWorkspaceId = getRecordWorkspaceId(record);
+        if (actualWorkspaceId && actualWorkspaceId === expectedWorkspaceId) {
+            return true;
+        }
+        mismatchedProjects.push({
+            projectId: String(record.id || '').trim(),
+            expectedWorkspaceId,
+            actualWorkspaceId
+        });
+        return false;
+    });
+
+    if (mismatchedProjects.length) {
+        console.error('[WorkspaceConsistency] Removed projects with mismatched workspace during dashboard fetch', {
+            source: String(sourceLabel || '').trim(),
+            mismatchCount: mismatchedProjects.length,
+            mismatchedProjects
+        });
+    }
+    return consistentProjects;
+}
+
 function filterVisibleProjectSourcesForCurrentUser(records) {
     const currentUser = getCurrentSessionUser();
     const accessControl = getAccessControl();
@@ -1729,28 +1807,64 @@ function filterRecordsForCurrentUserScope(entity, records) {
         return safeRecords;
     }
 
-    if (accessControl.isWorkspaceOwner(currentUser) || currentUserHasAllProjectsAccess()) {
-        return safeRecords;
-    }
+    const expectedWorkspaceId = String(currentUser.workspaceId || '').trim();
+    const workspaceScopedRecords = entity === 'projects'
+        ? safeRecords.filter(record => {
+            if (!record || typeof record !== 'object') return false;
+            if (record.is_persisted_project === false) return true;
+            const recordWorkspaceId = getRecordWorkspaceId(record);
+            if (recordWorkspaceId && recordWorkspaceId === expectedWorkspaceId) {
+                return true;
+            }
+            console.error('[WorkspaceConsistency] Project filtered due to workspace mismatch in scope filter', {
+                projectId: String(record.id || '').trim(),
+                expectedWorkspaceId,
+                actualWorkspaceId: recordWorkspaceId
+            });
+            return false;
+        })
+        : safeRecords;
 
     const assignedProjectIds = new Set(getAssignedProjectIdsForCurrentUser());
+    const debugProjectFilter = (filteredRecords, reason) => {
+        if (entity !== 'projects') return;
+        console.info('[WorkspaceFilterDebug] filterRecordsForCurrentUserScope', {
+            reason,
+            workspaceId: expectedWorkspaceId,
+            rawProjectIds: workspaceScopedRecords.map(record => String(record && record.id || '').trim()).filter(Boolean),
+            assignedProjectIds: Array.from(assignedProjectIds),
+            filteredProjectIds: (Array.isArray(filteredRecords) ? filteredRecords : [])
+                .map(record => String(record && record.id || '').trim())
+                .filter(Boolean)
+        });
+    };
+
+    if (accessControl.isWorkspaceOwner(currentUser) || currentUserHasAllProjectsAccess()) {
+        debugProjectFilter(workspaceScopedRecords, 'owner_or_all_projects_access');
+        return workspaceScopedRecords;
+    }
+
     const role = accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
     const isAdmin = role === accessControl.ROLES.ADMIN;
     const shouldRestrictProjects = role === accessControl.ROLES.CLIENT || assignedProjectIds.size > 0;
     if (isAdmin) {
-        return safeRecords;
+        debugProjectFilter(workspaceScopedRecords, 'admin_role');
+        return workspaceScopedRecords;
     }
     if (!shouldRestrictProjects) {
-        return safeRecords;
+        debugProjectFilter(workspaceScopedRecords, 'no_project_restriction');
+        return workspaceScopedRecords;
     }
 
-    return safeRecords.filter(record => {
+    const filteredRecords = workspaceScopedRecords.filter(record => {
         const projectIds = getProjectScopedIdsForRecord(entity, record);
         if (!projectIds.length) {
             return false;
         }
         return projectIds.some(projectId => assignedProjectIds.has(String(projectId || '').trim()));
     });
+    debugProjectFilter(filteredRecords, 'project_scope_filter');
+    return filteredRecords;
 }
 
 function shouldSkipOwnerScopedFallbackForCurrentUser() {
@@ -2068,6 +2182,39 @@ async function deleteClient(id) {
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
 
+    const currentUser = getCurrentSessionUser();
+    const workspaceId = String(currentUser && currentUser.workspaceId || '').trim();
+    const assignedProjectIdsForUser = getAssignedProjectIdsForCurrentUser();
+    const applyClientFilter = records => (clientId ? records.filter(project => project.client_id === clientId) : records);
+    const logProjectFetchDiagnostics = (source, rawRecords, filteredRecords) => {
+        console.info('[WorkspaceFilterDebug] Dashboard project fetch', {
+            source: String(source || '').trim(),
+            workspaceId,
+            rawProjectIds: (Array.isArray(rawRecords) ? rawRecords : [])
+                .map(record => String(record && record.id || '').trim())
+                .filter(Boolean),
+            assignedProjectIds: assignedProjectIdsForUser,
+            filteredProjectIds: (Array.isArray(filteredRecords) ? filteredRecords : [])
+                .map(record => String(record && record.id || '').trim())
+                .filter(Boolean)
+        });
+    };
+    const logMissingAssignedProjects = records => {
+        if (!workspaceId || !assignedProjectIdsForUser.length || currentUserHasAllProjectsAccess()) return;
+        const persistedProjectIds = new Set((Array.isArray(records) ? records : [])
+            .filter(record => record && record.is_persisted_project !== false)
+            .map(record => String(record.id || '').trim())
+            .filter(Boolean));
+        const missingAssignedProjectIds = assignedProjectIdsForUser.filter(projectId => !persistedProjectIds.has(String(projectId || '').trim()));
+        if (missingAssignedProjectIds.length) {
+            console.error('[WorkspaceConsistency] Assigned projects missing from fetched workspace project list', {
+                workspaceId,
+                assignedProjectIds: assignedProjectIdsForUser,
+                missingAssignedProjectIds
+            });
+        }
+    };
+
     const scopedProjects = decorateProjectRecords(
         filterRecordsForCurrentUserScope('projects', getLocalEntityData('projects')),
         'database'
@@ -2078,46 +2225,76 @@ async function fetchProjects(clientId = null) {
     );
 
     if (!isFirebaseConfigured) {
-        const records = decorateProjectRecords(createAccessFilteredDataset('projects', sampleProjects), 'local_fallback');
+        const records = enforceWorkspaceConsistencyForProjects(
+            decorateProjectRecords(createAccessFilteredDataset('projects', sampleProjects), 'local_fallback'),
+            'local_dataset'
+        );
         const combined = filterVisibleProjectSourcesForCurrentUser(
             sortProjectsByRecent(mergeProjectCollections(records, scopedProjects, templateProjects))
         );
-        return clientId ? combined.filter(p => p.client_id === clientId) : combined;
+        const filtered = applyClientFilter(combined);
+        logProjectFetchDiagnostics('local_dataset', records, filtered);
+        logMissingAssignedProjects(filtered);
+        return filtered;
     }
     try {
         if (isFirebaseUserAuthenticated()) {
             try {
-                const records = decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database');
+                const records = enforceWorkspaceConsistencyForProjects(
+                    decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database'),
+                    'dashboard_api'
+                );
                 const combinedApiRecords = sortProjectsByRecent(mergeProjectCollections(
                     Array.isArray(records) ? records : [],
                     scopedProjects,
                     templateProjects
                 ));
                 const visibleRecords = filterVisibleProjectSourcesForCurrentUser(combinedApiRecords);
-                return clientId ? visibleRecords.filter(p => p.client_id === clientId) : visibleRecords;
+                const filtered = applyClientFilter(visibleRecords);
+                logProjectFetchDiagnostics('dashboard_api', records, filtered);
+                logMissingAssignedProjects(filtered);
+                return filtered;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'read');
             }
         }
         if (shouldBypassDirectFirestoreForCollection('projects') || shouldSkipOwnerScopedFallbackForCurrentUser()) {
-            const combinedScoped = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
-            return clientId ? combinedScoped.filter(p => p.client_id === clientId) : combinedScoped;
+            const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'local_scope_bypass');
+            const combinedScoped = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
+            const filtered = applyClientFilter(combinedScoped);
+            logProjectFetchDiagnostics('local_scope_bypass', consistentScopedProjects, filtered);
+            logMissingAssignedProjects(filtered);
+            return filtered;
         }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) {
-            const combinedWithoutOwner = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
-            return clientId ? combinedWithoutOwner.filter(p => p.client_id === clientId) : combinedWithoutOwner;
+            const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'local_scope_no_owner');
+            const combinedWithoutOwner = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
+            const filtered = applyClientFilter(combinedWithoutOwner);
+            logProjectFetchDiagnostics('local_scope_no_owner', consistentScopedProjects, filtered);
+            logMissingAssignedProjects(filtered);
+            return filtered;
         }
         let q = db.collection('projects').where('owner_key', '==', ownerKey);
         if (clientId) q = q.where('client_id', '==', clientId);
         const snap = await q.get();
-        const firebaseProjects = decorateProjectRecords(_snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), 'database');
+        const firebaseProjects = enforceWorkspaceConsistencyForProjects(
+            decorateProjectRecords(_snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), 'database'),
+            'direct_firestore'
+        );
         const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(filterRecordsForCurrentUserScope('projects', mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects))));
-        return clientId ? combined.filter(p => p.client_id === clientId) : combined;
+        const filtered = applyClientFilter(combined);
+        logProjectFetchDiagnostics('direct_firestore', firebaseProjects, filtered);
+        logMissingAssignedProjects(filtered);
+        return filtered;
     } catch (e) {
         if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
-        return clientId ? combined.filter(p => p.client_id === clientId) : combined;
+        const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'error_fallback');
+        const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
+        const filtered = applyClientFilter(combined);
+        logProjectFetchDiagnostics('error_fallback', consistentScopedProjects, filtered);
+        logMissingAssignedProjects(filtered);
+        return filtered;
     }
 }
 

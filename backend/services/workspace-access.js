@@ -254,7 +254,21 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
         assignedProjectIds: invitationAccess.assignedProjectIds,
         workspaceId,
         workspaceOwnerEmail: AccessControl.normalizeEmail(invite.workspaceOwnerEmail || invite.ownerEmail)
-    }).catch(() => ({ assignedProjectIds: invitationAccess.assignedProjectIds }));
+    }).catch(() => ({
+        assignedProjectIds: invitationAccess.assignedProjectIds,
+        unresolvedProjectIds: invitationAccess.assignedProjectIds
+    }));
+    const unresolvedProjectIds = Array.isArray(resolvedScope.unresolvedProjectIds)
+        ? resolvedScope.unresolvedProjectIds
+        : [];
+    if (unresolvedProjectIds.length) {
+        console.error('[WorkspaceConsistency] Auto-bootstrap blocked due to unresolved project assignments', {
+            invitationId: invitation.id,
+            workspaceId,
+            unresolvedProjectIds: AccessControl.sanitizeAssignedProjectIds(unresolvedProjectIds)
+        });
+        return null;
+    }
     const access = getNormalizedClientInvitationAccess({
         ...invitationAccess,
         assignedProjectIds: resolvedScope.assignedProjectIds,

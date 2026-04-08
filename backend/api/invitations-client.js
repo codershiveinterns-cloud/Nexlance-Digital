@@ -51,8 +51,17 @@ async function normalizeClientInvitePayload(body = {}, sessionUser = {}) {
         workspaceId: String(sessionUser.workspaceId || '').trim(),
         workspaceOwnerEmail: String(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email || '').trim()
     }).catch(() => ({
-        assignedProjectIds: access.assignedProjectIds
+        assignedProjectIds: access.assignedProjectIds,
+        unresolvedProjectIds: access.assignedProjectIds
     }));
+    const unresolvedProjectIds = Array.isArray(resolvedScope.unresolvedProjectIds)
+        ? resolvedScope.unresolvedProjectIds
+        : [];
+    if (unresolvedProjectIds.length) {
+        const error = new Error('One or more assigned projects do not belong to this workspace.');
+        error.statusCode = 400;
+        throw error;
+    }
     const resolvedAccess = normalizeProjectAccess({
         assignedProjectIds: resolvedScope.assignedProjectIds,
         allProjectsAccess: access.allProjectsAccess

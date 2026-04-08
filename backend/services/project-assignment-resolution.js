@@ -70,7 +70,23 @@ async function listWorkspaceProjects({ workspaceId = '', workspaceOwnerEmail = '
             const projectWorkspaceId = String(entry.data.workspace_id || '').trim();
             const projectOwnerEmail = AccessControl.normalizeEmail(entry.data.owner_key || entry.data.owner_email);
             const workspaceMatch = normalizedWorkspaceId && projectWorkspaceId === normalizedWorkspaceId;
-            const ownerMatch = normalizedOwnerEmail && projectOwnerEmail === normalizedOwnerEmail;
+            const ownerMatch = !normalizedWorkspaceId && normalizedOwnerEmail && projectOwnerEmail === normalizedOwnerEmail;
+
+            if (normalizedWorkspaceId && projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
+                console.error('[WorkspaceConsistency] Project workspace mismatch during assignment resolution', {
+                    projectId,
+                    expectedWorkspaceId: normalizedWorkspaceId,
+                    actualWorkspaceId: projectWorkspaceId
+                });
+                return;
+            }
+            if (normalizedWorkspaceId && !projectWorkspaceId) {
+                console.error('[WorkspaceConsistency] Project missing workspace during assignment resolution', {
+                    projectId,
+                    expectedWorkspaceId: normalizedWorkspaceId
+                });
+                return;
+            }
 
             if (!workspaceMatch && !ownerMatch) return;
             seenIds.add(projectId);
@@ -151,6 +167,13 @@ async function resolveAssignedProjectIdsForWorkspace({
         }
         unresolved.push(directProjectId);
     });
+
+    if (unresolved.length) {
+        console.error('[WorkspaceConsistency] Assigned projects unresolved for workspace', {
+            workspaceId: String(workspaceId || '').trim(),
+            unresolvedProjectIds: AccessControl.sanitizeAssignedProjectIds(unresolved)
+        });
+    }
 
     return {
         assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(resolved),
