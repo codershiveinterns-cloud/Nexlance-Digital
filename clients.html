@@ -569,7 +569,9 @@ async function saveClient() {
         mergeClientIntoMemory(created.record);
       }
       await refreshClientsData();
-      if (created && created.emailDeliveryError) {
+      if (created && created.existingClientUpdated) {
+        showToast('Client access updated successfully!', 'success');
+      } else if (created && created.emailDeliveryError) {
         showToast('Client saved, but the invitation email could not be sent. Check the Resend sender domain in Vercel.', 'info');
       } else {
         showToast('Client invited successfully!', 'success');

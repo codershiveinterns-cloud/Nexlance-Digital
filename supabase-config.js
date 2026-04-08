@@ -888,6 +888,30 @@ async function refreshCurrentSessionUserFromApi() {
             ...currentUser,
             ...payload.user
         };
+
+        const previousWorkspaceId = String(currentUser.workspaceId || '').trim();
+        const nextWorkspaceId = String(payload.user.workspaceId || '').trim();
+        const previousAssignedProjectIds = (Array.isArray(currentUser.assignedProjectIds) ? currentUser.assignedProjectIds : [])
+            .map(projectId => String(projectId || '').trim())
+            .filter(Boolean)
+            .sort();
+        const nextAssignedProjectIds = (Array.isArray(payload.user.assignedProjectIds) ? payload.user.assignedProjectIds : [])
+            .map(projectId => String(projectId || '').trim())
+            .filter(Boolean)
+            .sort();
+
+        if (
+            previousWorkspaceId !== nextWorkspaceId
+            || JSON.stringify(previousAssignedProjectIds) !== JSON.stringify(nextAssignedProjectIds)
+        ) {
+            console.info('[WorkspaceSync] Refreshed session scope from API', {
+                previousWorkspaceId,
+                nextWorkspaceId,
+                previousAssignedProjectIds,
+                nextAssignedProjectIds
+            });
+        }
+
         localStorage.setItem('nexlance_user', JSON.stringify(nextUser));
         return nextUser;
     } catch (error) {

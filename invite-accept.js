@@ -173,6 +173,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       setMessage("Accepting invitation...", "success");
       const sessionUser = await acceptInvitationWithSession(token);
+      console.info("[InviteAccept] Applied invitation scope", {
+        workspaceId: String(sessionUser.workspaceId || "").trim(),
+        assignedProjectIds: Array.isArray(sessionUser.assignedProjectIds) ? sessionUser.assignedProjectIds : [],
+      });
       persistSession({
         ...sessionUser,
         emailVerified: Boolean(auth.currentUser && auth.currentUser.emailVerified),
@@ -247,6 +251,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       setResendVerificationState(false);
       const sessionUser = await acceptInvitationWithSession(token);
+      console.info("[InviteAccept] Applied invitation scope", {
+        workspaceId: String(sessionUser.workspaceId || "").trim(),
+        assignedProjectIds: Array.isArray(sessionUser.assignedProjectIds) ? sessionUser.assignedProjectIds : [],
+      });
       persistSession({
         ...sessionUser,
         emailVerified: Boolean(auth.currentUser && auth.currentUser.emailVerified),

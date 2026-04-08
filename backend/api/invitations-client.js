@@ -129,7 +129,8 @@ module.exports = async function handler(req, res) {
             ok: true,
             invitation: result.invitation,
             record: result.targetRecord,
-            emailDeliveryError: result.emailDeliveryError || null
+            emailDeliveryError: result.emailDeliveryError || null,
+            existingClientUpdated: result.existingClientUpdated === true
         });
     } catch (error) {
         sendApiError(res, error, 'Client invitation could not be sent.');

@@ -89,7 +89,7 @@ function isUsableClientInvitation(record = {}) {
     if (role !== AccessControl.ROLES.CLIENT) return false;
 
     const status = String(record.status || 'pending').trim().toLowerCase();
-    if (status === 'accepted' || status === 'cancelled' || status === 'revoked' || status === 'expired') {
+    if (status === 'accepted' || status === 'cancelled' || status === 'revoked' || status === 'expired' || status === 'superseded') {
         return false;
     }
     if (record.usedAt) return false;
@@ -105,10 +105,10 @@ function isUsableClientInvitation(record = {}) {
 }
 
 function getInvitationSortTimestamp(record = {}) {
-    const updatedAtMs = new Date(record.updatedAt || record.updated_at || '').getTime();
-    if (Number.isFinite(updatedAtMs) && updatedAtMs > 0) return updatedAtMs;
     const createdAtMs = new Date(record.createdAt || record.created_at || '').getTime();
     if (Number.isFinite(createdAtMs) && createdAtMs > 0) return createdAtMs;
+    const updatedAtMs = new Date(record.updatedAt || record.updated_at || '').getTime();
+    if (Number.isFinite(updatedAtMs) && updatedAtMs > 0) return updatedAtMs;
     return 0;
 }
 
@@ -223,6 +223,12 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
         return null;
     }
 
+    console.info('[WorkspaceAssignment] Auto-bootstrap using pending invitation', {
+        invitationId: invitation.id,
+        workspaceId,
+        email: AccessControl.normalizeEmail(authUser.email || existingProfile.email)
+    });
+
     const safeEmail = AccessControl.normalizeEmail(authUser.email || existingProfile.email);
     const now = new Date().toISOString();
     const invitationAccess = getNormalizedClientInvitationAccess({
@@ -322,6 +328,13 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
         acceptedByEmail: safeEmail,
         updatedAt: now
     }).catch(() => undefined);
+
+    console.info('[WorkspaceAssignment] Auto-bootstrap completed', {
+        invitationId: invitation.id,
+        workspaceId,
+        email: safeEmail,
+        assignedProjectIds: access.assignedProjectIds
+    });
 
     return autoProfile;
 }
