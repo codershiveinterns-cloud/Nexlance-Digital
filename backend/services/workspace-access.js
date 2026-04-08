@@ -114,21 +114,21 @@ function getInvitationSortTimestamp(record = {}) {
 
 function shouldTryClientInvitationAutoBootstrap(profile = {}) {
     if (AccessControl.isWorkspaceOwner(profile)) return false;
-    const workspaceId = String(profile.workspaceId || '').trim();
     const role = AccessControl.normalizeRole(profile.role || profile.workspaceRole || profile.dashboardRole || '');
     const membershipStatus = String(profile.membershipStatus || profile.status || '').trim().toLowerCase();
-    return Boolean(workspaceId) && role === AccessControl.ROLES.CLIENT && membershipStatus === 'pending';
+    if (role !== AccessControl.ROLES.CLIENT || membershipStatus !== 'pending') {
+        return false;
+    }
+    // Pending client profiles may not have workspaceId yet; do not block bootstrap on empty workspace.
+    return true;
 }
 
-async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = '') {
+async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = '', preferredInvitationId = '') {
     const safeEmail = AccessControl.normalizeEmail(email);
     if (!safeEmail) return null;
 
     const normalizedPreferredWorkspaceId = String(preferredWorkspaceId || '').trim();
-    if (!normalizedPreferredWorkspaceId) {
-        // Prevent implicit cross-workspace bootstrap from "latest"/"first" invitation fallback.
-        return null;
-    }
+    const normalizedPreferredInvitationId = String(preferredInvitationId || '').trim();
     let invitations = await queryCollectionDocuments('invitations', {
         fieldPath: 'email',
         op: 'EQUAL',
@@ -142,7 +142,7 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
             .map(record => ({ id: record.id, data: record }));
     }
 
-    const candidates = (Array.isArray(invitations) ? invitations : [])
+    let candidates = (Array.isArray(invitations) ? invitations : [])
         .map(record => ({
             id: record.id || (record.name ? record.name.split('/').pop() : ''),
             data: record.data || record
@@ -151,15 +151,24 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
             const record = entry.data || {};
             if (!isUsableClientInvitation(record)) return false;
             if (!String(record.workspaceId || '').trim()) return false;
-            return String(record.workspaceId || '').trim() === normalizedPreferredWorkspaceId;
+            return true;
         })
         .sort((left, right) => getInvitationSortTimestamp(right.data) - getInvitationSortTimestamp(left.data));
+
+    if (normalizedPreferredInvitationId) {
+        candidates = candidates.filter(candidate => String(candidate.id || '').trim() === normalizedPreferredInvitationId);
+    } else if (normalizedPreferredWorkspaceId) {
+        candidates = candidates.filter(candidate => (
+            String(candidate && candidate.data && candidate.data.workspaceId || '').trim() === normalizedPreferredWorkspaceId
+        ));
+    }
 
     if (candidates.length !== 1) {
         if (candidates.length > 1) {
             console.warn('[WorkspaceAssignment] Ambiguous pending invitations; skipping auto-bootstrap', {
                 email: safeEmail,
                 workspaceId: normalizedPreferredWorkspaceId,
+                invitationId: normalizedPreferredInvitationId,
                 invitationIds: candidates.map(candidate => candidate.id).filter(Boolean)
             });
         }
@@ -223,7 +232,8 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
 
     const invitation = await findPendingClientInvitationByEmail(
         authUser.email,
-        existingProfile.workspaceId
+        existingProfile.workspaceId,
+        existingProfile.invitationId || existingProfile.invitation_id || ''
     );
     if (!invitation || !invitation.data) {
         return null;
