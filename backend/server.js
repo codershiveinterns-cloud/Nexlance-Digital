@@ -893,8 +893,7 @@ const server = http.createServer(async (req, res) => {
                 ok: true,
                 invitation: result.invitation,
                 record: result.targetRecord,
-                emailDeliveryError: result.emailDeliveryError || null,
-                existingClientUpdated: result.existingClientUpdated === true
+                emailDeliveryError: result.emailDeliveryError || null
             });
         } catch (error) {
             sendJson(res, error.statusCode || 400, { error: error.message || 'Client invitation could not be sent.' });

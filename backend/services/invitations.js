@@ -7,8 +7,7 @@ const {
     buildClientAccessFields,
     buildInvitationAccessFields,
     buildProfileAccessFields,
-    normalizeProjectAccess,
-    syncClientAccessState
+    normalizeProjectAccess
 } = require('./client-access');
 const { buildTeamPermissionFields } = require('./team-member-access');
 const {
@@ -292,79 +291,6 @@ async function markWorkspaceClientInvitationsSuperseded({ workspaceId = '', emai
     }
 }
 
-async function syncExistingAcceptedClientRecordAccess({
-    sessionUser = {},
-    existingClientRecord,
-    inviteeName = '',
-    safeEmail = '',
-    normalizedRole = AccessControl.ROLES.CLIENT,
-    assignedProjectIds = [],
-    allProjectsAccess = false,
-    metadata = {}
-}) {
-    if (!existingClientRecord || !existingClientRecord.id) {
-        return null;
-    }
-
-    const now = new Date().toISOString();
-    const accessFields = buildClientAccessFields({
-        assignedProjectIds,
-        allProjectsAccess
-    });
-    const ownerEmail = AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.email);
-    const nextClientRecord = await patchCollectionDocument('clients', existingClientRecord.id, {
-        ...(metadata && typeof metadata === 'object' ? metadata : {}),
-        name: String(inviteeName || existingClientRecord.data.name || safeEmail).trim(),
-        email: safeEmail,
-        role: AccessControl.getRoleDisplayLabel(normalizedRole),
-        canonical_role: normalizedRole,
-        owner_key: ownerEmail,
-        owner_email: ownerEmail,
-        workspace_id: String(sessionUser.workspaceId || '').trim(),
-        invitation_id: String(existingClientRecord.data.invitation_id || '').trim(),
-        invite_status: 'accepted',
-        updated_at: now,
-        ...accessFields
-    });
-
-    const syncedClientRecord = await syncClientAccessState({
-        id: existingClientRecord.id,
-        data: {
-            ...existingClientRecord.data,
-            ...nextClientRecord,
-            id: existingClientRecord.id
-        }
-    }).catch(() => ({
-        id: existingClientRecord.id,
-        data: {
-            ...existingClientRecord.data,
-            ...nextClientRecord
-        }
-    }));
-
-    await markWorkspaceClientInvitationsSuperseded({
-        workspaceId: String(sessionUser.workspaceId || '').trim(),
-        email: safeEmail
-    }).catch(() => undefined);
-
-    console.info('[WorkspaceAssignment] Updated existing accepted client access', {
-        workspaceId: String(sessionUser.workspaceId || '').trim(),
-        clientId: existingClientRecord.id,
-        email: safeEmail,
-        assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(assignedProjectIds)
-    });
-
-    return {
-        invitation: null,
-        targetRecord: {
-            id: syncedClientRecord.id,
-            ...(syncedClientRecord.data || {})
-        },
-        emailDeliveryError: null,
-        existingClientUpdated: true
-    };
-}
-
 function buildInvitationRecord({
     invitationId,
     inviteType,
@@ -460,24 +386,6 @@ async function createInvitation({
             workspaceId: String(sessionUser.workspaceId || '').trim(),
             email: safeEmail
         }).catch(() => []);
-        const acceptedClientRecord = (Array.isArray(existingClientRecords) ? existingClientRecords : [])
-            .find(entry => isAcceptedClientRecord(entry && entry.data ? entry.data : {}));
-
-        if (acceptedClientRecord) {
-            const updatedExistingClientResult = await syncExistingAcceptedClientRecordAccess({
-                sessionUser,
-                existingClientRecord: acceptedClientRecord,
-                inviteeName,
-                safeEmail,
-                normalizedRole,
-                assignedProjectIds: safeAssignedProjectIds,
-                allProjectsAccess: safeAllProjectsAccess,
-                metadata
-            });
-            if (updatedExistingClientResult) {
-                return updatedExistingClientResult;
-            }
-        }
 
         reusablePendingClientRecord = (Array.isArray(existingClientRecords) ? existingClientRecords : [])
             .find(entry => !isAcceptedClientRecord(entry && entry.data ? entry.data : {})) || null;
@@ -609,8 +517,7 @@ async function createInvitation({
     return {
         invitation: finalInvitationRecord,
         targetRecord: finalTargetRecord,
-        emailDeliveryError,
-        existingClientUpdated: false
+        emailDeliveryError
     };
 }
 
