@@ -1457,6 +1457,22 @@ function shouldUseLocalEntityFallback(error) {
     );
 }
 
+const API_MANAGED_DASHBOARD_COLLECTIONS = new Set([
+    'clients',
+    'projects',
+    'tasks',
+    'invoices',
+    'services',
+    'team_members',
+    'activity_log',
+    'activity_logs',
+    'payments'
+]);
+
+function shouldBypassDirectFirestoreForCollection(collectionId) {
+    return API_MANAGED_DASHBOARD_COLLECTIONS.has(String(collectionId || '').trim().toLowerCase());
+}
+
 function getLegacyTemplateProjects() {
     try {
         const records = JSON.parse(localStorage.getItem('nexlance_projects') || '[]');
@@ -1780,7 +1796,7 @@ async function trackPlatformActivity(eventType, options = {}) {
 
     if (!record.event_type) return null;
 
-    if (!isFirebaseConfigured || !db) {
+    if (!isFirebaseConfigured || !db || shouldBypassDirectFirestoreForCollection('activity_logs')) {
         const records = getLocalAdminRecords('nexlance_activity_logs');
         const localRecord = { id: `activity_${Date.now()}`, ...record };
         records.unshift(localRecord);
@@ -1792,7 +1808,9 @@ async function trackPlatformActivity(eventType, options = {}) {
         const ref = await db.collection('activity_logs').add(record);
         return { id: ref.id, ...record };
     } catch (error) {
-        console.warn('Activity log write failed:', error);
+        if (!shouldUseLocalEntityFallback(error)) {
+            console.warn('Activity log write failed:', error);
+        }
         const records = getLocalAdminRecords('nexlance_activity_logs');
         const localRecord = { id: `activity_${Date.now()}`, ...record };
         records.unshift(localRecord);
@@ -1820,7 +1838,7 @@ async function recordPaymentRecord(options = {}) {
 
     if (!record.payment_intent_id && !record.payment_type) return null;
 
-    if (!isFirebaseConfigured || !db) {
+    if (!isFirebaseConfigured || !db || shouldBypassDirectFirestoreForCollection('payments')) {
         const records = getLocalAdminRecords('nexlance_payments');
         const localRecord = { id: `payment_${Date.now()}`, ...record };
         records.unshift(localRecord);
@@ -1832,7 +1850,9 @@ async function recordPaymentRecord(options = {}) {
         const ref = await db.collection('payments').add(record);
         return { id: ref.id, ...record };
     } catch (error) {
-        console.warn('Payment log write failed:', error);
+        if (!shouldUseLocalEntityFallback(error)) {
+            console.warn('Payment log write failed:', error);
+        }
         const records = getLocalAdminRecords('nexlance_payments');
         const localRecord = { id: `payment_${Date.now()}`, ...record };
         records.unshift(localRecord);
@@ -1853,6 +1873,10 @@ async function fetchClients() {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
             }
         }
+        if (shouldBypassDirectFirestoreForCollection('clients')) {
+            return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
+                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('clients').where('owner_key', '==', ownerKey).get();
@@ -1860,7 +1884,10 @@ async function fetchClients() {
             _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
             getLocalEntityData('clients')
         )).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    } catch (e) { console.error(e); return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients')); }
+    } catch (e) {
+        if (!shouldUseLocalEntityFallback(e)) console.error(e);
+        return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'));
+    }
 }
 
 async function fetchClientById(id) {
@@ -1891,7 +1918,7 @@ async function fetchClientById(id) {
         }
 
         const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) {
+        if (!ownerKey || shouldBypassDirectFirestoreForCollection('clients')) {
             return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
                 .find(client => String(client.id) === clientId) || null;
         }
@@ -1907,7 +1934,7 @@ async function fetchClientById(id) {
             }
         }
     } catch (error) {
-        console.error(error);
+        if (!shouldUseLocalEntityFallback(error)) console.error(error);
     }
 
     return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
@@ -1930,6 +1957,13 @@ async function addClient(d) {
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('clients');
         const r = { ...doc, id: 'c' + Date.now() };
+        records.unshift(r);
+        setLocalEntityData('clients', records);
+        return r;
+    }
+    if (shouldBypassDirectFirestoreForCollection('clients')) {
+        const records = getLocalEntityData('clients');
+        const r = { ...doc, id: 'c' + Date.now(), storage_fallback: true };
         records.unshift(r);
         setLocalEntityData('clients', records);
         return r;
@@ -1975,6 +2009,16 @@ async function updateClient(id, d) {
         }
         return null;
     }
+    if (shouldBypassDirectFirestoreForCollection('clients')) {
+        const records = getLocalEntityData('clients');
+        const i = records.findIndex(c => c.id === id);
+        if (i > -1) {
+            records[i] = { ...records[i], ...doc };
+            setLocalEntityData('clients', records);
+            return records[i];
+        }
+        return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
+    }
     await db.collection('clients').doc(id).update(doc);
     return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc });
 }
@@ -2003,6 +2047,11 @@ async function deleteClient(id) {
         }
     }
     if (!isFirebaseConfigured) {
+        const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
+        setLocalEntityData('clients', records);
+        return;
+    }
+    if (shouldBypassDirectFirestoreForCollection('clients')) {
         const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
         setLocalEntityData('clients', records);
         return;
@@ -2050,7 +2099,7 @@ async function fetchProjects(clientId = null) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'read');
             }
         }
-        if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
+        if (shouldBypassDirectFirestoreForCollection('projects') || shouldSkipOwnerScopedFallbackForCurrentUser()) {
             const combinedScoped = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
             return clientId ? combinedScoped.filter(p => p.client_id === clientId) : combinedScoped;
         }
@@ -2066,7 +2115,7 @@ async function fetchProjects(clientId = null) {
         const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(filterRecordsForCurrentUserScope('projects', mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects))));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     } catch (e) {
-        console.error(e);
+        if (!shouldUseLocalEntityFallback(e)) console.error(e);
         const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(scopedProjects, templateProjects)));
         return clientId ? combined.filter(p => p.client_id === clientId) : combined;
     }
@@ -2102,6 +2151,9 @@ async function addProject(d) {
         }
     }
     if (!isFirebaseConfigured) {
+        return createLocalDraftProject();
+    }
+    if (shouldBypassDirectFirestoreForCollection('projects')) {
         return createLocalDraftProject();
     }
     try {
@@ -2187,6 +2239,16 @@ async function updateProject(id, d, options = {}) {
         }
         return null;
     }
+    if (shouldBypassDirectFirestoreForCollection('projects')) {
+        const records = getLocalEntityData('projects');
+        const i = records.findIndex(p => p.id === id);
+        if (i > -1) {
+            records[i] = { ...records[i], ...doc, storage_fallback: true };
+            setLocalEntityData('projects', records);
+            return records[i];
+        }
+        return null;
+    }
     try {
         await db.collection('projects').doc(id).update(doc);
         return { id, ...doc };
@@ -2237,6 +2299,13 @@ async function deleteProject(id) {
         }
     }
     if (!isFirebaseConfigured) {
+        const records = getLocalEntityData('projects').filter(p => p.id !== id);
+        setLocalEntityData('projects', records);
+        const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
+        setLegacyTemplateProjects(legacyRecords);
+        return;
+    }
+    if (shouldBypassDirectFirestoreForCollection('projects')) {
         const records = getLocalEntityData('projects').filter(p => p.id !== id);
         setLocalEntityData('projects', records);
         const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
@@ -2440,7 +2509,7 @@ async function fetchTasks(projectId) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'read');
             }
         }
-        if (shouldSkipOwnerScopedFallbackForCurrentUser()) {
+        if (shouldBypassDirectFirestoreForCollection('tasks') || shouldSkipOwnerScopedFallbackForCurrentUser()) {
             return filterRecordsForCurrentUserScope('tasks', getLocalEntityData('tasks')).filter(t => t.project_id === projectId);
         }
         const ownerKey = getCurrentOwnerKey();
@@ -2453,7 +2522,10 @@ async function fetchTasks(projectId) {
             _snap(snap).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
             getLocalEntityData('tasks').filter(t => t.project_id === projectId)
         )).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-    } catch (e) { console.error(e); return []; }
+    } catch (e) {
+        if (!shouldUseLocalEntityFallback(e)) console.error(e);
+        return filterRecordsForCurrentUserScope('tasks', getLocalEntityData('tasks')).filter(t => t.project_id === projectId);
+    }
 }
 
 async function addTask(d) {
@@ -2472,6 +2544,13 @@ async function addTask(d) {
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('tasks');
         const r = { ...doc, id: 't' + Date.now() };
+        records.push(r);
+        setLocalEntityData('tasks', records);
+        return r;
+    }
+    if (shouldBypassDirectFirestoreForCollection('tasks')) {
+        const records = getLocalEntityData('tasks');
+        const r = { ...doc, id: 't' + Date.now(), storage_fallback: true };
         records.push(r);
         setLocalEntityData('tasks', records);
         return r;
@@ -2514,6 +2593,16 @@ async function updateTask(id, d) {
         }
         return null;
     }
+    if (shouldBypassDirectFirestoreForCollection('tasks')) {
+        const records = getLocalEntityData('tasks');
+        const i = records.findIndex(t => t.id === id);
+        if (i > -1) {
+            records[i] = { ...records[i], ...doc, storage_fallback: true };
+            setLocalEntityData('tasks', records);
+            return records[i];
+        }
+        return null;
+    }
     await db.collection('tasks').doc(id).update(doc);
     return { id, ...doc };
 }
@@ -2532,6 +2621,11 @@ async function deleteTask(id) {
         }
     }
     if (!isFirebaseConfigured) {
+        const records = getLocalEntityData('tasks').filter(t => t.id !== id);
+        setLocalEntityData('tasks', records);
+        return;
+    }
+    if (shouldBypassDirectFirestoreForCollection('tasks')) {
         const records = getLocalEntityData('tasks').filter(t => t.id !== id);
         setLocalEntityData('tasks', records);
         return;
@@ -2557,6 +2651,10 @@ async function fetchInvoices() {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'update');
             }
         }
+        if (shouldBypassDirectFirestoreForCollection('invoices')) {
+            return getLocalEntityData('invoices')
+                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('invoices').where('owner_key', '==', ownerKey).get();
@@ -2564,7 +2662,10 @@ async function fetchInvoices() {
             _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
             getLocalEntityData('invoices')
         ).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    } catch (e) { console.error(e); return getLocalEntityData('invoices'); }
+    } catch (e) {
+        if (!shouldUseLocalEntityFallback(e)) console.error(e);
+        return getLocalEntityData('invoices');
+    }
 }
 
 async function addInvoice(d) {
@@ -2583,6 +2684,13 @@ async function addInvoice(d) {
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('invoices');
         const r = { ...doc, id: 'i' + Date.now() };
+        records.unshift(r);
+        setLocalEntityData('invoices', records);
+        return r;
+    }
+    if (shouldBypassDirectFirestoreForCollection('invoices')) {
+        const records = getLocalEntityData('invoices');
+        const r = { ...doc, id: 'i' + Date.now(), storage_fallback: true };
         records.unshift(r);
         setLocalEntityData('invoices', records);
         return r;
@@ -2625,6 +2733,15 @@ async function updateInvoiceStatus(id, status, paidDate = null) {
         }
         return;
     }
+    if (shouldBypassDirectFirestoreForCollection('invoices')) {
+        const records = getLocalEntityData('invoices');
+        const i = records.findIndex(inv => inv.id === id);
+        if (i > -1) {
+            records[i] = { ...records[i], ...upd, storage_fallback: true };
+            setLocalEntityData('invoices', records);
+        }
+        return;
+    }
     await db.collection('invoices').doc(id).update(upd);
 }
 
@@ -2642,6 +2759,11 @@ async function deleteInvoice(id) {
         }
     }
     if (!isFirebaseConfigured) {
+        const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
+        setLocalEntityData('invoices', records);
+        return;
+    }
+    if (shouldBypassDirectFirestoreForCollection('invoices')) {
         const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
         setLocalEntityData('invoices', records);
         return;
@@ -2667,11 +2789,17 @@ async function fetchServices() {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'services', 'update');
             }
         }
+        if (shouldBypassDirectFirestoreForCollection('services')) {
+            return getLocalEntityData('services');
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('services').where('owner_key', '==', ownerKey).get();
         return mergeEntityCollections(_snap(snap), getLocalEntityData('services'));
-    } catch (e) { console.error(e); return getLocalEntityData('services'); }
+    } catch (e) {
+        if (!shouldUseLocalEntityFallback(e)) console.error(e);
+        return getLocalEntityData('services');
+    }
 }
 
 async function addService(d) {
@@ -2690,6 +2818,13 @@ async function addService(d) {
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('services');
         const r = { ...doc, id: 's' + Date.now() };
+        records.push(r);
+        setLocalEntityData('services', records);
+        return r;
+    }
+    if (shouldBypassDirectFirestoreForCollection('services')) {
+        const records = getLocalEntityData('services');
+        const r = { ...doc, id: 's' + Date.now(), storage_fallback: true };
         records.push(r);
         setLocalEntityData('services', records);
         return r;
@@ -2732,6 +2867,16 @@ async function updateService(id, d) {
         }
         return null;
     }
+    if (shouldBypassDirectFirestoreForCollection('services')) {
+        const records = getLocalEntityData('services');
+        const i = records.findIndex(s => s.id === id);
+        if (i > -1) {
+            records[i] = { ...records[i], ...doc, storage_fallback: true };
+            setLocalEntityData('services', records);
+            return records[i];
+        }
+        return null;
+    }
     await db.collection('services').doc(id).update(doc);
     return { id, ...doc };
 }
@@ -2750,6 +2895,11 @@ async function deleteService(id) {
         }
     }
     if (!isFirebaseConfigured) {
+        const records = getLocalEntityData('services').filter(s => s.id !== id);
+        setLocalEntityData('services', records);
+        return;
+    }
+    if (shouldBypassDirectFirestoreForCollection('services')) {
         const records = getLocalEntityData('services').filter(s => s.id !== id);
         setLocalEntityData('services', records);
         return;
@@ -2775,11 +2925,17 @@ async function fetchTeamMembers() {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
             }
         }
+        if (shouldBypassDirectFirestoreForCollection('team_members')) {
+            return getLocalEntityData('team_members');
+        }
         const ownerKey = getCurrentOwnerKey();
         if (!ownerKey) return [];
         const snap = await db.collection('team_members').where('owner_key', '==', ownerKey).get();
         return mergeEntityCollections(_snap(snap), getLocalEntityData('team_members'));
-    } catch (e) { console.error(e); return getLocalEntityData('team_members'); }
+    } catch (e) {
+        if (!shouldUseLocalEntityFallback(e)) console.error(e);
+        return getLocalEntityData('team_members');
+    }
 }
 
 async function addTeamMember(d) {
@@ -2798,6 +2954,13 @@ async function addTeamMember(d) {
     if (!isFirebaseConfigured) {
         const records = getLocalEntityData('team_members');
         const r = { ...doc, id: 'm' + Date.now() };
+        records.push(r);
+        setLocalEntityData('team_members', records);
+        return r;
+    }
+    if (shouldBypassDirectFirestoreForCollection('team_members')) {
+        const records = getLocalEntityData('team_members');
+        const r = { ...doc, id: 'm' + Date.now(), storage_fallback: true };
         records.push(r);
         setLocalEntityData('team_members', records);
         return r;
@@ -2843,6 +3006,16 @@ async function updateTeamMember(id, d) {
         }
         return null;
     }
+    if (shouldBypassDirectFirestoreForCollection('team_members')) {
+        const records = getLocalEntityData('team_members');
+        const i = records.findIndex(m => m.id === id);
+        if (i > -1) {
+            records[i] = { ...records[i], ...doc, storage_fallback: true };
+            setLocalEntityData('team_members', records);
+            return records[i];
+        }
+        return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
+    }
     await db.collection('team_members').doc(id).update(doc);
     return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc });
 }
@@ -2867,6 +3040,11 @@ async function deleteTeamMember(id) {
         setLocalEntityData('team_members', records);
         return;
     }
+    if (shouldBypassDirectFirestoreForCollection('team_members')) {
+        const records = getLocalEntityData('team_members').filter(m => m.id !== id);
+        setLocalEntityData('team_members', records);
+        return;
+    }
     try {
         await db.collection('team_members').doc(id).delete();
     } catch (error) {
@@ -2877,12 +3055,18 @@ async function deleteTeamMember(id) {
 }
 
 async function logActivity(description, userName = 'Admin') {
-    if (!isFirebaseConfigured) return;
-    await db.collection('activity_log').add({
-        description,
-        user_name: userName,
-        created_at: new Date().toISOString()
-    });
+    if (!isFirebaseConfigured || shouldBypassDirectFirestoreForCollection('activity_log')) return;
+    try {
+        await db.collection('activity_log').add({
+            description,
+            user_name: userName,
+            created_at: new Date().toISOString()
+        });
+    } catch (error) {
+        if (!shouldUseLocalEntityFallback(error)) {
+            throw error;
+        }
+    }
 }
 
 const GBP_SYMBOL = '£';
