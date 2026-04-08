@@ -115,11 +115,9 @@ function getInvitationSortTimestamp(record = {}) {
 function shouldTryClientInvitationAutoBootstrap(profile = {}) {
     if (AccessControl.isWorkspaceOwner(profile)) return false;
     const workspaceId = String(profile.workspaceId || '').trim();
-    if (!workspaceId) return true;
-
     const role = AccessControl.normalizeRole(profile.role || profile.workspaceRole || profile.dashboardRole || '');
     const membershipStatus = String(profile.membershipStatus || profile.status || '').trim().toLowerCase();
-    return role === AccessControl.ROLES.CLIENT && membershipStatus === 'pending';
+    return Boolean(workspaceId) && role === AccessControl.ROLES.CLIENT && membershipStatus === 'pending';
 }
 
 async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = '') {
@@ -127,6 +125,10 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
     if (!safeEmail) return null;
 
     const normalizedPreferredWorkspaceId = String(preferredWorkspaceId || '').trim();
+    if (!normalizedPreferredWorkspaceId) {
+        // Prevent implicit cross-workspace bootstrap from "latest"/"first" invitation fallback.
+        return null;
+    }
     let invitations = await queryCollectionDocuments('invitations', {
         fieldPath: 'email',
         op: 'EQUAL',
@@ -149,12 +151,22 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
             const record = entry.data || {};
             if (!isUsableClientInvitation(record)) return false;
             if (!String(record.workspaceId || '').trim()) return false;
-            if (!normalizedPreferredWorkspaceId) return true;
             return String(record.workspaceId || '').trim() === normalizedPreferredWorkspaceId;
         })
         .sort((left, right) => getInvitationSortTimestamp(right.data) - getInvitationSortTimestamp(left.data));
 
-    return candidates[0] || null;
+    if (candidates.length !== 1) {
+        if (candidates.length > 1) {
+            console.warn('[WorkspaceAssignment] Ambiguous pending invitations; skipping auto-bootstrap', {
+                email: safeEmail,
+                workspaceId: normalizedPreferredWorkspaceId,
+                invitationIds: candidates.map(candidate => candidate.id).filter(Boolean)
+            });
+        }
+        return null;
+    }
+
+    return candidates[0];
 }
 
 async function syncProjectAssignmentsForUser({ workspaceId, userId, email, access }) {

@@ -112,6 +112,11 @@ module.exports = async function handler(req, res) {
         requireOwnerOnly(session);
         const body = normalizeBody(req.body);
         const normalizedPayload = await normalizeClientInvitePayload(body, session.sessionUser);
+        console.info('[WorkspaceMappingTrace] Admin assignment payload', {
+            workspaceId: String(session.sessionUser.workspaceId || '').trim(),
+            email: normalizedPayload.email,
+            assignedProjectIds: normalizedPayload.assignedProjectIds
+        });
         const result = await createInvitation({
             session,
             inviteType: 'client',
@@ -123,6 +128,19 @@ module.exports = async function handler(req, res) {
             origin: getRequestOrigin(req),
             metadata: normalizedPayload.metadata,
             suppressEmailDeliveryError: true
+        });
+        const expectedWorkspaceId = String(session.sessionUser.workspaceId || '').trim();
+        const storedWorkspaceId = String(result && result.invitation && result.invitation.workspaceId || '').trim();
+        if (!expectedWorkspaceId || storedWorkspaceId !== expectedWorkspaceId) {
+            const mismatchError = new Error('Workspace assignment mismatch after invitation creation.');
+            mismatchError.statusCode = 500;
+            throw mismatchError;
+        }
+        console.info('[WorkspaceMappingTrace] Admin assignment stored', {
+            invitationId: String(result && result.invitation && result.invitation.invitationId || '').trim(),
+            workspaceId: storedWorkspaceId,
+            email: normalizedPayload.email,
+            assignedProjectIds: normalizedPayload.assignedProjectIds
         });
 
         res.status(200).json({

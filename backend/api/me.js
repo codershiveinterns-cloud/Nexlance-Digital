@@ -12,6 +12,14 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        console.info('[WorkspaceMappingTrace] Session fetched for dashboard', {
+            userId: String((session && session.sessionUser && session.sessionUser.uid) || '').trim(),
+            email: String((session && session.sessionUser && session.sessionUser.email) || '').trim().toLowerCase(),
+            workspaceId: String((session && session.sessionUser && session.sessionUser.workspaceId) || '').trim(),
+            assignedProjectIds: Array.isArray(session && session.sessionUser && session.sessionUser.assignedProjectIds)
+                ? session.sessionUser.assignedProjectIds
+                : []
+        });
         res.status(200).json({
             ok: true,
             user: session.sessionUser
@@ -20,4 +28,3 @@ module.exports = async function handler(req, res) {
         sendApiError(res, error, 'Authentication is required.', 401);
     }
 };
-

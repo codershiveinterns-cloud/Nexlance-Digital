@@ -405,6 +405,17 @@ async function createInvitation({
         metadata,
         reuseTargetRecordId: reusablePendingClientRecord ? reusablePendingClientRecord.id : ''
     });
+    const expectedWorkspaceId = String(sessionUser.workspaceId || '').trim();
+    const targetRecordWorkspaceId = String(
+        targetRecord && targetRecord.targetRecord && targetRecord.targetRecord.workspace_id
+            ? targetRecord.targetRecord.workspace_id
+            : ''
+    ).trim();
+    if (!expectedWorkspaceId || (targetRecordWorkspaceId && targetRecordWorkspaceId !== expectedWorkspaceId)) {
+        const mismatchError = new Error('Workspace assignment mismatch while storing target record.');
+        mismatchError.statusCode = 500;
+        throw mismatchError;
+    }
     const invitationRecord = buildInvitationRecord({
         invitationId,
         inviteType,
@@ -420,7 +431,19 @@ async function createInvitation({
         metadata
     });
 
-    await upsertCollectionDocument('invitations', invitationId, invitationRecord);
+    const storedInvitationRecord = await upsertCollectionDocument('invitations', invitationId, invitationRecord);
+    const storedWorkspaceId = String(storedInvitationRecord.workspaceId || '').trim();
+    if (!expectedWorkspaceId || storedWorkspaceId !== expectedWorkspaceId) {
+        const mismatchError = new Error('Workspace assignment mismatch while storing invitation.');
+        mismatchError.statusCode = 500;
+        throw mismatchError;
+    }
+    console.info('[WorkspaceMappingTrace] Invitation stored', {
+        invitationId,
+        workspaceId: storedWorkspaceId,
+        email: safeEmail,
+        assignedProjectIds: safeAssignedProjectIds
+    });
     if (inviteType === 'client') {
         await markWorkspaceClientInvitationsSuperseded({
             workspaceId: String(sessionUser.workspaceId || '').trim(),
@@ -624,6 +647,12 @@ async function acceptInvitation({ session, token }) {
     const record = assertInvitationUsable(invitation);
     const sessionUser = session.sessionUser;
     const safeSessionEmail = AccessControl.normalizeEmail(sessionUser.email);
+    const invitationWorkspaceId = String(record.workspaceId || '').trim();
+    if (!invitationWorkspaceId) {
+        const error = new Error('Invitation is missing workspace assignment.');
+        error.statusCode = 400;
+        throw error;
+    }
 
     if (!session.authUser || !session.authUser.emailVerified) {
         const error = new Error('Please verify your email address before accepting this invitation.');
@@ -649,7 +678,7 @@ async function acceptInvitation({ session, token }) {
     if (role === AccessControl.ROLES.CLIENT) {
         const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
             assignedProjectIds: accessFields.assignedProjectIds,
-            workspaceId: String(record.workspaceId || '').trim(),
+            workspaceId: invitationWorkspaceId,
             workspaceOwnerEmail: AccessControl.normalizeEmail(record.workspaceOwnerEmail || record.ownerEmail)
         }).catch(() => ({
             assignedProjectIds: accessFields.assignedProjectIds
@@ -666,7 +695,7 @@ async function acceptInvitation({ session, token }) {
         workspaceRole: role,
         permissionKeys: Array.isArray(record.permissionKeys) ? record.permissionKeys : [],
         permissionMode: record.permissionMode || 'default',
-        workspaceId: record.workspaceId,
+        workspaceId: invitationWorkspaceId,
         workspaceOwnerEmail: record.workspaceOwnerEmail,
         workspaceOwnerUserId: record.workspaceOwnerUserId,
         isWorkspaceOwner: false,
@@ -680,7 +709,7 @@ async function acceptInvitation({ session, token }) {
     }, session.authUser);
 
     const nextUserProfile = {
-        workspaceId: record.workspaceId,
+        workspaceId: invitationWorkspaceId,
         workspaceOwnerEmail: record.workspaceOwnerEmail,
         workspaceOwnerUserId: record.workspaceOwnerUserId,
         ownerEmail: record.workspaceOwnerEmail,
@@ -702,9 +731,9 @@ async function acceptInvitation({ session, token }) {
 
     await patchCollectionDocument('users', session.authUser.uid, nextUserProfile);
 
-    const memberDocId = getWorkspaceMemberDocumentId(record.workspaceId, session.authUser.uid, safeSessionEmail);
+    const memberDocId = getWorkspaceMemberDocumentId(invitationWorkspaceId, session.authUser.uid, safeSessionEmail);
     await upsertCollectionDocument('workspace_members', memberDocId, {
-        workspaceId: record.workspaceId,
+        workspaceId: invitationWorkspaceId,
         userId: session.authUser.uid,
         email: safeSessionEmail,
         name: sessionUser.name || safeSessionEmail,
@@ -726,9 +755,9 @@ async function acceptInvitation({ session, token }) {
     const assignmentIds = AccessControl.sanitizeAssignedProjectIds(accessFields.assignedProjectIds);
     if (!accessFields.allProjectsAccess) {
         for (const projectId of assignmentIds) {
-            const assignmentId = sanitizeDocumentId(`${record.workspaceId}_${projectId}_${session.authUser.uid}`);
+            const assignmentId = sanitizeDocumentId(`${invitationWorkspaceId}_${projectId}_${session.authUser.uid}`);
             await upsertCollectionDocument('project_assignments', assignmentId, {
-                workspaceId: record.workspaceId,
+                workspaceId: invitationWorkspaceId,
                 projectId,
                 userId: session.authUser.uid,
                 email: safeSessionEmail,
@@ -758,9 +787,9 @@ async function acceptInvitation({ session, token }) {
     }
 
     if (record.inviteType === 'client') {
-        const clientProfileId = sanitizeDocumentId(`${record.workspaceId}_${safeSessionEmail}`);
+        const clientProfileId = sanitizeDocumentId(`${invitationWorkspaceId}_${safeSessionEmail}`);
         await upsertCollectionDocument('client_profiles', clientProfileId, {
-            workspaceId: record.workspaceId,
+            workspaceId: invitationWorkspaceId,
             userId: session.authUser.uid,
             email: safeSessionEmail,
             assignedProjectIds: assignmentIds,
@@ -780,7 +809,7 @@ async function acceptInvitation({ session, token }) {
     });
 
     await logAuditEvent('invite_accepted', {
-        workspaceId: record.workspaceId,
+        workspaceId: invitationWorkspaceId,
         actorUserId: session.authUser.uid,
         actorEmail: safeSessionEmail,
         targetEmail: safeSessionEmail,
@@ -802,7 +831,7 @@ async function acceptInvitation({ session, token }) {
     console.info('[WorkspaceAssignment] Invitation accepted', {
         invitationId: invitation.id,
         inviteType: record.inviteType,
-        workspaceId: String(record.workspaceId || '').trim(),
+        workspaceId: invitationWorkspaceId,
         email: safeSessionEmail,
         assignedProjectIds: assignmentIds
     });

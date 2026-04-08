@@ -1,6 +1,8 @@
 const AccessControl = require('../../rbac.js');
 const { listCollectionDocuments, queryCollectionDocuments } = require('./firebase-service');
 
+const AMBIGUOUS_PROJECT_TOKEN = '__ambiguous_project_token__';
+
 function normalizeLookupToken(value) {
     return String(value || '').trim().toLowerCase();
 }
@@ -11,6 +13,13 @@ function addLookupToken(index, token, projectId) {
     if (!normalizedToken || !normalizedProjectId) return;
     if (!index.has(normalizedToken)) {
         index.set(normalizedToken, normalizedProjectId);
+        return;
+    }
+
+    const existingProjectId = String(index.get(normalizedToken) || '').trim();
+    if (existingProjectId && existingProjectId !== normalizedProjectId && existingProjectId !== AMBIGUOUS_PROJECT_TOKEN) {
+        // Do not silently map duplicated tokens to the first project.
+        index.set(normalizedToken, AMBIGUOUS_PROJECT_TOKEN);
     }
 }
 
@@ -129,11 +138,17 @@ async function resolveAssignedProjectIdsForWorkspace({
 
         const normalizedToken = normalizeLookupToken(directProjectId);
         const mappedProjectId = projectIndex.byToken.get(normalizedToken);
-        if (mappedProjectId) {
+        if (mappedProjectId && mappedProjectId !== AMBIGUOUS_PROJECT_TOKEN) {
             resolved.push(mappedProjectId);
             return;
         }
 
+        if (mappedProjectId === AMBIGUOUS_PROJECT_TOKEN) {
+            console.warn('[WorkspaceAssignment] Ambiguous project token mapping', {
+                workspaceId: String(workspaceId || '').trim(),
+                token: normalizedToken
+            });
+        }
         unresolved.push(directProjectId);
     });
 
