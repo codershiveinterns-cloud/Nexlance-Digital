@@ -1415,6 +1415,16 @@ function upsertLocalEntityRecord(entity, record) {
     return record;
 }
 
+function removeLocalEntityRecord(entity, recordId) {
+    const normalizedRecordId = String(recordId || '').trim();
+    if (!normalizedRecordId) return;
+    const records = getLocalEntityData(entity);
+    const nextRecords = records.filter(record => String(record && record.id) !== normalizedRecordId);
+    if (nextRecords.length !== records.length) {
+        setLocalEntityData(entity, nextRecords);
+    }
+}
+
 function mergeEntityCollections() {
     const seen = new Set();
     const merged = [];
@@ -1871,6 +1881,11 @@ async function fetchClientById(id) {
                     return record;
                 }
             } catch (error) {
+                const status = Number(error && (error.status || (error.response && error.response.status)));
+                if (status === 404) {
+                    removeLocalEntityRecord('clients', clientId);
+                    return null;
+                }
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
             }
         }
@@ -1966,30 +1981,38 @@ async function updateClient(id, d) {
 
 async function deleteClient(id) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
+    const clientId = String(id || '').trim();
+    if (!clientId) return;
+
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('clients', 'delete')) throw createDashboardPermissionError('clients', 'delete');
         if (isFirebaseUserAuthenticated()) {
             try {
-                await dashboardApiRequest('DELETE', 'clients', id);
-                const remainingRecords = getLocalEntityData('clients').filter(client => String(client && client.id) !== String(id));
-                setLocalEntityData('clients', remainingRecords);
+                await dashboardApiRequest('DELETE', 'clients', clientId);
+                removeLocalEntityRecord('clients', clientId);
                 return;
             } catch (error) {
+                const status = Number(error && (error.status || (error.response && error.response.status)));
+                if (status === 404) {
+                    // Idempotent delete: if record is already gone on backend, keep local state aligned.
+                    removeLocalEntityRecord('clients', clientId);
+                    return;
+                }
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'delete');
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('clients').filter(c => c.id !== id);
+        const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
         setLocalEntityData('clients', records);
         return;
     }
     try {
-        await db.collection('clients').doc(id).delete();
+        await db.collection('clients').doc(clientId).delete();
     } catch (error) {
         if (!shouldUseLocalEntityFallback(error)) throw error;
     }
-    const records = getLocalEntityData('clients').filter(c => c.id !== id);
+    const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
     setLocalEntityData('clients', records);
 }
 

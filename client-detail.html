@@ -576,10 +576,14 @@ document.getElementById('eAssignedProjects').addEventListener('change', () => no
 document.getElementById('eProjectType').addEventListener('change', () => syncWebsiteTypeInput('eProjectType', 'eProjectTypeCustomGroup', 'eProjectTypeCustom'));
 
 window.addEventListener('focus', () => {
-  if (!clientId) return;
+  if (!clientId || !client) return;
   fetchClientById(clientId)
     .then(nextClient => {
-      if (!nextClient) return;
+      if (!nextClient) {
+        client = null;
+        showState('Client not found', 'This client record was removed or is no longer available in your workspace.');
+        return;
+      }
       client = nextClient;
       populatePage();
       return Promise.all([loadProjects(), loadInvoices()]);
