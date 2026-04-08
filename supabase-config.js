@@ -132,6 +132,7 @@ function clearStaleLocalAuthState() {
         localStorage.removeItem('nexlance_auth');
         localStorage.removeItem('nexlance_user');
         localStorage.removeItem('nexlance_admin_ui');
+        clearSessionRuntime('auth_state_cleared');
     } catch (error) {
         // no-op
     }
@@ -188,12 +189,301 @@ function isPrivilegedEmail(email) {
     return PRIVILEGED_EMAILS.includes(normalizeEmail(email));
 }
 
-function getCurrentSessionUser() {
+const SESSION_STORAGE_KEY = 'nexlance_user';
+const SESSION_META_KEY = '__sessionMeta';
+const SESSION_UPDATE_SOURCE = {
+    API_ME: 'api_me',
+    BOOTSTRAP_CACHE: 'bootstrap_cache',
+    STORAGE_EVENT: 'storage_event',
+    AUTH_FLOW: 'auth_flow',
+    UNKNOWN: 'unknown'
+};
+const SESSION_SCOPE_FIELDS = ['workspaceId', 'assignedProjectIds', 'allProjectsAccess', 'projectAccessScope'];
+const SESSION_RUNTIME = {
+    currentUser: null,
+    scopeVersion: 0,
+    isHydrated: false,
+    hydrationCompleted: false,
+    hydrationPromise: null,
+    hydrationError: null,
+    requestCounter: 0,
+    lastAppliedRequestId: 0,
+    inFlightRefreshPromise: null
+};
+
+function readStoredSessionUser() {
     try {
-        return JSON.parse(localStorage.getItem('nexlance_user') || 'null');
+        return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null');
     } catch (error) {
         return null;
     }
+}
+
+function getSessionMeta(user = {}) {
+    return user && typeof user === 'object' && user[SESSION_META_KEY] && typeof user[SESSION_META_KEY] === 'object'
+        ? user[SESSION_META_KEY]
+        : {};
+}
+
+function getSessionVersion(user = {}) {
+    const version = Number(getSessionMeta(user).version);
+    return Number.isFinite(version) && version > 0 ? version : 0;
+}
+
+function getSessionUpdatedAtMs(user = {}) {
+    const meta = getSessionMeta(user);
+    const value = meta.updatedAt || user.updatedAt || user.updated_at || '';
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function normalizeScopeProjectIds(projectIds) {
+    const source = Array.isArray(projectIds) ? projectIds : [];
+    const fallback = source.map(projectId => String(projectId || '').trim()).filter(Boolean);
+    const accessControl = getAccessControl();
+    return accessControl ? accessControl.sanitizeAssignedProjectIds(source) : fallback;
+}
+
+function normalizeSessionScope(user = {}) {
+    const allProjectsAccess = Boolean(
+        user.allProjectsAccess === true
+        || user.all_projects_access === true
+        || String(user.projectAccessScope || user.project_access_scope || '').trim().toLowerCase() === 'all'
+    );
+    const assignedProjectIds = allProjectsAccess
+        ? []
+        : normalizeScopeProjectIds(
+            user.assignedProjectIds !== undefined
+                ? user.assignedProjectIds
+                : user.assigned_project_ids
+        );
+    const workspaceId = String(user.workspaceId || user.workspace_id || '').trim();
+    return {
+        workspaceId,
+        assignedProjectIds,
+        allProjectsAccess,
+        projectAccessScope: allProjectsAccess ? 'all' : 'selected'
+    };
+}
+
+function buildSessionScopeHash(user = {}) {
+    const scope = normalizeSessionScope(user);
+    return JSON.stringify({
+        workspaceId: scope.workspaceId,
+        assignedProjectIds: scope.assignedProjectIds.slice().sort(),
+        allProjectsAccess: scope.allProjectsAccess,
+        projectAccessScope: scope.projectAccessScope
+    });
+}
+
+function buildSessionFingerprint(user = {}) {
+    const scope = normalizeSessionScope(user);
+    return JSON.stringify({
+        uid: String(user.uid || '').trim(),
+        email: normalizeEmail(user.email),
+        role: String(user.role || user.workspaceRole || '').trim().toLowerCase(),
+        workspaceId: scope.workspaceId,
+        assignedProjectIds: scope.assignedProjectIds.slice().sort(),
+        allProjectsAccess: scope.allProjectsAccess,
+        projectAccessScope: scope.projectAccessScope,
+        membershipStatus: String(user.membershipStatus || '').trim().toLowerCase()
+    });
+}
+
+function withSessionMeta(user = {}, meta = {}) {
+    return {
+        ...user,
+        [SESSION_META_KEY]: {
+            ...getSessionMeta(user),
+            ...meta
+        }
+    };
+}
+
+function clearSessionRuntime(reason = 'clear') {
+    SESSION_RUNTIME.currentUser = null;
+    SESSION_RUNTIME.scopeVersion = 0;
+    SESSION_RUNTIME.isHydrated = false;
+    SESSION_RUNTIME.hydrationCompleted = false;
+    SESSION_RUNTIME.hydrationPromise = null;
+    SESSION_RUNTIME.hydrationError = null;
+    SESSION_RUNTIME.lastAppliedRequestId = 0;
+    SESSION_RUNTIME.inFlightRefreshPromise = null;
+    console.info('[SessionState] Runtime cleared', { reason });
+}
+
+function applySessionUserUpdate({
+    source = SESSION_UPDATE_SOURCE.UNKNOWN,
+    nextUser = null,
+    requestId = 0,
+    persist = true,
+    force = false
+} = {}) {
+    const candidate = nextUser && typeof nextUser === 'object' ? { ...nextUser } : null;
+    if (!candidate) {
+        console.warn('[SessionState] Rejected session update', { source, reason: 'missing_candidate' });
+        return { accepted: false, reason: 'missing_candidate', changed: false, user: SESSION_RUNTIME.currentUser };
+    }
+
+    const currentUser = SESSION_RUNTIME.currentUser || null;
+    const currentFingerprint = buildSessionFingerprint(currentUser || {});
+    const nextFingerprint = buildSessionFingerprint(candidate);
+    const scopeChanged = buildSessionScopeHash(currentUser || {}) !== buildSessionScopeHash(candidate);
+    const incomingVersion = getSessionVersion(candidate);
+    const currentVersion = Math.max(SESSION_RUNTIME.scopeVersion, getSessionVersion(currentUser || {}));
+    const incomingUpdatedAtMs = getSessionUpdatedAtMs(candidate);
+    const currentUpdatedAtMs = getSessionUpdatedAtMs(currentUser || {});
+
+    if (source === SESSION_UPDATE_SOURCE.API_ME && Number(requestId) > 0 && Number(requestId) < Number(SESSION_RUNTIME.lastAppliedRequestId || 0)) {
+        console.info('[SessionState] Rejected session update', { source, reason: 'stale_request', requestId, latestRequestId: SESSION_RUNTIME.lastAppliedRequestId });
+        return { accepted: false, reason: 'stale_request', changed: false, user: currentUser };
+    }
+
+    if (
+        source !== SESSION_UPDATE_SOURCE.API_ME
+        && SESSION_RUNTIME.isHydrated
+        && scopeChanged
+        && !force
+    ) {
+        console.info('[SessionState] Rejected session update', {
+            source,
+            reason: 'non_api_scope_overwrite_blocked',
+            scopeFields: SESSION_SCOPE_FIELDS
+        });
+        return { accepted: false, reason: 'non_api_scope_overwrite_blocked', changed: false, user: currentUser };
+    }
+
+    if (
+        source === SESSION_UPDATE_SOURCE.STORAGE_EVENT
+        && incomingVersion > 0
+        && incomingVersion < currentVersion
+    ) {
+        console.info('[SessionState] Rejected session update', {
+            source,
+            reason: 'older_storage_version',
+            incomingVersion,
+            currentVersion
+        });
+        return { accepted: false, reason: 'older_storage_version', changed: false, user: currentUser };
+    }
+
+    if (source === SESSION_UPDATE_SOURCE.STORAGE_EVENT) {
+        const isNewerVersion = incomingVersion > currentVersion;
+        const isNewerTimestamp = incomingUpdatedAtMs > currentUpdatedAtMs;
+        if (!isNewerVersion && !isNewerTimestamp && currentFingerprint !== nextFingerprint) {
+            console.info('[SessionState] Rejected session update', {
+                source,
+                reason: 'storage_update_not_newer',
+                incomingVersion,
+                currentVersion,
+                incomingUpdatedAtMs,
+                currentUpdatedAtMs
+            });
+            return { accepted: false, reason: 'storage_update_not_newer', changed: false, user: currentUser };
+        }
+    }
+
+    if (
+        source === SESSION_UPDATE_SOURCE.STORAGE_EVENT
+        && SESSION_RUNTIME.isHydrated
+        && incomingVersion <= 0
+    ) {
+        console.info('[SessionState] Rejected session update', {
+            source,
+            reason: 'unversioned_storage_after_hydration'
+        });
+        return { accepted: false, reason: 'unversioned_storage_after_hydration', changed: false, user: currentUser };
+    }
+
+    if (
+        incomingUpdatedAtMs > 0
+        && currentUpdatedAtMs > 0
+        && incomingUpdatedAtMs < currentUpdatedAtMs
+        && !force
+    ) {
+        console.info('[SessionState] Rejected session update', {
+            source,
+            reason: 'older_timestamp',
+            incomingUpdatedAtMs,
+            currentUpdatedAtMs
+        });
+        return { accepted: false, reason: 'older_timestamp', changed: false, user: currentUser };
+    }
+
+    if (!force && currentFingerprint === nextFingerprint) {
+        if (source === SESSION_UPDATE_SOURCE.API_ME) {
+            SESSION_RUNTIME.isHydrated = true;
+            SESSION_RUNTIME.hydrationCompleted = true;
+            SESSION_RUNTIME.hydrationError = null;
+            SESSION_RUNTIME.lastAppliedRequestId = Math.max(SESSION_RUNTIME.lastAppliedRequestId, Number(requestId) || 0);
+        }
+        console.info('[SessionState] Idempotent session update ignored', { source, requestId });
+        return { accepted: true, reason: 'idempotent_no_change', changed: false, user: currentUser };
+    }
+
+    const nextVersion = source === SESSION_UPDATE_SOURCE.API_ME
+        ? Math.max(currentVersion + 1, incomingVersion + 1, 1)
+        : Math.max(incomingVersion, currentVersion + 1, 1);
+    const nextMeta = {
+        ...getSessionMeta(candidate),
+        version: nextVersion,
+        updatedAt: new Date().toISOString(),
+        source,
+        requestId: Number(requestId) || 0
+    };
+    const nextScoped = normalizeSessionScope(candidate);
+    const nextSessionUser = withSessionMeta({
+        ...candidate,
+        workspaceId: nextScoped.workspaceId,
+        workspace_id: nextScoped.workspaceId,
+        assignedProjectIds: nextScoped.assignedProjectIds,
+        assigned_project_ids: nextScoped.assignedProjectIds,
+        allProjectsAccess: nextScoped.allProjectsAccess,
+        all_projects_access: nextScoped.allProjectsAccess,
+        projectAccessScope: nextScoped.projectAccessScope,
+        project_access_scope: nextScoped.projectAccessScope
+    }, nextMeta);
+
+    SESSION_RUNTIME.currentUser = nextSessionUser;
+    SESSION_RUNTIME.scopeVersion = nextVersion;
+    if (source === SESSION_UPDATE_SOURCE.API_ME) {
+        SESSION_RUNTIME.isHydrated = true;
+        SESSION_RUNTIME.hydrationCompleted = true;
+        SESSION_RUNTIME.hydrationError = null;
+        SESSION_RUNTIME.lastAppliedRequestId = Math.max(SESSION_RUNTIME.lastAppliedRequestId, Number(requestId) || 0);
+    }
+
+    if (persist) {
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSessionUser));
+    }
+
+    console.info('[SessionState] Accepted session update', {
+        source,
+        requestId: Number(requestId) || 0,
+        version: nextVersion,
+        workspaceId: nextScoped.workspaceId,
+        assignedProjectIds: nextScoped.assignedProjectIds
+    });
+    return { accepted: true, reason: 'applied', changed: true, user: nextSessionUser };
+}
+
+function initializeSessionRuntimeFromCache() {
+    const cachedUser = readStoredSessionUser();
+    if (cachedUser && typeof cachedUser === 'object') {
+        SESSION_RUNTIME.currentUser = cachedUser;
+        SESSION_RUNTIME.scopeVersion = getSessionVersion(cachedUser);
+    }
+    console.info('[SessionState] App boot cache snapshot', {
+        hasCachedUser: Boolean(cachedUser),
+        workspaceId: String(cachedUser && (cachedUser.workspaceId || cachedUser.workspace_id) || '').trim(),
+        assignedProjectIds: normalizeScopeProjectIds(cachedUser && (cachedUser.assignedProjectIds !== undefined ? cachedUser.assignedProjectIds : cachedUser && cachedUser.assigned_project_ids))
+    });
+}
+
+initializeSessionRuntimeFromCache();
+
+function getCurrentSessionUser() {
+    return SESSION_RUNTIME.currentUser;
 }
 
 function getStoredTrialRecord() {
@@ -866,88 +1156,129 @@ async function getDashboardBearerToken() {
     return firebase.auth().currentUser.getIdToken();
 }
 
-async function refreshCurrentSessionUserFromApi() {
+async function refreshCurrentSessionUserFromApi(options = {}) {
+    const reason = String(options.reason || 'manual_refresh').trim();
     if (!isFirebaseUserAuthenticated()) return null;
-
-    try {
-        const token = await getDashboardBearerToken();
-        console.info('[AuthContext] Refreshing session user from /api/me', {
-            hasBearerToken: Boolean(token),
-            hasCachedSession: localStorage.getItem('nexlance_auth') === '1'
+    if (SESSION_RUNTIME.inFlightRefreshPromise) {
+        console.info('[AuthContext] /api/me refresh skipped because request is already in-flight', {
+            reason,
+            requestId: SESSION_RUNTIME.requestCounter
         });
-        const response = await fetch('/api/me', {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${token}`
-            },
-            credentials: 'same-origin'
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload || !payload.user) {
-            return null;
-        }
-
-        const accessControl = getAccessControl();
-        const normalizeProjectIdList = value => {
-            const source = Array.isArray(value) ? value : [];
-            const fallback = source.map(projectId => String(projectId || '').trim()).filter(Boolean);
-            return accessControl ? accessControl.sanitizeAssignedProjectIds(source) : fallback;
-        };
-
-        const currentUser = getCurrentSessionUser() || {};
-        const nextWorkspaceId = String(payload.user.workspaceId || payload.user.workspace_id || '').trim();
-        const nextAllProjectsAccess = (
-            payload.user.allProjectsAccess === true
-            || payload.user.all_projects_access === true
-            || String(payload.user.projectAccessScope || payload.user.project_access_scope || '').trim().toLowerCase() === 'all'
-        );
-        const nextAssignedProjectIds = nextAllProjectsAccess
-            ? []
-            : normalizeProjectIdList(
-                payload.user.assignedProjectIds !== undefined
-                    ? payload.user.assignedProjectIds
-                    : payload.user.assigned_project_ids
-            );
-        const nextProjectAccessScope = nextAllProjectsAccess ? 'all' : 'selected';
-        const nextUser = {
-            ...currentUser,
-            ...payload.user,
-            workspaceId: nextWorkspaceId,
-            workspace_id: nextWorkspaceId,
-            allProjectsAccess: nextAllProjectsAccess,
-            all_projects_access: nextAllProjectsAccess,
-            assignedProjectIds: nextAssignedProjectIds,
-            assigned_project_ids: nextAssignedProjectIds,
-            projectAccessScope: nextProjectAccessScope,
-            project_access_scope: nextProjectAccessScope
-        };
-
-        const previousWorkspaceId = String(currentUser.workspaceId || '').trim();
-        const previousAssignedProjectIds = normalizeProjectIdList(
-            currentUser.assignedProjectIds !== undefined
-                ? currentUser.assignedProjectIds
-                : currentUser.assigned_project_ids
-        ).sort();
-        const sortedNextAssignedProjectIds = nextAssignedProjectIds.slice().sort();
-
-        if (
-            previousWorkspaceId !== nextWorkspaceId
-            || JSON.stringify(previousAssignedProjectIds) !== JSON.stringify(sortedNextAssignedProjectIds)
-        ) {
-            console.info('[WorkspaceSync] Refreshed session scope from API', {
-                previousWorkspaceId,
-                nextWorkspaceId,
-                previousAssignedProjectIds,
-                nextAssignedProjectIds: sortedNextAssignedProjectIds
-            });
-        }
-
-        localStorage.setItem('nexlance_user', JSON.stringify(nextUser));
-        return nextUser;
-    } catch (error) {
-        console.warn('[AuthContext] Failed to refresh /api/me session', error);
-        return null;
+        return SESSION_RUNTIME.inFlightRefreshPromise;
     }
+
+    const requestId = ++SESSION_RUNTIME.requestCounter;
+    const startedAt = Date.now();
+    const refreshPromise = (async () => {
+        try {
+            const token = await getDashboardBearerToken();
+            console.info('[AuthContext] /api/me request start', {
+                requestId,
+                reason,
+                hasBearerToken: Boolean(token),
+                hasCachedSession: localStorage.getItem('nexlance_auth') === '1'
+            });
+            const response = await fetch('/api/me', {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${token}`
+                },
+                credentials: 'same-origin'
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload || !payload.user) {
+                SESSION_RUNTIME.hydrationCompleted = true;
+                SESSION_RUNTIME.hydrationError = `status_${Number(response.status) || 0}`;
+                console.warn('[AuthContext] /api/me request failed', {
+                    requestId,
+                    reason,
+                    status: Number(response.status) || 0
+                });
+                return null;
+            }
+
+            const nextScope = normalizeSessionScope(payload.user);
+            console.info('[AuthContext] /api/me response scope', {
+                requestId,
+                workspaceId: nextScope.workspaceId,
+                assignedProjectIds: nextScope.assignedProjectIds,
+                allProjectsAccess: nextScope.allProjectsAccess,
+                projectAccessScope: nextScope.projectAccessScope
+            });
+
+            const currentUser = getCurrentSessionUser() || {};
+            const nextUser = {
+                ...currentUser,
+                ...payload.user,
+                workspaceId: nextScope.workspaceId,
+                workspace_id: nextScope.workspaceId,
+                assignedProjectIds: nextScope.assignedProjectIds,
+                assigned_project_ids: nextScope.assignedProjectIds,
+                allProjectsAccess: nextScope.allProjectsAccess,
+                all_projects_access: nextScope.allProjectsAccess,
+                projectAccessScope: nextScope.projectAccessScope,
+                project_access_scope: nextScope.projectAccessScope
+            };
+            const updateResult = applySessionUserUpdate({
+                source: SESSION_UPDATE_SOURCE.API_ME,
+                nextUser,
+                requestId,
+                persist: true
+            });
+            SESSION_RUNTIME.hydrationCompleted = true;
+            SESSION_RUNTIME.hydrationError = null;
+            console.info('[AuthContext] /api/me request end', {
+                requestId,
+                accepted: updateResult.accepted,
+                changed: updateResult.changed,
+                reason: updateResult.reason,
+                durationMs: Date.now() - startedAt
+            });
+            return updateResult.user || getCurrentSessionUser();
+        } catch (error) {
+            SESSION_RUNTIME.hydrationCompleted = true;
+            SESSION_RUNTIME.hydrationError = String(error && error.message || 'unknown_error');
+            console.warn('[AuthContext] Failed to refresh /api/me session', {
+                requestId,
+                reason,
+                error: SESSION_RUNTIME.hydrationError
+            });
+            return null;
+        } finally {
+            if (SESSION_RUNTIME.inFlightRefreshPromise === refreshPromise) {
+                SESSION_RUNTIME.inFlightRefreshPromise = null;
+            }
+        }
+    })();
+
+    SESSION_RUNTIME.inFlightRefreshPromise = refreshPromise;
+    return refreshPromise;
+}
+
+async function ensureSessionHydration(reason = 'initial_hydration', options = {}) {
+    const forceRetry = options.forceRetry === true;
+    if (!isFirebaseUserAuthenticated()) {
+        SESSION_RUNTIME.hydrationCompleted = true;
+        return getCurrentSessionUser();
+    }
+    if (SESSION_RUNTIME.isHydrated && !forceRetry) {
+        return getCurrentSessionUser();
+    }
+    if (SESSION_RUNTIME.hydrationPromise) {
+        return SESSION_RUNTIME.hydrationPromise;
+    }
+    if (SESSION_RUNTIME.isHydrated && forceRetry) {
+        return refreshCurrentSessionUserFromApi({ reason: `${reason}_force_retry` });
+    }
+    if (SESSION_RUNTIME.hydrationCompleted && !forceRetry) {
+        return getCurrentSessionUser();
+    }
+    SESSION_RUNTIME.hydrationCompleted = false;
+    SESSION_RUNTIME.hydrationError = null;
+    SESSION_RUNTIME.hydrationPromise = refreshCurrentSessionUserFromApi({ reason }).finally(() => {
+        SESSION_RUNTIME.hydrationPromise = null;
+    });
+    return SESSION_RUNTIME.hydrationPromise;
 }
 
 function normalizeDashboardApiError(error, entity, action) {
@@ -1414,6 +1745,10 @@ function ensureStoredAccessConsistency() {
     return storedPlan;
 }
 
+function isSessionHydrationPendingForScopedData() {
+    return isFirebaseUserAuthenticated() && !SESSION_RUNTIME.isHydrated;
+}
+
 function syncAccessUiState() {
     if (isFirebaseUserAuthenticated()) {
         clearAuthRedirectLock();
@@ -1423,8 +1758,17 @@ function syncAccessUiState() {
     syncAdminUiVisibility();
     enforcePlanPageAccess();
     applyRestrictedPreviewOverlay();
-    refreshCurrentSessionUserFromApi().then(nextUser => {
+    const previousScope = normalizeSessionScope(getCurrentSessionUser() || {});
+    const previousScopeHash = buildSessionScopeHash(previousScope);
+    ensureSessionHydration('sync_access_ui_state', { forceRetry: true }).then(nextUser => {
         if (!nextUser) return;
+        const nextScopeHash = buildSessionScopeHash(nextUser);
+        if (previousScopeHash === nextScopeHash) return;
+        const nextScope = normalizeSessionScope(nextUser || {});
+        console.info('[SessionState] UI scope update', {
+            previousWorkspaceId: previousScope.workspaceId,
+            nextWorkspaceId: nextScope.workspaceId
+        });
         syncPlanUiVisibility();
         syncAdminUiVisibility();
         enforcePlanPageAccess();
@@ -1739,6 +2083,11 @@ function sanitizeFirestoreData(data) {
 }
 
 function createAccessFilteredDataset(entity, demoRecords) {
+    const scopedEntities = new Set(['projects', 'tasks', 'clients', 'invoices', 'services', 'team', 'team_members']);
+    if (isSessionHydrationPendingForScopedData() && scopedEntities.has(String(entity || '').trim().toLowerCase())) {
+        console.info('[SessionState] Dataset render deferred until /api/me hydration completes', { entity });
+        return [];
+    }
     if (!canAccessAccountData()) {
         return [];
     }
@@ -1803,6 +2152,15 @@ function filterRecordsForCurrentUserScope(entity, records) {
     const accessControl = getAccessControl();
     const currentUser = getCurrentSessionUser();
     const safeRecords = Array.isArray(records) ? records : [];
+    const normalizedEntity = String(entity || '').trim().toLowerCase();
+    const hydrationScopedEntities = new Set(['projects', 'tasks', 'clients', 'invoices', 'services', 'team', 'team_members']);
+    if (isSessionHydrationPendingForScopedData() && hydrationScopedEntities.has(normalizedEntity)) {
+        console.info('[SessionState] Scope filtering deferred during hydration', {
+            entity: normalizedEntity,
+            pendingHydration: true
+        });
+        return [];
+    }
     if (!accessControl || !currentUser || !currentUser.workspaceId) {
         return safeRecords;
     }
@@ -2181,6 +2539,17 @@ async function deleteClient(id) {
 
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
+    if (isSessionHydrationPendingForScopedData()) {
+        await ensureSessionHydration('fetch_projects', { forceRetry: true });
+    }
+    if (isSessionHydrationPendingForScopedData()) {
+        console.info('[SessionState] Project fetch blocked because hydration is not complete', {
+            hydrated: SESSION_RUNTIME.isHydrated,
+            hydrationCompleted: SESSION_RUNTIME.hydrationCompleted,
+            hydrationError: SESSION_RUNTIME.hydrationError
+        });
+        return [];
+    }
 
     const currentUser = getCurrentSessionUser();
     const workspaceId = String(currentUser && currentUser.workspaceId || '').trim();
@@ -3425,9 +3794,69 @@ document.addEventListener("DOMContentLoaded", () => {
     syncAccessUiState();
 });
 
-window.addEventListener('pageshow', syncAccessUiState);
-window.addEventListener('focus', syncAccessUiState);
-window.addEventListener('storage', syncAccessUiState);
+let accessUiSyncDebounceTimer = null;
+
+function scheduleAccessUiStateSync(reason = 'event', delayMs = 350) {
+    const normalizedDelayMs = Math.max(300, Number(delayMs) || 350);
+    if (accessUiSyncDebounceTimer) {
+        window.clearTimeout(accessUiSyncDebounceTimer);
+    }
+    accessUiSyncDebounceTimer = window.setTimeout(() => {
+        accessUiSyncDebounceTimer = null;
+        if (SESSION_RUNTIME.inFlightRefreshPromise) {
+            console.info('[SessionState] UI sync skipped because /api/me request is already in-flight', { reason });
+            return;
+        }
+        console.info('[SessionState] Running debounced UI sync', { reason });
+        syncAccessUiState();
+    }, normalizedDelayMs);
+}
+
+function handleSessionStorageEvent(event) {
+    const key = String(event && event.key || '').trim();
+    const isClearAllEvent = !key;
+    const isSessionEvent = key === SESSION_STORAGE_KEY;
+    const isAuthStateEvent = key === 'nexlance_auth';
+    if (!isClearAllEvent && !isSessionEvent && !isAuthStateEvent) {
+        return;
+    }
+    if (!isSessionEvent) {
+        scheduleAccessUiStateSync('storage_event_non_session', 400);
+        return;
+    }
+
+    if (!event.newValue) {
+        clearSessionRuntime('storage_event_session_removed');
+        scheduleAccessUiStateSync('storage_event_session_removed', 400);
+        return;
+    }
+
+    let incomingSession = null;
+    try {
+        incomingSession = JSON.parse(event.newValue);
+    } catch (error) {
+        console.warn('[SessionState] Ignored storage session update due to invalid JSON payload', { key });
+        scheduleAccessUiStateSync('storage_event_invalid_payload', 400);
+        return;
+    }
+
+    const updateResult = applySessionUserUpdate({
+        source: SESSION_UPDATE_SOURCE.STORAGE_EVENT,
+        nextUser: incomingSession,
+        persist: false
+    });
+    console.info('[SessionState] Storage session update processed', {
+        accepted: updateResult.accepted,
+        changed: updateResult.changed,
+        reason: updateResult.reason,
+        source: SESSION_UPDATE_SOURCE.STORAGE_EVENT
+    });
+    scheduleAccessUiStateSync('storage_event_session_update', 400);
+}
+
+window.addEventListener('pageshow', () => scheduleAccessUiStateSync('pageshow', 350));
+window.addEventListener('focus', () => scheduleAccessUiStateSync('focus', 350));
+window.addEventListener('storage', handleSessionStorageEvent);
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) syncAccessUiState();
+    if (!document.hidden) scheduleAccessUiStateSync('visibilitychange', 350);
 });

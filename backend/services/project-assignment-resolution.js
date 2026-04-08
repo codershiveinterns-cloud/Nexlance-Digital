@@ -139,8 +139,11 @@ async function resolveAssignedProjectIdsForWorkspace({
         };
     }
 
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
     const workspaceProjects = await listWorkspaceProjects({ workspaceId, workspaceOwnerEmail });
     const projectIndex = buildWorkspaceProjectIndex(workspaceProjects);
+
+    const validProjectIds = new Set();
     const resolved = [];
     const unresolved = [];
 
@@ -148,6 +151,20 @@ async function resolveAssignedProjectIdsForWorkspace({
         const directProjectId = String(rawProjectId || '').trim();
         if (!directProjectId) return;
         if (projectIndex.byId.has(directProjectId)) {
+            const projectRecord = projectIndex.byId.get(directProjectId);
+            const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
+            
+            if (normalizedWorkspaceId && projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
+                console.error('[WorkspaceConsistency] Project assignment workspace mismatch', {
+                    projectId: directProjectId,
+                    expectedWorkspaceId: normalizedWorkspaceId,
+                    actualWorkspaceId: projectWorkspaceId
+                });
+                unresolved.push(directProjectId);
+                return;
+            }
+            
+            validProjectIds.add(directProjectId);
             resolved.push(directProjectId);
             return;
         }
@@ -155,6 +172,21 @@ async function resolveAssignedProjectIdsForWorkspace({
         const normalizedToken = normalizeLookupToken(directProjectId);
         const mappedProjectId = projectIndex.byToken.get(normalizedToken);
         if (mappedProjectId && mappedProjectId !== AMBIGUOUS_PROJECT_TOKEN) {
+            const projectRecord = projectIndex.byId.get(mappedProjectId);
+            const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
+            
+            if (normalizedWorkspaceId && projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
+                console.error('[WorkspaceConsistency] Project token assignment workspace mismatch', {
+                    projectId: mappedProjectId,
+                    token: normalizedToken,
+                    expectedWorkspaceId: normalizedWorkspaceId,
+                    actualWorkspaceId: projectWorkspaceId
+                });
+                unresolved.push(directProjectId);
+                return;
+            }
+            
+            validProjectIds.add(mappedProjectId);
             resolved.push(mappedProjectId);
             return;
         }
@@ -168,15 +200,17 @@ async function resolveAssignedProjectIdsForWorkspace({
         unresolved.push(directProjectId);
     });
 
-    if (unresolved.length) {
+    if (unresolved.length || validProjectIds.size !== normalizedAssignedIds.length) {
         console.error('[WorkspaceConsistency] Assigned projects unresolved for workspace', {
             workspaceId: String(workspaceId || '').trim(),
-            unresolvedProjectIds: AccessControl.sanitizeAssignedProjectIds(unresolved)
+            unresolvedProjectIds: AccessControl.sanitizeAssignedProjectIds(unresolved),
+            validProjectIds: Array.from(validProjectIds),
+            originalAssignedCount: normalizedAssignedIds.length
         });
     }
 
     return {
-        assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(resolved),
+        assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(Array.from(validProjectIds)),
         unresolvedProjectIds: AccessControl.sanitizeAssignedProjectIds(unresolved)
     };
 }

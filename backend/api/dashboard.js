@@ -161,14 +161,96 @@ function getScopedProjectIdsFromRecord(recordData = {}, collectionId = '') {
     ]);
 }
 
+function validateProjectAssignmentForWorkspace(projectRecords, assignedProjectIds, workspaceId) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
+    const validProjectIds = new Set();
+    const invalidProjectIds = [];
+    const projectIdToWorkspace = new Map();
+
+    (Array.isArray(projectRecords) ? projectRecords : []).forEach(record => {
+        const entry = record && record.data
+            ? { id: record.id, data: record.data }
+            : { id: record && record.id, data: record || {} };
+        const projectId = String(entry.id || '').trim();
+        const projectWorkspaceId = String(entry.data.workspace_id || entry.data.workspaceId || '').trim();
+        if (projectId) {
+            projectIdToWorkspace.set(projectId, projectWorkspaceId);
+        }
+    });
+
+    (Array.isArray(assignedProjectIds) ? assignedProjectIds : []).forEach(projectId => {
+        const normalizedId = String(projectId || '').trim();
+        if (!normalizedId) return;
+
+        const projectWorkspaceId = projectIdToWorkspace.get(normalizedId);
+        if (!projectWorkspaceId) {
+            invalidProjectIds.push(normalizedId);
+            return;
+        }
+
+        if (normalizedWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
+            invalidProjectIds.push(normalizedId);
+            console.error('[WorkspaceConsistency] Project assignment workspace mismatch', {
+                projectId: normalizedId,
+                expectedWorkspaceId: normalizedWorkspaceId,
+                actualWorkspaceId: projectWorkspaceId
+            });
+            return;
+        }
+
+        validProjectIds.add(normalizedId);
+    });
+
+    if (invalidProjectIds.length) {
+        console.warn('[WorkspaceConsistency] Invalid project assignments filtered out', {
+            workspaceId: normalizedWorkspaceId,
+            invalidProjectIds,
+            validProjectIds: Array.from(validProjectIds)
+        });
+    }
+
+    return {
+        validProjectIds: Array.from(validProjectIds),
+        invalidProjectIds
+    };
+}
+
 function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
-    const assignedProjectIds = new Set(AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds));
+    const workspaceId = String(sessionUser.workspaceId || '').trim();
+    const rawAssignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
     const isOwner = AccessControl.isWorkspaceOwner(sessionUser);
     const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
     const isAdmin = role === AccessControl.ROLES.ADMIN;
-    const hasExplicitProjectScope = !isOwner && assignedProjectIds.size > 0;
     const allProjectsAccess = hasAllProjectsAccess(sessionUser);
-    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
+    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || (rawAssignedProjectIds.length > 0 && !isOwner);
+
+    console.info('[DashboardProjects] Debug - assignedProjectIds', {
+        rawAssignedProjectIds,
+        workspaceId,
+        role,
+        isOwner,
+        isAdmin,
+        allProjectsAccess,
+        shouldRestrictProjects
+    });
+
+    console.info('[DashboardProjects] Debug - fetched projects count', {
+        count: (Array.isArray(records) ? records : []).length
+    });
+
+    const { validProjectIds, invalidProjectIds } = validateProjectAssignmentForWorkspace(
+        records,
+        rawAssignedProjectIds,
+        workspaceId
+    );
+
+    console.info('[DashboardProjects] Debug - filtered result', {
+        validProjectIds,
+        invalidProjectIds,
+        originalCount: rawAssignedProjectIds.length
+    });
+
+    const assignedProjectIds = new Set(validProjectIds);
 
     if (!shouldRestrictProjects || isOwner || isAdmin || allProjectsAccess) {
         return records;
