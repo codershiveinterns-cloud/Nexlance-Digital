@@ -131,22 +131,43 @@ async function loadTemplateWorkspaceContext(session, projectId) {
         throw createHttpError('Project ID is required.', 400);
     }
 
+    console.log('[DEBUG TemplateWorkspace] Loading context for project:', {
+        projectId: normalizedProjectId,
+        sessionUserUid: session.sessionUser?.uid,
+        sessionUserEmail: session.sessionUser?.email,
+        sessionUserWorkspaceId: session.sessionUser?.workspaceId,
+        sessionUserRole: session.sessionUser?.role,
+        sessionUserAssignedProjectIds: session.sessionUser?.assignedProjectIds,
+        sessionUserAllProjectsAccess: session.sessionUser?.allProjectsAccess
+    });
+
     let projectRecord = null;
     try {
         projectRecord = await getCollectionDocument('projects', normalizedProjectId);
     } catch (error) {
+        console.error('[DEBUG TemplateWorkspace] Failed to load project:', error);
         throw createHttpError('Template workspace backend is temporarily unavailable. Please try again.', 503);
     }
 
     if (!projectRecord || !projectRecord.data) {
+        console.error('[DEBUG TemplateWorkspace] Project not found:', normalizedProjectId);
         throw createHttpError('Project not found or not yet synced to server.', 404);
     }
 
     if (!isPersistedProject(projectRecord.data)) {
+        console.error('[DEBUG TemplateWorkspace] Project not persisted:', normalizedProjectId);
         throw createHttpError('Project not yet synced to server. Save project to backend to use workspace features.', 404, 'project_not_synced');
     }
 
+    console.log('[DEBUG TemplateWorkspace] Project data:', {
+        projectId: projectRecord.id,
+        projectWorkspaceId: projectRecord.data.workspace_id,
+        projectOwnerKey: projectRecord.data.owner_key,
+        projectOwnerEmail: projectRecord.data.owner_email
+    });
+
     const accessDiagnosis = diagnoseProjectRecordAccess(session.sessionUser, normalizedProjectId, projectRecord.data);
+    console.log('[DEBUG TemplateWorkspace] Access diagnosis:', accessDiagnosis);
     if (!accessDiagnosis.allowed) {
         throw createHttpError(
             accessDiagnosis.message || 'You do not have access to this template workspace.',

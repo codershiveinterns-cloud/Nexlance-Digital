@@ -318,7 +318,19 @@
         if (!normalizedBackendId) {
             throw new Error('Project not yet synced to server.');
         }
+
+        const currentUser = JSON.parse(localStorage.getItem('nexlance_user') || 'null');
+        console.log('[DEBUG Workspace] Fetching workspace context:', {
+            projectId: normalizedBackendId,
+            currentUserEmail: currentUser?.email,
+            currentUserWorkspaceId: currentUser?.workspaceId,
+            currentUserRole: currentUser?.role,
+            currentUserAssignedProjectIds: currentUser?.assignedProjectIds,
+            currentUserAllProjectsAccess: currentUser?.allProjectsAccess
+        });
+
         const payload = await authorizedWorkspaceRequest(`/api/project-template-workspace?projectId=${encodeURIComponent(normalizedBackendId)}`, 'GET');
+        console.log('[DEBUG Workspace] Workspace response:', payload);
         workspaceCapabilities = normalizeWorkspaceCapabilities(payload && payload.capabilities ? payload.capabilities : null);
         const syncedProject = payload && payload.project
             ? syncProjectDetailRecord(payload.project)

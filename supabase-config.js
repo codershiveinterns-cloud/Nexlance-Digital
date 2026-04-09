@@ -2166,24 +2166,36 @@ function filterRecordsForCurrentUserScope(entity, records) {
     }
 
     const expectedWorkspaceId = String(currentUser.workspaceId || '').trim();
+    const assignedProjectIds = new Set(getAssignedProjectIdsForCurrentUser());
+
     const workspaceScopedRecords = entity === 'projects'
         ? safeRecords.filter(record => {
             if (!record || typeof record !== 'object') return false;
             if (record.is_persisted_project === false) return true;
             const recordWorkspaceId = getRecordWorkspaceId(record);
+            const recordProjectId = String(record.id || '').trim();
+            
+            if (assignedProjectIds.has(recordProjectId)) {
+                console.log('[WorkspaceConsistency] Allowing assigned project despite workspace mismatch', {
+                    projectId: recordProjectId,
+                    expectedWorkspaceId,
+                    actualWorkspaceId: recordWorkspaceId,
+                    reason: 'explicitly_assigned'
+                });
+                return true;
+            }
+            
             if (recordWorkspaceId && recordWorkspaceId === expectedWorkspaceId) {
                 return true;
             }
-            console.error('[WorkspaceConsistency] Project filtered due to workspace mismatch in scope filter', {
-                projectId: String(record.id || '').trim(),
+            console.log('[WorkspaceConsistency] Project filtered due to workspace mismatch in scope filter', {
+                projectId: recordProjectId,
                 expectedWorkspaceId,
                 actualWorkspaceId: recordWorkspaceId
             });
             return false;
         })
         : safeRecords;
-
-    const assignedProjectIds = new Set(getAssignedProjectIdsForCurrentUser());
     const debugProjectFilter = (filteredRecords, reason) => {
         if (entity !== 'projects') return;
         console.info('[WorkspaceFilterDebug] filterRecordsForCurrentUserScope', {

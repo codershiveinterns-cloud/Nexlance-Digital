@@ -51,7 +51,28 @@ function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) 
     const sessionWorkspaceId = String(sessionUser.workspaceId || '').trim();
     const recordWorkspaceId = String(project.workspace_id || '').trim();
     const workspaceMatch = recordWorkspaceId && recordWorkspaceId === sessionWorkspaceId;
+
+    console.log('[DEBUG ProjectAccess] Diagnosing access:', {
+        sessionUserUid: sessionUser.uid,
+        sessionUserEmail: sessionUser.email,
+        sessionWorkspaceId,
+        sessionRole: sessionUser.role,
+        sessionAssignedProjectIds: sessionUser.assignedProjectIds,
+        allProjectsAccess: sessionUser.allProjectsAccess,
+        projectId,
+        recordWorkspaceId,
+        recordOwner,
+        ownerEmail,
+        workspaceMatch
+    });
+
     if (!((recordOwner && recordOwner === ownerEmail) || workspaceMatch)) {
+        console.log('[DEBUG ProjectAccess] Workspace mismatch detected:', {
+            recordOwner,
+            ownerEmail,
+            recordWorkspaceId,
+            sessionWorkspaceId
+        });
         return {
             allowed: false,
             code: 'workspace_mismatch',
@@ -78,6 +99,14 @@ function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) 
     const hasExplicitProjectScope = assignedProjectIds.length > 0;
     const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
 
+    console.log('[DEBUG ProjectAccess] Project scope check:', {
+        role,
+        assignedProjectIds,
+        hasExplicitProjectScope,
+        shouldRestrictProjects,
+        isClient: role === AccessControl.ROLES.CLIENT
+    });
+
     if (!shouldRestrictProjects) {
         return {
             allowed: true,
@@ -87,6 +116,12 @@ function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) 
 
     const normalizedProjectId = String(projectId || '').trim();
     const isAssigned = assignedProjectIds.includes(normalizedProjectId);
+    console.log('[DEBUG ProjectAccess] Assignment check:', {
+        projectId,
+        normalizedProjectId,
+        assignedProjectIds,
+        isAssigned
+    });
     if (isAssigned) {
         return {
             allowed: true,
