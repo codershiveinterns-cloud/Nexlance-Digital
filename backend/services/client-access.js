@@ -73,6 +73,25 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
 
     for (const assignment of matchingAssignments) {
         const projectId = String(assignment.projectId || '').trim();
+        
+        if (!assignedProjectIdSet.has(projectId) || access.allProjectsAccess) {
+            const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
+            const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
+            
+            if (projectWorkspaceId && projectWorkspaceId !== String(workspaceId).trim()) {
+                console.log('[WorkspaceConsistency] Project assignment has invalid workspace - marking inactive:', {
+                    projectId,
+                    assignmentWorkspace: workspaceId,
+                    projectWorkspace: projectWorkspaceId
+                });
+                await patchCollectionDocument('project_assignments', assignment.id, {
+                    active: false,
+                    updatedAt: new Date().toISOString()
+                }).catch(() => undefined);
+                continue;
+            }
+        }
+        
         const shouldBeActive = access.allProjectsAccess || assignedProjectIdSet.has(projectId);
         if (Boolean(assignment.active) === shouldBeActive) continue;
         await patchCollectionDocument('project_assignments', assignment.id, {
@@ -93,6 +112,19 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
 
     for (const projectId of access.assignedProjectIds) {
         if (existingProjectIdSet.has(projectId)) continue;
+        
+        const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
+        const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
+        
+        if (projectWorkspaceId && projectWorkspaceId !== String(workspaceId).trim()) {
+            console.log('[WorkspaceConsistency] Skip assignment - project belongs to different workspace:', {
+                projectId,
+                assignmentWorkspace: workspaceId,
+                projectWorkspace: projectWorkspaceId
+            });
+            continue;
+        }
+        
         const assignmentId = sanitizeDocumentId(`${workspaceId}_${projectId}_${userId}`);
         await upsertCollectionDocument('project_assignments', assignmentId, {
             workspaceId: String(workspaceId).trim(),
