@@ -64,39 +64,53 @@ function buildProfileAccessFields(source = {}) {
 async function syncProjectAssignments({ workspaceId, userId, email, access, role = 'client', inviteType = 'client' }) {
     if (!workspaceId || !userId) return;
 
+    const normalizedWorkspaceId = String(workspaceId).trim();
+    const normalizedUserId = String(userId).trim();
+    const normalizedRole = AccessControl.normalizeRole(role);
     const existingAssignments = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
     const matchingAssignments = existingAssignments.filter(record => (
-        String(record.workspaceId || '').trim() === String(workspaceId).trim()
-        && String(record.userId || '').trim() === String(userId).trim()
+        String(record.workspaceId || record.workspace_id || '').trim() === normalizedWorkspaceId
+        && String(record.userId || record.user_id || '').trim() === normalizedUserId
     ));
     const assignedProjectIdSet = new Set(access.assignedProjectIds);
 
     for (const assignment of matchingAssignments) {
-        const projectId = String(assignment.projectId || '').trim();
+        const projectId = String(assignment.projectId || assignment.project_id || '').trim();
         
         if (!assignedProjectIdSet.has(projectId) || access.allProjectsAccess) {
             const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
             const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
             
-            if (projectWorkspaceId && projectWorkspaceId !== String(workspaceId).trim()) {
+            if (projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
                 console.log('[WorkspaceConsistency] Project assignment has invalid workspace - marking inactive:', {
                     projectId,
                     assignmentWorkspace: workspaceId,
                     projectWorkspace: projectWorkspaceId
                 });
                 await patchCollectionDocument('project_assignments', assignment.id, {
+                    status: 'inactive',
                     active: false,
-                    updatedAt: new Date().toISOString()
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 }).catch(() => undefined);
                 continue;
             }
         }
         
         const shouldBeActive = access.allProjectsAccess || assignedProjectIdSet.has(projectId);
-        if (Boolean(assignment.active) === shouldBeActive) continue;
+        if (Boolean(assignment.active) === shouldBeActive && String(assignment.status || '').trim().toLowerCase() === (shouldBeActive ? 'active' : 'inactive')) continue;
         await patchCollectionDocument('project_assignments', assignment.id, {
+            workspaceId: normalizedWorkspaceId,
+            workspace_id: normalizedWorkspaceId,
+            userId: normalizedUserId,
+            user_id: normalizedUserId,
+            projectId,
+            project_id: projectId,
+            role: normalizedRole,
+            status: shouldBeActive ? 'active' : 'inactive',
             active: shouldBeActive,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         }).catch(() => undefined);
     }
 
@@ -106,7 +120,7 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
 
     const existingProjectIdSet = new Set(
         matchingAssignments
-            .map(record => String(record.projectId || '').trim())
+            .map(record => String(record.projectId || record.project_id || '').trim())
             .filter(Boolean)
     );
 
@@ -116,7 +130,7 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
         const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
         
-        if (projectWorkspaceId && projectWorkspaceId !== String(workspaceId).trim()) {
+        if (projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
             console.log('[WorkspaceConsistency] Skip assignment - project belongs to different workspace:', {
                 projectId,
                 assignmentWorkspace: workspaceId,
@@ -127,14 +141,20 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
         
         const assignmentId = sanitizeDocumentId(`${workspaceId}_${projectId}_${userId}`);
         await upsertCollectionDocument('project_assignments', assignmentId, {
-            workspaceId: String(workspaceId).trim(),
+            workspaceId: normalizedWorkspaceId,
+            workspace_id: normalizedWorkspaceId,
             projectId,
-            userId: String(userId).trim(),
+            project_id: projectId,
+            userId: normalizedUserId,
+            user_id: normalizedUserId,
             email: AccessControl.normalizeEmail(email),
-            role: AccessControl.normalizeRole(role),
+            role: normalizedRole,
             inviteType: String(inviteType || 'client').trim().toLowerCase(),
+            status: 'active',
             createdAt: new Date().toISOString(),
+            created_at: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             active: true
         }).catch(() => undefined);
     }

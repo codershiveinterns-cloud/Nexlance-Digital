@@ -11,7 +11,6 @@ const {
     patchCollectionDocument,
     queryCollectionDocuments
 } = require('../services/firebase-service');
-const { isTemplateWorkspaceProjectPatch } = require('../services/template-workspace');
 const { handleOptions, normalizeBody, sendApiError, setApiCors } = require('./_utils');
 
 const DASHBOARD_COLLECTIONS = new Set([
@@ -21,6 +20,18 @@ const DASHBOARD_COLLECTIONS = new Set([
     'services',
     'tasks',
     'team_members'
+]);
+
+const PROJECT_TEMPLATE_WORKSPACE_MUTATION_FIELDS = new Set([
+    'template_state',
+    'template_last_saved_at',
+    'template_saved_html',
+    'template_workflow_status',
+    'template_completed_at',
+    'template_download_paid',
+    'template_download_paid_at',
+    'template_download_payment_intent_id',
+    'template_download_amount_gbp'
 ]);
 
 function sanitizeDashboardPayload(payload) {
@@ -57,10 +68,16 @@ function buildDashboardDocument(payload, sessionUser, isCreate = false) {
     };
 }
 
-function ensureOwnedDocument(record, sessionUser) {
+function ensureOwnedDocument(record, sessionUser, collectionId = '') {
     const ownerEmail = getWorkspaceOwnerKey(sessionUser);
     const recordOwner = normalizeEmail(record && record.owner_key ? record.owner_key : record && record.owner_email ? record.owner_email : '');
     const recordWorkspaceId = String(record && record.workspace_id ? record.workspace_id : '').trim();
+    if (String(collectionId || '').trim() === 'projects') {
+        return Boolean(
+            recordWorkspaceId
+            && recordWorkspaceId === String(sessionUser.workspaceId || '').trim()
+        );
+    }
     return Boolean(
         (recordOwner && recordOwner === normalizeEmail(ownerEmail))
         || (recordWorkspaceId && recordWorkspaceId === String(sessionUser.workspaceId || '').trim())
@@ -222,7 +239,10 @@ function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
     const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
     const isAdmin = role === AccessControl.ROLES.ADMIN;
     const allProjectsAccess = hasAllProjectsAccess(sessionUser);
-    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || (rawAssignedProjectIds.length > 0 && !isOwner);
+    const roleRequiresProjectAssignments = role === AccessControl.ROLES.CLIENT
+        || role === AccessControl.ROLES.DEVELOPER
+        || role === AccessControl.ROLES.DESIGNER;
+    const shouldRestrictProjects = roleRequiresProjectAssignments || (rawAssignedProjectIds.length > 0 && !isOwner);
 
     console.info('[DashboardProjects] Debug - assignedProjectIds', {
         rawAssignedProjectIds,
@@ -269,11 +289,23 @@ function filterDashboardRecordForSession(collectionId, record, sessionUser) {
     return filterDashboardRecordsForSession(collectionId, [record], sessionUser)[0] || null;
 }
 
-function isTemplateWorkspacePatchPayload(collectionId, payload) {
+function assertNoTemplateWorkspaceMutationViaDashboardPatch(collectionId, payload) {
     if (collectionId !== 'projects' || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
-        return false;
+        return;
     }
-    return isTemplateWorkspaceProjectPatch(payload);
+    const cleanPayload = sanitizeDashboardPayload(payload);
+    const attemptedField = Object.keys(cleanPayload)
+        .map(key => String(key || '').trim())
+        .find(key => PROJECT_TEMPLATE_WORKSPACE_MUTATION_FIELDS.has(key));
+    if (!attemptedField) {
+        return;
+    }
+    const error = new Error(
+        `Field "${attemptedField}" cannot be updated through /api/dashboard/projects. `
+        + 'Use the dedicated template workspace endpoints for save/complete/unlock actions.'
+    );
+    error.statusCode = 403;
+    throw error;
 }
 
 function getRouteFromRequest(req) {
@@ -353,7 +385,7 @@ module.exports = async function handler(req, res) {
                     res.status(403).json({ error: 'You do not have access to this record.' });
                     return;
                 }
-                if (!ensureOwnedDocument(existing.data, sessionUser)) {
+                if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
                     res.status(403).json({ error: 'You do not have access to this record.' });
                     return;
                 }
@@ -422,10 +454,10 @@ module.exports = async function handler(req, res) {
                 return;
             }
             const body = normalizeBody(req.body);
-            const action = isTemplateWorkspacePatchPayload(route.collectionId, body) ? 'read' : 'update';
+            assertNoTemplateWorkspaceMutationViaDashboardPatch(route.collectionId, body);
             if (!canPerformCollectionAction({
                 collectionId: route.collectionId,
-                action,
+                action: 'update',
                 authUser,
                 userProfile
             })) {
@@ -438,7 +470,7 @@ module.exports = async function handler(req, res) {
                 res.status(404).json({ error: 'Document not found.' });
                 return;
             }
-            if (!ensureOwnedDocument(existing.data, sessionUser)) {
+            if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
                 res.status(403).json({ error: 'You do not have access to modify this record.' });
                 return;
             }
@@ -485,7 +517,7 @@ module.exports = async function handler(req, res) {
                 res.status(404).json({ error: 'Document not found.' });
                 return;
             }
-            if (!ensureOwnedDocument(existing.data, sessionUser)) {
+            if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
                 res.status(403).json({ error: 'You do not have access to delete this record.' });
                 return;
             }

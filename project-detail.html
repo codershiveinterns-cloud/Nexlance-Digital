@@ -50,7 +50,7 @@
       <div class="page-header-actions">
         <span class="badge badge-gray" id="projectStatus">—</span>
         <button class="btn btn-secondary" onclick="history.back()">← Back</button>
-        <button class="btn btn-primary" onclick="openEditProjectModal()">✏️ Edit Project</button>
+        <button class="btn btn-primary" onclick="openEditProjectModal()" data-requires-entity="projects" data-requires-action="update">✏️ Edit Project</button>
       </div>
     </div>
 
@@ -59,7 +59,7 @@
     <!-- Tabs -->
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this,'overview')">Overview</div>
-      <div class="tab" onclick="switchTab(this,'kanban')">Task Board</div>
+      <div class="tab" onclick="switchTab(this,'kanban')" data-requires-permission="view_task_board">Task Board</div>
     </div>
 
     <!-- OVERVIEW TAB -->
@@ -126,7 +126,7 @@
     <div class="tab-content" id="tab-kanban">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
         <p style="color:#888;font-size:0.875rem;">Drag and drop cards to update task status</p>
-        <button class="btn btn-primary btn-sm" onclick="openAddTaskModal()">+ Add Task</button>
+        <button class="btn btn-primary btn-sm" onclick="openAddTaskModal()" data-requires-entity="tasks" data-requires-action="update" data-deny-mode="disable" data-deny-message="Your role has read-only task board access.">+ Add Task</button>
       </div>
       <div class="kanban-board" id="kanbanBoard">
         <div style="display:flex;align-items:center;color:#aaa;padding:20px;">Loading tasks...</div>
@@ -609,6 +609,57 @@ window.refreshProjectDetailProject = async function() {
   }
   return project;
 };
+
+let projectDetailRefreshDebounceTimer = null;
+let projectDetailRefreshInFlight = false;
+
+function scheduleProjectDetailRealtimeRefresh(reason = 'realtime', delayMs = 120) {
+  const safeDelay = Math.max(40, Number(delayMs) || 120);
+  if (projectDetailRefreshDebounceTimer) {
+    window.clearTimeout(projectDetailRefreshDebounceTimer);
+  }
+  projectDetailRefreshDebounceTimer = window.setTimeout(async () => {
+    projectDetailRefreshDebounceTimer = null;
+    if (projectDetailRefreshInFlight) return;
+    const activeProjectId = getActiveProjectId();
+    if (!activeProjectId) return;
+
+    projectDetailRefreshInFlight = true;
+    try {
+      const allProjects = await fetchProjects();
+      const refreshedProject = resolveProjectRecord(allProjects, activeProjectId);
+      if (!refreshedProject) {
+        showToast('This project is no longer available.', 'info');
+        window.location.href = 'projects.html';
+        return;
+      }
+      project = refreshedProject;
+      syncProjectUrl(project, activeProjectId);
+      populateOverview();
+      renderProjectSourceNotice();
+
+      const refreshedTasks = await fetchTasks(getActiveProjectId());
+      tasks = Array.isArray(refreshedTasks) ? refreshedTasks : [];
+      renderKanban();
+    } catch (error) {
+      console.warn('[ProjectDetail] Realtime refresh failed', {
+        reason,
+        message: String(error && error.message || 'unknown')
+      });
+    } finally {
+      projectDetailRefreshInFlight = false;
+    }
+  }, safeDelay);
+}
+
+function onProjectDetailRealtimeSync(event) {
+  const detail = event && event.detail ? event.detail : {};
+  const entity = String(detail.entity || '').trim().toLowerCase();
+  if (entity !== 'projects' && entity !== 'tasks') return;
+  scheduleProjectDetailRealtimeRefresh(`realtime_sync:${entity}`, entity === 'tasks' ? 60 : 120);
+}
+
+window.addEventListener('nexlance-realtime-sync', onProjectDetailRealtimeSync);
 
 document.getElementById('taskModal').addEventListener('click', function(e){ if(e.target===this) closeTaskModal(); });
 document.getElementById('editProjModal').addEventListener('click', function(e){ if(e.target===this) closeEditProject(); });

@@ -85,8 +85,8 @@ function assertAllowedInviteRole(role, inviteType) {
         throw new Error('Client invitations must use the client role.');
     }
 
-    if (inviteType === 'team' && normalizedRole === AccessControl.ROLES.CLIENT) {
-        throw new Error('Team invitations must use an internal team role.');
+    if (inviteType === 'team' && !AccessControl.isInternalTeamRole(normalizedRole)) {
+        throw new Error('Team invitations must use one of these roles: admin, developer, or designer.');
     }
 
     return normalizedRole;
@@ -375,10 +375,12 @@ async function createInvitation({
 
     const normalizedAccess = normalizeProjectAccess({ assignedProjectIds, allProjectsAccess });
     let safeAssignedProjectIds = normalizedAccess.assignedProjectIds;
-    let safeAllProjectsAccess = inviteType === 'client'
+    let safeAllProjectsAccess = inviteType === 'team'
         ? false
-        : normalizedAccess.allProjectsAccess;
-    if (inviteType === 'client') {
+        : (inviteType === 'client'
+            ? false
+            : normalizedAccess.allProjectsAccess);
+    if (inviteType === 'client' || inviteType === 'team') {
         const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
             assignedProjectIds: safeAssignedProjectIds,
             workspaceId: String(sessionUser.workspaceId || '').trim(),
@@ -691,14 +693,13 @@ async function acceptInvitation({ session, token }) {
         sessionUser.workspaceId
         && record.workspaceId
         && sessionUser.workspaceId !== record.workspaceId
-        && !sessionUser.isWorkspaceOwner
     ) {
         throw new Error('This account is already attached to another workspace.');
     }
 
     const role = AccessControl.normalizeRole(record.role);
     let accessFields = buildProfileAccessFields(record);
-    if (role === AccessControl.ROLES.CLIENT) {
+    if (role === AccessControl.ROLES.CLIENT || String(record.inviteType || '').trim().toLowerCase() === 'team') {
         const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
             assignedProjectIds: accessFields.assignedProjectIds,
             workspaceId: invitationWorkspaceId,
@@ -801,13 +802,19 @@ async function acceptInvitation({ session, token }) {
             const assignmentId = sanitizeDocumentId(`${authoritativeScope.workspaceId}_${projectId}_${session.authUser.uid}`);
             await upsertCollectionDocument('project_assignments', assignmentId, {
                 workspaceId: authoritativeScope.workspaceId,
+                workspace_id: authoritativeScope.workspaceId,
                 projectId,
+                project_id: projectId,
                 userId: session.authUser.uid,
+                user_id: session.authUser.uid,
                 email: safeSessionEmail,
                 role,
                 inviteType: record.inviteType,
+                status: 'active',
                 createdAt: new Date().toISOString(),
+                created_at: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
                 active: true
             });
         }

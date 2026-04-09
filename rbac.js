@@ -11,6 +11,9 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function createNexlanceAccessControl() {
     const ROLES = Object.freeze({
         ADMIN: 'admin',
+        DEVELOPER: 'developer',
+        DESIGNER: 'designer',
+        // Legacy alias kept for backward compatibility with existing stored records.
         TEAM_MEMBER: 'team_member',
         CLIENT: 'client'
     });
@@ -20,6 +23,12 @@
         TEAM_MEMBER: 'team_member',
         CLIENT: 'client'
     });
+
+    const INTERNAL_TEAM_ROLES = Object.freeze([
+        ROLES.DEVELOPER,
+        ROLES.DESIGNER,
+        ROLES.TEAM_MEMBER
+    ]);
 
     const PERMISSIONS = Object.freeze({
         VIEW_DASHBOARD: 'view_dashboard',
@@ -59,15 +68,19 @@
         adminowner: ROLES.ADMIN,
         administrator: ROLES.ADMIN,
         [ROLES.ADMIN]: ROLES.ADMIN,
-        pm: ROLES.TEAM_MEMBER,
-        project_manager: ROLES.TEAM_MEMBER,
-        'project manager': ROLES.TEAM_MEMBER,
-        team_member: ROLES.TEAM_MEMBER,
-        'team member': ROLES.TEAM_MEMBER,
-        developer: ROLES.TEAM_MEMBER,
-        designer: ROLES.TEAM_MEMBER,
-        member: ROLES.TEAM_MEMBER,
-        team: ROLES.TEAM_MEMBER,
+        pm: ROLES.DEVELOPER,
+        project_manager: ROLES.DEVELOPER,
+        'project manager': ROLES.DEVELOPER,
+        [ROLES.TEAM_MEMBER]: ROLES.DEVELOPER,
+        team_member: ROLES.DEVELOPER,
+        'team member': ROLES.DEVELOPER,
+        developer: ROLES.DEVELOPER,
+        dev: ROLES.DEVELOPER,
+        designer: ROLES.DESIGNER,
+        'ui_ux_designer': ROLES.DESIGNER,
+        'ui/ux designer': ROLES.DESIGNER,
+        member: ROLES.DEVELOPER,
+        team: ROLES.DEVELOPER,
         [ROLES.CLIENT]: ROLES.CLIENT,
         client: ROLES.CLIENT,
         admin: ROLES.ADMIN
@@ -106,22 +119,30 @@
             PERMISSIONS.ACCESS_ADMIN_PANEL,
             PERMISSIONS.ACCESS_INVITATION_CONTROL
         ]),
-        [ROLES.TEAM_MEMBER]: Object.freeze([
-            PERMISSIONS.VIEW_DASHBOARD,
+        [ROLES.DEVELOPER]: Object.freeze([
             PERMISSIONS.VIEW_PROJECTS,
             PERMISSIONS.MANAGE_PROJECTS,
             PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
             PERMISSIONS.EDIT_TEMPLATE,
             PERMISSIONS.SAVE_TEMPLATE,
-            PERMISSIONS.COMPLETE_PROJECT,
-            PERMISSIONS.DOWNLOAD_OUTPUT,
             PERMISSIONS.VIEW_TASK_BOARD,
             PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
             PERMISSIONS.DELETE_TASKS,
-            PERMISSIONS.VIEW_REVENUE,
             PERMISSIONS.UPLOAD_FILES,
-            PERMISSIONS.VIEW_SERVICES,
+            PERMISSIONS.ACCESS_SYSTEM_SETTINGS
+        ]),
+        [ROLES.DESIGNER]: Object.freeze([
+            PERMISSIONS.VIEW_PROJECTS,
+            PERMISSIONS.MANAGE_PROJECTS,
+            PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
+            PERMISSIONS.EDIT_TEMPLATE,
+            PERMISSIONS.SAVE_TEMPLATE,
+            PERMISSIONS.VIEW_TASK_BOARD,
+            PERMISSIONS.EDIT_TASK_BOARD,
+            PERMISSIONS.EDIT_TASKS,
+            PERMISSIONS.DELETE_TASKS,
+            PERMISSIONS.UPLOAD_FILES,
             PERMISSIONS.ACCESS_SYSTEM_SETTINGS
         ]),
         [ROLES.CLIENT]: Object.freeze([
@@ -335,7 +356,9 @@
         const normalizedRole = normalizeRole(role);
         const labels = {
             [ROLES.ADMIN]: 'Admin',
-            [ROLES.TEAM_MEMBER]: 'Team Member',
+            [ROLES.DEVELOPER]: 'Developer',
+            [ROLES.DESIGNER]: 'Designer',
+            [ROLES.TEAM_MEMBER]: 'Developer',
             [ROLES.CLIENT]: 'Client'
         };
         return labels[normalizedRole] || 'Admin';
@@ -374,7 +397,14 @@
 
     function isTemplateWorkspaceTeamMemberRole(role) {
         const normalizedRole = normalizeRole(role);
-        return normalizedRole === ROLES.TEAM_MEMBER;
+        return INTERNAL_TEAM_ROLES.includes(normalizedRole);
+    }
+
+    function isInternalTeamRole(role) {
+        const normalizedRole = normalizeRole(role);
+        return normalizedRole === ROLES.ADMIN
+            || normalizedRole === ROLES.DEVELOPER
+            || normalizedRole === ROLES.DESIGNER;
     }
 
     function getTemplateWorkspaceRoleCapabilities(user) {
@@ -496,6 +526,7 @@
     return {
         ROLES,
         USER_KINDS,
+        INTERNAL_TEAM_ROLES,
         PERMISSIONS,
         TEMPLATE_WORKSPACE_CAPABILITIES,
         ROLE_PERMISSION_MAP,
@@ -517,6 +548,7 @@
         getTemplateWorkspaceRoleCapabilities,
         hasPermission,
         isTemplateWorkspaceTeamMemberRole,
+        isInternalTeamRole,
         canAccessAdminPanel,
         canManagePayments,
         canManageTeamMembers,

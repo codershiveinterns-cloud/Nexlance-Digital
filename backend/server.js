@@ -227,6 +227,77 @@ async function normalizeClientInvitePayload(body = {}, sessionUser = {}) {
     };
 }
 
+async function normalizeTeamInvitePayload(body = {}, sessionUser = {}) {
+    const metadata = body && typeof body.metadata === 'object' && body.metadata !== null ? body.metadata : {};
+    const inviteeName = String(body.name || body.memberName || metadata.name || '').trim();
+    const email = String(body.email || body.memberEmail || metadata.email || '').trim().toLowerCase();
+    const role = AccessControl.normalizeRole(String(body.role || metadata.role || '').trim());
+    const rawAssignedProjectIds = normalizeProjectIdList(
+        body.assignedProjectIds !== undefined
+            ? body.assignedProjectIds
+            : (metadata.assigned_project_ids !== undefined ? metadata.assigned_project_ids : metadata.assignedProjectIds)
+    );
+    const access = normalizeProjectAccess({
+        assignedProjectIds: rawAssignedProjectIds,
+        allProjectsAccess: false
+    });
+    const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
+        assignedProjectIds: access.assignedProjectIds,
+        workspaceId: String(sessionUser.workspaceId || '').trim(),
+        workspaceOwnerEmail: String(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email || '').trim()
+    }).catch(() => ({
+        assignedProjectIds: access.assignedProjectIds,
+        unresolvedProjectIds: access.assignedProjectIds
+    }));
+    const unresolvedProjectIds = Array.isArray(resolvedScope.unresolvedProjectIds)
+        ? resolvedScope.unresolvedProjectIds
+        : [];
+    if (unresolvedProjectIds.length) {
+        const error = new Error('One or more assigned projects do not belong to this workspace.');
+        error.statusCode = 400;
+        throw error;
+    }
+    const resolvedAccess = normalizeProjectAccess({
+        assignedProjectIds: resolvedScope.assignedProjectIds,
+        allProjectsAccess: false
+    });
+
+    if (!inviteeName) {
+        throw new Error('Team member name is required.');
+    }
+    if (!email) {
+        throw new Error('Team member email is required.');
+    }
+    if (!isValidEmailAddress(email)) {
+        throw new Error('Team member email must be a valid email address.');
+    }
+    if (![AccessControl.ROLES.DEVELOPER, AccessControl.ROLES.DESIGNER].includes(role)) {
+        const error = new Error('Team invitations only support developer or designer roles.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return {
+        inviteeName,
+        email,
+        role,
+        assignedProjectIds: resolvedAccess.assignedProjectIds,
+        metadata: {
+            ...metadata,
+            name: inviteeName,
+            email,
+            role,
+            assigned_project_ids: resolvedAccess.assignedProjectIds,
+            all_projects_access: false,
+            project_access_scope: resolvedAccess.projectAccessScope,
+            ...buildClientAccessFields({
+                assignedProjectIds: resolvedAccess.assignedProjectIds,
+                allProjectsAccess: false
+            })
+        }
+    };
+}
+
 function augmentResponse(res) {
     if (typeof res.status === 'function' && typeof res.json === 'function') {
         return res;
@@ -433,10 +504,16 @@ function buildDashboardDocument(payload, sessionUser, isCreate = false) {
     };
 }
 
-function ensureOwnedDocument(record, sessionUser) {
+function ensureOwnedDocument(record, sessionUser, collectionId = '') {
     const ownerEmail = getWorkspaceOwnerKey(sessionUser);
     const recordOwner = normalizeEmail(record && record.owner_key ? record.owner_key : record && record.owner_email ? record.owner_email : '');
     const recordWorkspaceId = String(record && record.workspace_id ? record.workspace_id : '').trim();
+    if (String(collectionId || '').trim() === 'projects') {
+        return Boolean(
+            recordWorkspaceId
+            && recordWorkspaceId === String(sessionUser.workspaceId || '').trim()
+        );
+    }
     return Boolean(
         (recordOwner && recordOwner === normalizeEmail(ownerEmail))
         || (recordWorkspaceId && recordWorkspaceId === String(sessionUser.workspaceId || '').trim())
@@ -449,7 +526,7 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
     if (!ownerKey && !workspaceId) return [];
 
     const queryResults = [];
-    if (ownerKey) {
+    if (ownerKey && (!workspaceId || collectionId !== 'projects')) {
         const ownerMatched = await queryCollectionDocuments(collectionId, {
             fieldPath: 'owner_key',
             op: 'EQUAL',
@@ -471,9 +548,10 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
 
     if (!queryResults.length) {
         const all = await listCollectionDocuments(collectionId, { pageSize: 500 }).catch(() => []);
+        const requireWorkspaceMatch = collectionId === 'projects' && Boolean(workspaceId);
         return all
             .filter(record => (
-                (ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
+                (!requireWorkspaceMatch && ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
                 || (workspaceId && String(record.workspace_id || '').trim() === workspaceId)
             ))
             .map(record => ({
@@ -524,7 +602,10 @@ function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
     const isAdmin = role === AccessControl.ROLES.ADMIN;
     const hasExplicitProjectScope = !isOwner && assignedProjectIds.size > 0;
     const allProjectsAccess = hasAllProjectsAccess(sessionUser);
-    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
+    const roleRequiresProjectAssignments = role === AccessControl.ROLES.CLIENT
+        || role === AccessControl.ROLES.DEVELOPER
+        || role === AccessControl.ROLES.DESIGNER;
+    const shouldRestrictProjects = roleRequiresProjectAssignments || hasExplicitProjectScope;
 
     if (!shouldRestrictProjects || isOwner || isAdmin || allProjectsAccess) {
         return records;
@@ -594,7 +675,7 @@ async function handleDashboardApi(req, res, url) {
                 sendJson(res, 404, { error: 'Document not found.' });
                 return;
             }
-            if (!ensureOwnedDocument(existing.data, sessionUser)) {
+            if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
                 sendJson(res, 403, { error: 'You do not have access to this record.' });
                 return;
             }
@@ -676,7 +757,7 @@ async function handleDashboardApi(req, res, url) {
             sendJson(res, 404, { error: 'Document not found.' });
             return;
         }
-        if (!ensureOwnedDocument(existing.data, sessionUser)) {
+        if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
             sendJson(res, 403, { error: 'You do not have access to modify this record.' });
             return;
         }
@@ -723,7 +804,7 @@ async function handleDashboardApi(req, res, url) {
             sendJson(res, 404, { error: 'Document not found.' });
             return;
         }
-        if (!ensureOwnedDocument(existing.data, sessionUser)) {
+        if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
             sendJson(res, 403, { error: 'You do not have access to delete this record.' });
             return;
         }
@@ -906,20 +987,23 @@ const server = http.createServer(async (req, res) => {
             const session = await requireAuth(req);
             requireOwnerOnly(session);
             const body = await readBody(req);
+            const normalizedPayload = await normalizeTeamInvitePayload(body, session.sessionUser);
             const result = await createInvitation({
                 session,
                 inviteType: 'team',
-                inviteeName: String(body.name || body.memberName || '').trim(),
-                email: String(body.email || body.memberEmail || '').trim(),
-                role: String(body.role || '').trim(),
-                assignedProjectIds: body.assignedProjectIds || [],
+                inviteeName: normalizedPayload.inviteeName,
+                email: normalizedPayload.email,
+                role: normalizedPayload.role,
+                assignedProjectIds: normalizedPayload.assignedProjectIds,
                 origin: getRequestOrigin(req),
-                metadata: body.metadata || {}
+                metadata: normalizedPayload.metadata,
+                suppressEmailDeliveryError: true
             });
             sendJson(res, 200, {
                 ok: true,
                 invitation: result.invitation,
-                record: result.targetRecord
+                record: result.targetRecord,
+                emailDeliveryError: result.emailDeliveryError || null
             });
         } catch (error) {
             sendJson(res, error.statusCode || 400, { error: error.message || 'Team invitation could not be sent.' });

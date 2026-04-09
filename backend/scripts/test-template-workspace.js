@@ -97,12 +97,12 @@ function testTeamMemberCapabilitiesAndSavePath() {
     assert.strictEqual(context.capabilities.view_template_workspace, true);
     assert.strictEqual(context.capabilities.edit_template, true);
     assert.strictEqual(context.capabilities.save_template, true);
-    assert.strictEqual(context.capabilities.complete_template_project, true);
-    assert.strictEqual(context.capabilities.download_template_output, true);
+    assert.strictEqual(context.capabilities.complete_template_project, false);
+    assert.strictEqual(context.capabilities.download_template_output, false);
 
-    // Developers do not have generic project manage rights, so a successful save patch
-    // here proves template workspace actions are no longer tied to projects.update.
-    assert.strictEqual(AccessControl.canManageProjects(context.session.sessionUser), false);
+    // Developers now have project management rights, but template completion/download
+    // remains separately capability-gated.
+    assert.strictEqual(AccessControl.canManageProjects(context.session.sessionUser), true);
 
     const patch = buildTemplateWorkspaceSavePatch(context, {
         projectId: 'project-1',
@@ -117,7 +117,19 @@ function testTeamMemberCapabilitiesAndSavePath() {
     assert.strictEqual(typeof patch.template_last_saved_at, 'string');
     assert.strictEqual(patch.template_workflow_status, 'in_progress');
     assert.strictEqual(patch.status, 'Development');
-  }
+}
+
+function testTeamMemberCannotCompleteOrUnlock() {
+    const context = createContext({ role: 'developer', workspaceRole: 'developer' });
+    expectThrows(() => buildTemplateWorkspaceCompletePatch(context, {
+        projectId: 'project-1',
+        hasUnsavedChanges: false
+    }), 'permission');
+    expectThrows(() => buildTemplateWorkspaceUnlockPatch(context, {
+        projectId: 'project-1',
+        providerPaymentId: 'pay_123'
+    }), 'permission');
+}
 
 function testAdminCanDoEverything() {
     const capabilities = AccessControl.getTemplateWorkspaceRoleCapabilities({
@@ -150,7 +162,7 @@ function testPatchClassificationIgnoresMetadata() {
 }
 
 function testCompleteBlockedWhenDirty() {
-    const context = createContext();
+    const context = createContext({ role: 'admin', workspaceRole: 'admin' });
     expectThrows(() => buildTemplateWorkspaceCompletePatch(context, {
         projectId: 'project-1',
         hasUnsavedChanges: true
@@ -158,7 +170,7 @@ function testCompleteBlockedWhenDirty() {
 }
 
 function testDownloadBlockedBeforeCompletion() {
-    const context = createContext({}, {
+    const context = createContext({ role: 'admin', workspaceRole: 'admin' }, {
         template_workflow_status: 'in_progress',
         template_download_paid: false
     });
@@ -169,7 +181,7 @@ function testDownloadBlockedBeforeCompletion() {
 }
 
 function testCompleteAndUnlockHappyPath() {
-    const completeContext = createContext({}, {
+    const completeContext = createContext({ role: 'admin', workspaceRole: 'admin' }, {
         template_workflow_status: 'in_progress',
         template_last_saved_at: '2026-04-03T10:00:00.000Z',
         template_saved_html: '<!DOCTYPE html><html><body>saved</body></html>'
@@ -182,7 +194,7 @@ function testCompleteAndUnlockHappyPath() {
     assert.strictEqual(completePatch.template_workflow_status, 'completed');
     assert.strictEqual(completePatch.progress, 100);
 
-    const unlockContext = createContext({}, {
+    const unlockContext = createContext({ role: 'admin', workspaceRole: 'admin' }, {
         template_workflow_status: 'completed',
         template_download_paid: false
     });
@@ -199,6 +211,7 @@ function testCompleteAndUnlockHappyPath() {
 function main() {
     testClientViewOnly();
     testTeamMemberCapabilitiesAndSavePath();
+    testTeamMemberCannotCompleteOrUnlock();
     testAdminCanDoEverything();
     testPatchClassificationIgnoresMetadata();
     testCompleteBlockedWhenDirty();

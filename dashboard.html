@@ -256,8 +256,8 @@
         <p id="dashDate" class="page-header-date"></p>
       </div>
       <div class="page-header-actions">
-        <a href="invoice-create.html" class="btn btn-secondary btn-sm">+ Invoice</a>
-        <a href="clients.html" class="btn btn-primary btn-sm">+ Add Client</a>
+        <a href="invoice-create.html" class="btn btn-secondary btn-sm" data-requires-entity="invoices" data-requires-action="create">+ Invoice</a>
+        <a href="clients.html" class="btn btn-primary btn-sm" data-requires-entity="clients" data-requires-action="create">+ Add Client</a>
       </div>
     </div>
 
@@ -279,7 +279,7 @@
     </section>
 
     <section class="cards">
-      <div class="card">
+      <div class="card" data-requires-permission="view_revenue">
         <h4>Monthly Revenue</h4>
         <h2 id="dRevenue">£328</h2>
         <p class="card-meta">Up 12% vs last month</p>
@@ -299,7 +299,7 @@
         <h2 id="dOverdue">4</h2>
         <p class="card-meta">Need attention</p>
       </div>
-      <div class="card">
+      <div class="card" data-requires-permission="view_revenue">
         <h4>Pending Payments</h4>
         <h2 id="dPending">£1,049</h2>
         <p class="card-meta">Outstanding balance</p>
@@ -346,7 +346,7 @@
         <h3>Website Projects by Status</h3>
         <canvas id="projectStatusChart"></canvas>
       </div>
-      <div class="chart-box">
+      <div class="chart-box" data-requires-permission="view_revenue">
         <div class="chart-box-header">
           <div>
             <h3 id="revenueChartTitle">Revenue Analytics</h3>
@@ -370,7 +370,7 @@
       </ul>
     </section>
 
-    <section class="alerts">
+    <section class="alerts" data-requires-permission="view_revenue">
       <h3>Urgent Alerts</h3>
       <div class="alert danger">2 projects with delayed delivery - FashionHub, Digital Edge</div>
       <div class="alert warning">Hosting expiring in 10 days - TechVision (techvision.in)</div>

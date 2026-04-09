@@ -309,6 +309,7 @@ function clearSessionRuntime(reason = 'clear') {
     SESSION_RUNTIME.hydrationError = null;
     SESSION_RUNTIME.lastAppliedRequestId = 0;
     SESSION_RUNTIME.inFlightRefreshPromise = null;
+    stopRealtimeWorkspaceSync(`session_runtime_clear:${reason}`);
     console.info('[SessionState] Runtime cleared', { reason });
 }
 
@@ -1507,19 +1508,145 @@ async function acceptWorkspaceInvitation(token) {
     return authorizedApiRequest('/api/invitations/accept', 'POST', { token });
 }
 
+function parseRoleGuardTokens(value) {
+    return String(value || '')
+        .split(',')
+        .map(token => String(token || '').trim().toLowerCase())
+        .filter(Boolean);
+}
+
+function ensureRoleAwareUiStyles() {
+    if (document.getElementById('roleAwareUiStyles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'roleAwareUiStyles';
+    style.textContent = `
+        .role-disabled-link,
+        .is-role-disabled {
+            opacity: 0.55;
+            cursor: not-allowed !important;
+            pointer-events: none !important;
+            filter: grayscale(0.12);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function setRoleGuardVisibility(element, allowed, denyMode, denyMessage) {
+    if (!(element instanceof Element)) return;
+
+    const mode = String(denyMode || 'hide').trim().toLowerCase() === 'disable'
+        ? 'disable'
+        : 'hide';
+    const message = String(denyMessage || 'This action is not available for your role.').trim();
+
+    if (!allowed) {
+        if (mode === 'disable') {
+            ensureRoleAwareUiStyles();
+            if ('disabled' in element) {
+                element.disabled = true;
+            }
+            element.setAttribute('aria-disabled', 'true');
+            element.classList.add(element.tagName.toLowerCase() === 'a' ? 'role-disabled-link' : 'is-role-disabled');
+            if (message) {
+                element.setAttribute('title', message);
+            }
+            if (element.tagName.toLowerCase() === 'a') {
+                element.tabIndex = -1;
+                if (element.dataset.roleGuardBound !== '1') {
+                    element.dataset.roleGuardBound = '1';
+                    element.addEventListener('click', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                }
+            }
+            return;
+        }
+
+        element.style.display = 'none';
+        element.setAttribute('aria-hidden', 'true');
+        return;
+    }
+
+    element.style.display = '';
+    element.removeAttribute('aria-hidden');
+    if ('disabled' in element) {
+        element.disabled = false;
+    }
+    element.removeAttribute('aria-disabled');
+    element.classList.remove('role-disabled-link', 'is-role-disabled');
+    if (element.tagName.toLowerCase() === 'a' && element.tabIndex === -1) {
+        element.removeAttribute('tabindex');
+    }
+    if (message && element.getAttribute('title') === message) {
+        element.removeAttribute('title');
+    }
+}
+
+function applyRoleAwareElementGuards() {
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
+    if (!accessControl || !currentUser || !currentUser.workspaceId) return;
+
+    const role = accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole || 'admin');
+
+    document.querySelectorAll('[data-requires-page], [data-requires-permission], [data-requires-entity], [data-hide-for-roles]').forEach(element => {
+        const requiredPage = String(element.getAttribute('data-requires-page') || '').trim();
+        const requiredPermission = String(element.getAttribute('data-requires-permission') || '').trim();
+        const requiredEntity = String(element.getAttribute('data-requires-entity') || '').trim().toLowerCase();
+        const requiredEntityAction = String(element.getAttribute('data-requires-action') || 'read').trim().toLowerCase();
+        const hiddenRoles = parseRoleGuardTokens(element.getAttribute('data-hide-for-roles'));
+        const denyMode = String(element.getAttribute('data-deny-mode') || 'hide').trim().toLowerCase();
+        const denyMessage = String(element.getAttribute('data-deny-message') || '').trim();
+
+        let allowed = true;
+
+        if (requiredPage) {
+            allowed = allowed && accessControl.canAccessPage(currentUser, requiredPage);
+        }
+
+        if (requiredPermission) {
+            allowed = allowed && accessControl.hasPermission(currentUser, requiredPermission);
+        }
+
+        if (requiredEntity) {
+            allowed = allowed && hasDashboardPermission(requiredEntity, requiredEntityAction);
+        }
+
+        if (hiddenRoles.length) {
+            allowed = allowed && !hiddenRoles.includes(role);
+        }
+
+        setRoleGuardVisibility(element, allowed, denyMode, denyMessage);
+    });
+}
+
 function syncPlanUiVisibility() {
     const previewAccess = hasExpiredRestrictedPreviewAccess();
     const unrestrictedLinks = [...PLAN_ACCESS_CONFIG.individual.pages];
     const allowedLinks = previewAccess
         ? [...new Set([...TRIAL_ACCESS_CONFIG.pages, ...PLAN_ACCESS_CONFIG.individual.pages])]
         : getCurrentAccessConfig().pages;
+    const accessControl = getAccessControl();
+    const currentUser = getCurrentSessionUser();
 
     document.querySelectorAll('.sidebar a[href]').forEach(link => {
         const href = link.getAttribute('href');
         if (href === 'admin.html') return;
-        link.parentElement.style.display = allowedLinks.includes(href) ? '' : 'none';
-        link.classList.toggle('restricted-preview-link', previewAccess && !unrestrictedLinks.includes(href));
+
+        const roleAllowsPage = accessControl && currentUser && currentUser.workspaceId
+            ? accessControl.canAccessPage(currentUser, href)
+            : true;
+        const allowed = allowedLinks.includes(href) && roleAllowsPage;
+
+        if (link.parentElement) {
+            link.parentElement.style.display = allowed ? '' : 'none';
+        }
+        link.classList.toggle('restricted-preview-link', allowed && previewAccess && !unrestrictedLinks.includes(href));
     });
+
+    applyRoleAwareElementGuards();
 }
 
 function isAuthenticatedAppPage(pageName = getCurrentPageName()) {
@@ -1537,13 +1664,16 @@ function enforcePlanPageAccess() {
     if (pageName === 'admin.html') {
         return;
     }
+    if (isFirebaseUserAuthenticated() && isSessionHydrationPendingForScopedData()) {
+        return;
+    }
     if (isAuthenticatedAppPage(pageName) && !getCurrentSessionUser()) {
         window.location.href = `login.html?redirect=${encodeURIComponent(pageName)}`;
         return;
     }
     if (shouldShowRestrictedPreview(pageName)) return;
     if (canAccessPage(pageName)) return;
-    if (pageName.endsWith('.html') && RESTRICTED_PAGE_NAMES.includes(pageName)) {
+    if (pageName.endsWith('.html') && isAuthenticatedAppPage(pageName)) {
         redirectToUnauthorized(pageName);
     }
 }
@@ -1758,6 +1888,7 @@ function syncAccessUiState() {
     syncAdminUiVisibility();
     enforcePlanPageAccess();
     applyRestrictedPreviewOverlay();
+    startRealtimeWorkspaceSync('sync_access_ui_state');
     const previousScope = normalizeSessionScope(getCurrentSessionUser() || {});
     const previousScopeHash = buildSessionScopeHash(previousScope);
     ensureSessionHydration('sync_access_ui_state', { forceRetry: true }).then(nextUser => {
@@ -1772,6 +1903,7 @@ function syncAccessUiState() {
         syncPlanUiVisibility();
         syncAdminUiVisibility();
         enforcePlanPageAccess();
+        startRealtimeWorkspaceSync('scope_update');
     });
 }
 
@@ -1871,6 +2003,305 @@ function getLegacyTemplateProjects() {
 function setLegacyTemplateProjects(records) {
     localStorage.setItem('nexlance_projects', JSON.stringify(Array.isArray(records) ? records : []));
     window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'projects' } }));
+}
+
+const REALTIME_COLLECTION_CONFIG = Object.freeze([
+    Object.freeze({ entity: 'projects', collection: 'projects' }),
+    Object.freeze({ entity: 'tasks', collection: 'tasks' }),
+    Object.freeze({ entity: 'clients', collection: 'clients' }),
+    Object.freeze({ entity: 'services', collection: 'services' }),
+    Object.freeze({ entity: 'team_members', collection: 'team_members' })
+]);
+
+const REALTIME_SYNC_RUNTIME = {
+    scopeKey: '',
+    listeners: {},
+    startedAt: 0
+};
+
+let OPTIMISTIC_MUTATION_COUNTER = 0;
+
+function createOptimisticMutationId(entity = 'entity', recordId = '') {
+    OPTIMISTIC_MUTATION_COUNTER += 1;
+    const safeEntity = String(entity || 'entity').trim().toLowerCase();
+    const safeRecordId = String(recordId || '').trim();
+    return `${safeEntity}_${safeRecordId || 'new'}_${Date.now()}_${OPTIMISTIC_MUTATION_COUNTER}`;
+}
+
+function stripOptimisticMetadata(record = {}) {
+    if (!record || typeof record !== 'object') return record;
+    const next = { ...record };
+    delete next._optimistic;
+    delete next._optimistic_mutation_id;
+    delete next._optimistic_updated_at;
+    return next;
+}
+
+function getRecordVersionTimestamp(record = {}) {
+    const candidates = [
+        record._optimistic_updated_at,
+        record.updated_at,
+        record.updatedAt,
+        record.template_last_saved_at,
+        record.template_completed_at,
+        record.created_at,
+        record.createdAt
+    ];
+
+    let best = 0;
+    candidates.forEach(value => {
+        if (!value) return;
+        const parsed = new Date(value).getTime();
+        if (Number.isFinite(parsed) && parsed > best) {
+            best = parsed;
+        }
+    });
+    return best;
+}
+
+function shouldAcceptIncomingRealtimeRecord(existingRecord, incomingRecord) {
+    if (!existingRecord) return true;
+    if (!incomingRecord) return false;
+
+    const existingTs = getRecordVersionTimestamp(existingRecord);
+    const incomingTs = getRecordVersionTimestamp(incomingRecord);
+
+    if (incomingTs > existingTs) return true;
+    if (incomingTs < existingTs) return false;
+
+    if (existingRecord._optimistic === true && incomingRecord._optimistic !== true) {
+        return true;
+    }
+
+    return true;
+}
+
+function sortEntityRecordsForStorage(entity, records) {
+    const safeRecords = Array.isArray(records) ? records.slice() : [];
+    const normalizedEntity = String(entity || '').trim().toLowerCase();
+
+    if (normalizedEntity === 'projects') {
+        return sortProjectsByRecent(safeRecords);
+    }
+
+    if (normalizedEntity === 'tasks') {
+        return safeRecords.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    }
+
+    return safeRecords.sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+}
+
+function getChangedFieldKeys(previousRecord = {}, nextRecord = {}) {
+    const keys = new Set([
+        ...Object.keys(previousRecord || {}),
+        ...Object.keys(nextRecord || {})
+    ]);
+
+    return Array.from(keys).filter(key => {
+        const left = previousRecord ? previousRecord[key] : undefined;
+        const right = nextRecord ? nextRecord[key] : undefined;
+        try {
+            return JSON.stringify(left) !== JSON.stringify(right);
+        } catch (error) {
+            return left !== right;
+        }
+    });
+}
+
+function classifyRealtimeSyncEvent(entity, changeType, previousRecord = {}, nextRecord = {}) {
+    const normalizedEntity = String(entity || '').trim().toLowerCase();
+    if (normalizedEntity === 'tasks') {
+        return 'task_update';
+    }
+    if (normalizedEntity !== 'projects') {
+        return `${normalizedEntity || 'record'}_update`;
+    }
+
+    const changedFields = getChangedFieldKeys(previousRecord, nextRecord);
+    if (changedFields.some(field => /^template_/i.test(field))) {
+        return 'template_change';
+    }
+    if (changedFields.some(field => /upload|file|asset|attachment/i.test(field))) {
+        return 'file_upload';
+    }
+    if (changedFields.some(field => /status|progress/i.test(field))) {
+        return 'status_update';
+    }
+    if (changeType === 'removed') {
+        return 'project_delete';
+    }
+    return 'project_update';
+}
+
+function emitRealtimeSyncEvent({ entity, changeType, record, previousRecord }) {
+    const eventType = classifyRealtimeSyncEvent(entity, changeType, previousRecord || {}, record || {});
+    const detail = {
+        source: 'realtime',
+        entity,
+        eventType,
+        changeType,
+        recordId: String(record && record.id || previousRecord && previousRecord.id || '').trim(),
+        changedFields: getChangedFieldKeys(previousRecord || {}, record || {}),
+        at: new Date().toISOString()
+    };
+    window.dispatchEvent(new CustomEvent('nexlance-realtime-sync', { detail }));
+}
+
+function stopRealtimeWorkspaceSync(reason = 'stop') {
+    Object.keys(REALTIME_SYNC_RUNTIME.listeners || {}).forEach(key => {
+        const unsubscribe = REALTIME_SYNC_RUNTIME.listeners[key];
+        if (typeof unsubscribe === 'function') {
+            try {
+                unsubscribe();
+            } catch (error) {
+                // no-op
+            }
+        }
+    });
+    REALTIME_SYNC_RUNTIME.listeners = {};
+    REALTIME_SYNC_RUNTIME.scopeKey = '';
+    REALTIME_SYNC_RUNTIME.startedAt = 0;
+    console.info('[RealtimeSync] Stopped workspace listeners', { reason });
+}
+
+function buildRealtimeScopeKey(currentUser = {}) {
+    const workspaceId = String(currentUser.workspaceId || currentUser.workspace_id || '').trim();
+    const uid = String(currentUser.uid || '').trim();
+    const email = normalizeEmail(currentUser.email || '');
+    return `${workspaceId}::${uid || email}`;
+}
+
+function applyRealtimeSnapshotToEntity(entity, snapshot) {
+    const safeEntity = String(entity || '').trim();
+    if (!safeEntity) return;
+
+    const existingRecords = getLocalEntityData(safeEntity);
+    const byId = new Map();
+    existingRecords.forEach(record => {
+        if (!record || !record.id) return;
+        byId.set(String(record.id), record);
+    });
+
+    let changed = false;
+    const changes = snapshot && typeof snapshot.docChanges === 'function'
+        ? snapshot.docChanges()
+        : [];
+
+    changes.forEach(change => {
+        const doc = change && change.doc ? change.doc : null;
+        if (!doc) return;
+        const recordId = String(doc.id || '').trim();
+        if (!recordId) return;
+
+        const previousRecord = byId.get(recordId) || null;
+        if (change.type === 'removed') {
+            if (byId.delete(recordId)) {
+                changed = true;
+                emitRealtimeSyncEvent({
+                    entity: safeEntity,
+                    changeType: 'removed',
+                    previousRecord,
+                    record: { id: recordId }
+                });
+            }
+            return;
+        }
+
+        let incomingRecord = {
+            id: recordId,
+            ...(doc.data ? doc.data() : {})
+        };
+
+        if (safeEntity === 'projects') {
+            incomingRecord = decorateProjectRecord(incomingRecord, 'database');
+        }
+        incomingRecord = stripOptimisticMetadata(incomingRecord);
+
+        const scopedRecord = filterRecordsForCurrentUserScope(safeEntity, [incomingRecord])[0] || null;
+        if (!scopedRecord) {
+            if (byId.delete(recordId)) {
+                changed = true;
+                emitRealtimeSyncEvent({
+                    entity: safeEntity,
+                    changeType: 'removed',
+                    previousRecord,
+                    record: { id: recordId }
+                });
+            }
+            return;
+        }
+
+        if (!shouldAcceptIncomingRealtimeRecord(previousRecord, scopedRecord)) {
+            return;
+        }
+
+        byId.set(recordId, scopedRecord);
+        changed = true;
+        emitRealtimeSyncEvent({
+            entity: safeEntity,
+            changeType: change.type || 'modified',
+            previousRecord,
+            record: scopedRecord
+        });
+    });
+
+    if (!changed) return;
+
+    const nextRecords = sortEntityRecordsForStorage(safeEntity, Array.from(byId.values()));
+    setLocalEntityData(safeEntity, nextRecords);
+}
+
+function startRealtimeWorkspaceSync(reason = 'sync_access_ui_state') {
+    if (!isFirebaseConfigured || !db || !isFirebaseUserAuthenticated()) {
+        stopRealtimeWorkspaceSync('firebase_unavailable');
+        return;
+    }
+
+    const currentUser = getCurrentSessionUser();
+    const workspaceId = String(currentUser && (currentUser.workspaceId || currentUser.workspace_id) || '').trim();
+    if (!workspaceId) {
+        stopRealtimeWorkspaceSync('missing_workspace');
+        return;
+    }
+
+    const nextScopeKey = buildRealtimeScopeKey(currentUser || {});
+    if (
+        nextScopeKey
+        && REALTIME_SYNC_RUNTIME.scopeKey === nextScopeKey
+        && Object.keys(REALTIME_SYNC_RUNTIME.listeners || {}).length
+    ) {
+        return;
+    }
+
+    stopRealtimeWorkspaceSync('scope_change');
+
+    REALTIME_COLLECTION_CONFIG.forEach(config => {
+        const logicalEntity = String(config.entity || '').trim().toLowerCase();
+        if (logicalEntity !== 'projects' && logicalEntity !== 'tasks' && !canAccessEntity(logicalEntity === 'team_members' ? 'team' : logicalEntity)) {
+            return;
+        }
+
+        const query = db.collection(config.collection).where('workspace_id', '==', workspaceId);
+        const unsubscribe = query.onSnapshot(snapshot => {
+            applyRealtimeSnapshotToEntity(config.entity, snapshot);
+        }, error => {
+            console.warn('[RealtimeSync] Listener failed', {
+                entity: config.entity,
+                workspaceId,
+                reason: String(error && error.message || 'unknown')
+            });
+        });
+
+        REALTIME_SYNC_RUNTIME.listeners[config.entity] = unsubscribe;
+    });
+
+    REALTIME_SYNC_RUNTIME.scopeKey = nextScopeKey;
+    REALTIME_SYNC_RUNTIME.startedAt = Date.now();
+    console.info('[RealtimeSync] Started workspace listeners', {
+        reason,
+        workspaceId,
+        listeners: Object.keys(REALTIME_SYNC_RUNTIME.listeners)
+    });
 }
 
 function mergeProjectCollections() {
@@ -2008,6 +2439,26 @@ function updateProjectInCollection(records, id, updates) {
     return {
         records: nextRecords,
         record: null
+    };
+}
+
+function createEntityRecordsSnapshot(entity) {
+    const records = getLocalEntityData(entity);
+    return Array.isArray(records) ? records.map(record => ({ ...(record || {}) })) : [];
+}
+
+function restoreEntityRecordsSnapshot(entity, snapshot) {
+    setLocalEntityData(entity, Array.isArray(snapshot) ? snapshot : []);
+}
+
+function createOptimisticRecord(record = {}, mutationId = '') {
+    const now = new Date().toISOString();
+    return {
+        ...(record || {}),
+        _optimistic: true,
+        _optimistic_mutation_id: String(mutationId || '').trim(),
+        _optimistic_updated_at: now,
+        updated_at: String(record && record.updated_at || '').trim() || now
     };
 }
 
@@ -2199,7 +2650,10 @@ function filterRecordsForCurrentUserScope(entity, records) {
 
     const role = accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
     const isAdmin = role === accessControl.ROLES.ADMIN;
-    const shouldRestrictProjects = role === accessControl.ROLES.CLIENT || assignedProjectIds.size > 0;
+    const roleRequiresProjectAssignments = role === accessControl.ROLES.CLIENT
+        || role === accessControl.ROLES.DEVELOPER
+        || role === accessControl.ROLES.DESIGNER;
+    const shouldRestrictProjects = roleRequiresProjectAssignments || assignedProjectIds.size > 0;
     if (isAdmin) {
         debugProjectFilter(workspaceScopedRecords, 'admin_role');
         return workspaceScopedRecords;
@@ -2665,6 +3119,9 @@ async function fetchProjects(clientId = null) {
 async function addProject(d) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const doc = sanitizeFirestoreData({ ...withOwnerFields(d), created_at: new Date().toISOString() });
+    const optimisticMutationId = createOptimisticMutationId('projects', '');
+    let optimisticSnapshot = null;
+    let optimisticDraftId = '';
 
     const createLocalDraftProject = () => {
         const records = getLocalEntityData('projects');
@@ -2681,13 +3138,33 @@ async function addProject(d) {
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('projects', 'create')) throw createDashboardPermissionError('projects', 'create');
         if (isFirebaseUserAuthenticated()) {
+            optimisticSnapshot = createEntityRecordsSnapshot('projects');
+            optimisticDraftId = `tmp_project_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            const optimisticDraft = decorateProjectRecord(createOptimisticRecord({
+                ...doc,
+                id: optimisticDraftId,
+                storage_fallback: true
+            }, optimisticMutationId), 'local_fallback');
+            setLocalEntityData('projects', [optimisticDraft, ...optimisticSnapshot]);
             try {
                 const createdRecord = await dashboardApiRequest('POST', 'projects', '', doc);
                 const decoratedRecord = decorateProjectRecord(createdRecord, 'database');
-                if (decoratedRecord) upsertLocalEntityRecord('projects', decoratedRecord);
+                if (decoratedRecord) {
+                    const withoutOptimistic = getLocalEntityData('projects')
+                        .filter(record => String(record && record.id || '').trim() !== optimisticDraftId);
+                    setLocalEntityData('projects', sortProjectsByRecent(mergeProjectCollections([decoratedRecord], withoutOptimistic)));
+                }
                 return decoratedRecord;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'create');
+                if (!isDashboardApiUnavailableError(error)) {
+                    if (optimisticSnapshot) {
+                        restoreEntityRecordsSnapshot('projects', optimisticSnapshot);
+                    }
+                    throw normalizeDashboardApiError(error, 'projects', 'create');
+                }
+                if (optimisticSnapshot) {
+                    restoreEntityRecordsSnapshot('projects', optimisticSnapshot);
+                }
             }
         }
     }
@@ -2742,6 +3219,57 @@ async function updateProject(id, d, options = {}) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const sanitizedPayload = sanitizeFirestoreData(d);
     const doc = sanitizeFirestoreData(withOwnerFields(d));
+    const optimisticMutationId = createOptimisticMutationId('projects', id);
+    const optimisticProjectsSnapshot = createEntityRecordsSnapshot('projects');
+    const optimisticLegacySnapshot = getLegacyTemplateProjects().map(record => ({ ...(record || {}) }));
+    let optimisticApplied = false;
+    const rollbackOptimisticState = () => {
+        if (!optimisticApplied) return;
+        restoreEntityRecordsSnapshot('projects', optimisticProjectsSnapshot);
+        setLegacyTemplateProjects(optimisticLegacySnapshot);
+    };
+    const applyProjectPatchToLocalScopes = (patch = {}, markStorageFallback = false) => {
+        const safePatch = sanitizeFirestoreData(patch);
+        const scopedProjects = getLocalEntityData('projects');
+        const scopedResult = updateProjectInCollection(scopedProjects, id, {
+            ...safePatch,
+            ...(markStorageFallback ? { storage_fallback: true, local_fallback: true } : {})
+        });
+        if (scopedResult.record) {
+            const normalizedRecord = decorateProjectRecord(
+                stripOptimisticMetadata(scopedResult.record),
+                normalizeProjectSource(scopedResult.record, markStorageFallback ? 'local_fallback' : 'database')
+            );
+            const normalizedScopedRecords = scopedResult.records.map(project => (
+                String(project && project.id || '') === String(id)
+                    ? normalizedRecord
+                    : project
+            ));
+            setLocalEntityData('projects', sortProjectsByRecent(normalizedScopedRecords));
+            return normalizedRecord;
+        }
+
+        const legacyProjects = getLegacyTemplateProjects();
+        const legacyResult = updateProjectInCollection(legacyProjects, id, {
+            ...safePatch,
+            ...(markStorageFallback ? { storage_fallback: true, local_fallback: true } : {})
+        });
+        if (legacyResult.record) {
+            const normalizedRecord = stripOptimisticMetadata({
+                ...legacyResult.record,
+                ...(markStorageFallback ? { storage_fallback: true, local_fallback: true } : {})
+            });
+            const normalizedLegacyRecords = legacyResult.records.map(project => (
+                String(project && project.id || '') === String(id)
+                    ? normalizedRecord
+                    : project
+            ));
+            setLegacyTemplateProjects(normalizedLegacyRecords);
+            return normalizedRecord;
+        }
+
+        return null;
+    };
     // Template Workspace now uses dedicated backend endpoints. This compatibility
     // branch remains so legacy callers do not get reclassified by injected metadata.
     const isTemplateWorkspaceUpdate = options && options.templateWorkspace === true && isTemplateWorkspaceProjectUpdate(sanitizedPayload);
@@ -2752,47 +3280,68 @@ async function updateProject(id, d, options = {}) {
             templateState: doc.template_state
         });
     }
+
+    const optimisticLocalRecords = optimisticProjectsSnapshot.slice();
+    const optimisticLocalIndex = optimisticLocalRecords.findIndex(project => String(project && project.id) === String(id));
+    if (optimisticLocalIndex > -1) {
+        optimisticLocalRecords[optimisticLocalIndex] = createOptimisticRecord(
+            decorateProjectRecord({
+                ...optimisticLocalRecords[optimisticLocalIndex],
+                ...dashboardPayload
+            }, normalizeProjectSource(optimisticLocalRecords[optimisticLocalIndex], 'database')),
+            optimisticMutationId
+        );
+        setLocalEntityData('projects', optimisticLocalRecords);
+        optimisticApplied = true;
+    }
+
+    const optimisticLegacyRecords = optimisticLegacySnapshot.slice();
+    const optimisticLegacyIndex = optimisticLegacyRecords.findIndex(project => String(project && project.id) === String(id));
+    if (optimisticLegacyIndex > -1) {
+        optimisticLegacyRecords[optimisticLegacyIndex] = createOptimisticRecord({
+            ...optimisticLegacyRecords[optimisticLegacyIndex],
+            ...dashboardPayload
+        }, optimisticMutationId);
+        setLegacyTemplateProjects(optimisticLegacyRecords);
+        optimisticApplied = true;
+    }
+
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('projects', isTemplateWorkspaceUpdate ? 'read' : 'update')) {
+            rollbackOptimisticState();
             throw createDashboardPermissionError('projects', isTemplateWorkspaceUpdate ? 'read' : 'update');
         }
         if (isFirebaseUserAuthenticated()) {
             try {
                 const record = await dashboardApiRequest('PATCH', 'projects', id, dashboardPayload);
-                if (record) {
-                    upsertLocalEntityRecord('projects', decorateProjectRecord(record, 'database'));
+                const persistedRecord = record && typeof record === 'object'
+                    ? decorateProjectRecord(stripOptimisticMetadata(record), 'database')
+                    : decorateProjectRecord(stripOptimisticMetadata({ id, ...dashboardPayload }), 'database');
+                if (persistedRecord) {
+                    upsertLocalEntityRecord('projects', persistedRecord);
                 }
-                return decorateProjectRecord(record, 'database');
+                return persistedRecord;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) {
+                    rollbackOptimisticState();
                     throw normalizeDashboardApiError(error, 'projects', isTemplateWorkspaceUpdate ? 'read' : 'update');
                 }
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('projects');
-        const i = records.findIndex(p => p.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc };
-            setLocalEntityData('projects', records);
-            return records[i];
-        }
-        return null;
+        return applyProjectPatchToLocalScopes(doc, false);
     }
     if (shouldBypassDirectFirestoreForCollection('projects')) {
-        const records = getLocalEntityData('projects');
-        const i = records.findIndex(p => p.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc, storage_fallback: true };
-            setLocalEntityData('projects', records);
-            return records[i];
-        }
-        return null;
+        return applyProjectPatchToLocalScopes(doc, true);
     }
     try {
         await db.collection('projects').doc(id).update(doc);
-        return { id, ...doc };
+        const updatedRecord = applyProjectPatchToLocalScopes(doc, false);
+        if (updatedRecord) {
+            return updatedRecord;
+        }
+        return decorateProjectRecord(stripOptimisticMetadata({ id, ...doc }), 'database');
     } catch (error) {
         const message = String(error && error.message ? error.message : '');
         const code = String(error && error.code ? error.code : '');
@@ -2800,61 +3349,78 @@ async function updateProject(id, d, options = {}) {
             || code === 'not-found'
             || code === 5;
 
-        if (!isMissingDocumentError) {
+        if (!isMissingDocumentError && !shouldUseLocalEntityFallback(error)) {
+            rollbackOptimisticState();
             throw error;
         }
 
-        const scopedProjects = getLocalEntityData('projects');
-        const scopedResult = updateProjectInCollection(scopedProjects, id, doc);
-        if (scopedResult.record) {
-            setLocalEntityData('projects', scopedResult.records);
-            return scopedResult.record;
-        }
-
-        const legacyProjects = getLegacyTemplateProjects();
-        const legacyResult = updateProjectInCollection(legacyProjects, id, doc);
-        if (legacyResult.record) {
-            setLegacyTemplateProjects(legacyResult.records);
-            return legacyResult.record;
-        }
-
+        const fallbackRecord = applyProjectPatchToLocalScopes(doc, true);
+        if (fallbackRecord) return fallbackRecord;
+        rollbackOptimisticState();
         throw error;
     }
 }
 
 async function deleteProject(id) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
+    const projectId = String(id || '').trim();
+    if (!projectId) return;
+
+    const optimisticProjectsSnapshot = createEntityRecordsSnapshot('projects');
+    const optimisticLegacySnapshot = getLegacyTemplateProjects().map(record => ({ ...(record || {}) }));
+    const optimisticScopedRecords = optimisticProjectsSnapshot.filter(project => String(project && project.id || '') !== projectId);
+    const optimisticLegacyRecords = optimisticLegacySnapshot.filter(project => String(project && project.id || '') !== projectId);
+    const optimisticApplied = optimisticScopedRecords.length !== optimisticProjectsSnapshot.length
+        || optimisticLegacyRecords.length !== optimisticLegacySnapshot.length;
+
+    const rollbackOptimisticState = () => {
+        if (!optimisticApplied) return;
+        restoreEntityRecordsSnapshot('projects', optimisticProjectsSnapshot);
+        setLegacyTemplateProjects(optimisticLegacySnapshot);
+    };
+
+    if (optimisticApplied) {
+        setLocalEntityData('projects', optimisticScopedRecords);
+        setLegacyTemplateProjects(optimisticLegacyRecords);
+    }
+
     if (isFirebaseConfigured) {
-        if (!hasDashboardPermission('projects', 'delete')) throw createDashboardPermissionError('projects', 'delete');
+        if (!hasDashboardPermission('projects', 'delete')) {
+            rollbackOptimisticState();
+            throw createDashboardPermissionError('projects', 'delete');
+        }
         if (isFirebaseUserAuthenticated()) {
             try {
-                await dashboardApiRequest('DELETE', 'projects', id);
-                const records = getLocalEntityData('projects').filter(p => p.id !== id);
-                setLocalEntityData('projects', records);
-                const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
-                setLegacyTemplateProjects(legacyRecords);
+                await dashboardApiRequest('DELETE', 'projects', projectId);
                 return;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'delete');
+                if (!isDashboardApiUnavailableError(error)) {
+                    rollbackOptimisticState();
+                    throw normalizeDashboardApiError(error, 'projects', 'delete');
+                }
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('projects').filter(p => p.id !== id);
-        setLocalEntityData('projects', records);
-        const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
-        setLegacyTemplateProjects(legacyRecords);
+        if (!optimisticApplied) {
+            const records = getLocalEntityData('projects').filter(project => String(project && project.id || '') !== projectId);
+            setLocalEntityData('projects', records);
+            const legacyRecords = getLegacyTemplateProjects().filter(project => String(project && project.id || '') !== projectId);
+            setLegacyTemplateProjects(legacyRecords);
+        }
         return;
     }
     if (shouldBypassDirectFirestoreForCollection('projects')) {
-        const records = getLocalEntityData('projects').filter(p => p.id !== id);
-        setLocalEntityData('projects', records);
-        const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
-        setLegacyTemplateProjects(legacyRecords);
+        if (!optimisticApplied) {
+            const records = getLocalEntityData('projects').filter(project => String(project && project.id || '') !== projectId);
+            setLocalEntityData('projects', records);
+            const legacyRecords = getLegacyTemplateProjects().filter(project => String(project && project.id || '') !== projectId);
+            setLegacyTemplateProjects(legacyRecords);
+        }
         return;
     }
     try {
-        await db.collection('projects').doc(id).delete();
+        await db.collection('projects').doc(projectId).delete();
     } catch (error) {
         const message = String(error && error.message ? error.message : '');
         const code = String(error && error.code ? error.code : '');
@@ -2862,22 +3428,12 @@ async function deleteProject(id) {
             || message.toLowerCase().includes('no document to delete')
             || code === 'not-found'
             || code === 5;
-        if (shouldUseLocalEntityFallback(error)) {
-            const records = getLocalEntityData('projects').filter(p => p.id !== id);
-            setLocalEntityData('projects', records);
-            const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
-            setLegacyTemplateProjects(legacyRecords);
+        if (shouldUseLocalEntityFallback(error) || isMissingDocumentError) {
             return;
         }
-        if (!isMissingDocumentError) {
-            throw error;
-        }
+        rollbackOptimisticState();
+        throw error;
     }
-
-    const records = getLocalEntityData('projects').filter(p => p.id !== id);
-    setLocalEntityData('projects', records);
-    const legacyRecords = getLegacyTemplateProjects().filter(p => p.id !== id);
-    setLegacyTemplateProjects(legacyRecords);
 }
 
 function buildProjectSyncPayload(project) {
@@ -3071,41 +3627,69 @@ async function fetchTasks(projectId) {
 
 async function addTask(d) {
     if (!canAccessEntity('tasks')) throw createRestrictedAccessError('tasks');
-    const doc = { ...withOwnerFields(d), created_at: new Date().toISOString() };
+    const doc = sanitizeFirestoreData({ ...withOwnerFields(d), created_at: new Date().toISOString() });
+    const optimisticMutationId = createOptimisticMutationId('tasks', '');
+    let optimisticSnapshot = null;
+    let optimisticDraftId = '';
+    const createLocalDraftTask = (markStorageFallback = false) => {
+        const records = getLocalEntityData('tasks');
+        const draftRecord = stripOptimisticMetadata({
+            ...doc,
+            id: `t${Date.now()}`,
+            ...(markStorageFallback ? { storage_fallback: true } : {})
+        });
+        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', [...records, draftRecord]));
+        return draftRecord;
+    };
+
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('tasks', 'create')) throw createDashboardPermissionError('tasks', 'create');
         if (isFirebaseUserAuthenticated()) {
+            optimisticSnapshot = createEntityRecordsSnapshot('tasks');
+            optimisticDraftId = `tmp_task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            const optimisticDraft = createOptimisticRecord({
+                ...doc,
+                id: optimisticDraftId
+            }, optimisticMutationId);
+            setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', [...optimisticSnapshot, optimisticDraft]));
             try {
-                return await dashboardApiRequest('POST', 'tasks', '', doc);
+                const createdRecord = await dashboardApiRequest('POST', 'tasks', '', doc);
+                const persistedTask = stripOptimisticMetadata(
+                    createdRecord && typeof createdRecord === 'object'
+                        ? createdRecord
+                        : { ...doc, id: `t${Date.now()}` }
+                );
+                const withoutOptimistic = getLocalEntityData('tasks')
+                    .filter(task => String(task && task.id || '') !== optimisticDraftId);
+                setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', mergeEntityCollections([persistedTask], withoutOptimistic)));
+                return persistedTask;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'create');
+                if (!isDashboardApiUnavailableError(error)) {
+                    if (optimisticSnapshot) {
+                        restoreEntityRecordsSnapshot('tasks', optimisticSnapshot);
+                    }
+                    throw normalizeDashboardApiError(error, 'tasks', 'create');
+                }
+                if (optimisticSnapshot) {
+                    restoreEntityRecordsSnapshot('tasks', optimisticSnapshot);
+                }
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('tasks');
-        const r = { ...doc, id: 't' + Date.now() };
-        records.push(r);
-        setLocalEntityData('tasks', records);
-        return r;
+        return createLocalDraftTask(false);
     }
     if (shouldBypassDirectFirestoreForCollection('tasks')) {
-        const records = getLocalEntityData('tasks');
-        const r = { ...doc, id: 't' + Date.now(), storage_fallback: true };
-        records.push(r);
-        setLocalEntityData('tasks', records);
-        return r;
+        return createLocalDraftTask(true);
     }
     try {
         const ref = await db.collection('tasks').add(doc);
-        return { id: ref.id, ...doc };
+        const persistedTask = stripOptimisticMetadata({ id: ref.id, ...doc });
+        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', mergeEntityCollections([persistedTask], getLocalEntityData('tasks'))));
+        return persistedTask;
     } catch (error) {
         if (shouldUseLocalEntityFallback(error)) {
-            const records = getLocalEntityData('tasks');
-            const r = { ...doc, id: 't' + Date.now(), storage_fallback: true };
-            records.push(r);
-            setLocalEntityData('tasks', records);
-            return r;
+            return createLocalDraftTask(true);
         }
         throw error;
     }
@@ -3113,71 +3697,150 @@ async function addTask(d) {
 
 async function updateTask(id, d) {
     if (!canAccessEntity('tasks')) throw createRestrictedAccessError('tasks');
-    const doc = withOwnerFields(d);
+    const taskId = String(id || '').trim();
+    if (!taskId) return null;
+    const doc = sanitizeFirestoreData(withOwnerFields(d));
+    const optimisticMutationId = createOptimisticMutationId('tasks', taskId);
+    const optimisticTasksSnapshot = createEntityRecordsSnapshot('tasks');
+    const optimisticTasks = optimisticTasksSnapshot.slice();
+    const optimisticIndex = optimisticTasks.findIndex(task => String(task && task.id || '') === taskId);
+    const optimisticApplied = optimisticIndex > -1;
+    const rollbackOptimisticState = () => {
+        if (!optimisticApplied) return;
+        restoreEntityRecordsSnapshot('tasks', optimisticTasksSnapshot);
+    };
+    const applyTaskPatchToLocalRecords = (patch = {}, markStorageFallback = false) => {
+        const safePatch = sanitizeFirestoreData(patch);
+        const records = getLocalEntityData('tasks');
+        const i = records.findIndex(task => String(task && task.id || '') === taskId);
+        if (i < 0) return null;
+        records[i] = stripOptimisticMetadata({
+            ...records[i],
+            ...safePatch,
+            ...(markStorageFallback ? { storage_fallback: true } : {})
+        });
+        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', records));
+        return records[i];
+    };
+
+    if (optimisticApplied) {
+        optimisticTasks[optimisticIndex] = createOptimisticRecord({
+            ...optimisticTasks[optimisticIndex],
+            ...doc
+        }, optimisticMutationId);
+        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', optimisticTasks));
+    }
+
     if (isFirebaseConfigured) {
-        if (!hasDashboardPermission('tasks', 'update')) throw createDashboardPermissionError('tasks', 'update');
+        if (!hasDashboardPermission('tasks', 'update')) {
+            rollbackOptimisticState();
+            throw createDashboardPermissionError('tasks', 'update');
+        }
         if (isFirebaseUserAuthenticated()) {
             try {
-                return await dashboardApiRequest('PATCH', 'tasks', id, doc);
+                const record = await dashboardApiRequest('PATCH', 'tasks', taskId, doc);
+                const persistedTask = stripOptimisticMetadata(
+                    record && typeof record === 'object'
+                        ? record
+                        : { id: taskId, ...doc }
+                );
+                const remainingRecords = getLocalEntityData('tasks').filter(task => String(task && task.id || '') !== taskId);
+                setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', [persistedTask, ...remainingRecords]));
+                return persistedTask;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'update');
+                if (!isDashboardApiUnavailableError(error)) {
+                    rollbackOptimisticState();
+                    throw normalizeDashboardApiError(error, 'tasks', 'update');
+                }
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('tasks');
-        const i = records.findIndex(t => t.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc };
-            setLocalEntityData('tasks', records);
-            return records[i];
-        }
-        return null;
+        return applyTaskPatchToLocalRecords(doc, false);
     }
     if (shouldBypassDirectFirestoreForCollection('tasks')) {
-        const records = getLocalEntityData('tasks');
-        const i = records.findIndex(t => t.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc, storage_fallback: true };
-            setLocalEntityData('tasks', records);
-            return records[i];
-        }
-        return null;
+        return applyTaskPatchToLocalRecords(doc, true);
     }
-    await db.collection('tasks').doc(id).update(doc);
-    return { id, ...doc };
+    try {
+        await db.collection('tasks').doc(taskId).update(doc);
+        const updatedTask = applyTaskPatchToLocalRecords(doc, false);
+        if (updatedTask) return updatedTask;
+        return stripOptimisticMetadata({ id: taskId, ...doc });
+    } catch (error) {
+        const message = String(error && error.message ? error.message : '');
+        const code = String(error && error.code ? error.code : '');
+        const isMissingDocumentError = message.toLowerCase().includes('no document to update')
+            || code === 'not-found'
+            || code === 5;
+        if (shouldUseLocalEntityFallback(error) || isMissingDocumentError) {
+            return applyTaskPatchToLocalRecords(doc, true);
+        }
+        rollbackOptimisticState();
+        throw error;
+    }
 }
 
 async function deleteTask(id) {
     if (!canAccessEntity('tasks')) throw createRestrictedAccessError('tasks');
+    const taskId = String(id || '').trim();
+    if (!taskId) return;
+    const optimisticTasksSnapshot = createEntityRecordsSnapshot('tasks');
+    const optimisticTasks = optimisticTasksSnapshot.filter(task => String(task && task.id || '') !== taskId);
+    const optimisticApplied = optimisticTasks.length !== optimisticTasksSnapshot.length;
+    const rollbackOptimisticState = () => {
+        if (!optimisticApplied) return;
+        restoreEntityRecordsSnapshot('tasks', optimisticTasksSnapshot);
+    };
+
+    if (optimisticApplied) {
+        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', optimisticTasks));
+    }
+
     if (isFirebaseConfigured) {
-        if (!hasDashboardPermission('tasks', 'delete')) throw createDashboardPermissionError('tasks', 'delete');
+        if (!hasDashboardPermission('tasks', 'delete')) {
+            rollbackOptimisticState();
+            throw createDashboardPermissionError('tasks', 'delete');
+        }
         if (isFirebaseUserAuthenticated()) {
             try {
-                await dashboardApiRequest('DELETE', 'tasks', id);
+                await dashboardApiRequest('DELETE', 'tasks', taskId);
                 return;
             } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'delete');
+                if (!isDashboardApiUnavailableError(error)) {
+                    rollbackOptimisticState();
+                    throw normalizeDashboardApiError(error, 'tasks', 'delete');
+                }
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('tasks').filter(t => t.id !== id);
-        setLocalEntityData('tasks', records);
+        if (!optimisticApplied) {
+            const records = getLocalEntityData('tasks').filter(task => String(task && task.id || '') !== taskId);
+            setLocalEntityData('tasks', records);
+        }
         return;
     }
     if (shouldBypassDirectFirestoreForCollection('tasks')) {
-        const records = getLocalEntityData('tasks').filter(t => t.id !== id);
-        setLocalEntityData('tasks', records);
+        if (!optimisticApplied) {
+            const records = getLocalEntityData('tasks').filter(task => String(task && task.id || '') !== taskId);
+            setLocalEntityData('tasks', records);
+        }
         return;
     }
     try {
-        await db.collection('tasks').doc(id).delete();
+        await db.collection('tasks').doc(taskId).delete();
     } catch (error) {
-        if (!shouldUseLocalEntityFallback(error)) throw error;
+        const message = String(error && error.message ? error.message : '');
+        const code = String(error && error.code ? error.code : '');
+        const isMissingDocumentError = message.toLowerCase().includes('no document to update')
+            || message.toLowerCase().includes('no document to delete')
+            || code === 'not-found'
+            || code === 5;
+        if (!shouldUseLocalEntityFallback(error) && !isMissingDocumentError) {
+            rollbackOptimisticState();
+            throw error;
+        }
     }
-    const records = getLocalEntityData('tasks').filter(t => t.id !== id);
-    setLocalEntityData('tasks', records);
 }
 
 async function fetchInvoices() {

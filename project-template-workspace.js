@@ -693,18 +693,24 @@
 
         editBtn.style.display = canEdit ? '' : 'none';
         saveBtn.style.display = canSave ? '' : 'none';
-        completeBtn.style.display = canComplete ? '' : 'none';
-        downloadBtn.style.display = canDownload ? '' : 'none';
+        completeBtn.style.display = canView ? '' : 'none';
+        downloadBtn.style.display = canView ? '' : 'none';
 
         editBtn.disabled = workspaceActionInFlight || completed || !canEdit;
         editBtn.textContent = isWorkspaceEditMode ? 'Editing Enabled' : 'Edit Mode';
         saveBtn.disabled = workspaceActionInFlight || !needsSave || completed || !canSave;
         completeBtn.disabled = workspaceActionInFlight || completed || needsSave || !canComplete;
-        completeBtn.textContent = completed ? 'Project Completed' : 'Complete Project';
+        completeBtn.textContent = !canComplete
+            ? 'Completion Restricted'
+            : (completed ? 'Project Completed' : 'Complete Project');
+        completeBtn.title = !canComplete ? 'Your role can view and edit templates, but cannot mark projects complete.' : '';
         downloadBtn.disabled = workspaceActionInFlight || !completed || needsSave || !canDownload;
-        downloadBtn.textContent = !completed
-            ? 'Download After Completion'
-            : (resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)');
+        downloadBtn.textContent = !canDownload
+            ? 'Download Restricted'
+            : (!completed
+                ? 'Download After Completion'
+                : (resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)'));
+        downloadBtn.title = !canDownload ? 'Your role cannot download final output for this project.' : '';
     }
 
     function requireBackendProjectId(project, actionLabel = 'this action') {

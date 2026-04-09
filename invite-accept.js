@@ -86,11 +86,12 @@ function renderInvitationSummary(invitation) {
   const roleLabel = window.NexlanceAccessControl
     ? window.NexlanceAccessControl.getRoleDisplayLabel(invitation.role)
     : invitation.role;
+  const selectedProjectCount = Array.isArray(invitation.assignedProjectIds)
+    ? invitation.assignedProjectIds.length
+    : 0;
   const accessLabel = invitation.allProjectsAccess
     ? "All projects"
-    : (invitation.inviteType === "client"
-      ? `${(invitation.assignedProjectIds || []).length || 0} selected project(s)`
-      : "Role-based team access");
+    : `${selectedProjectCount} selected project(s)`;
   summary.innerHTML = `
     <strong>Email:</strong> ${invitation.email}<br>
     <strong>Role:</strong> ${roleLabel}<br>

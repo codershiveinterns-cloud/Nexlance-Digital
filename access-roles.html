@@ -233,9 +233,13 @@
       <div class="form-group">
         <label>Assign Role</label>
         <select id="invRole" style="padding:10px 12px;border-radius:9px;border:1px solid #e0d6ff;font-family:Segoe UI,sans-serif;font-size:0.875rem;width:100%;">
-          <option>Admin</option><option selected>Developer</option>
-          <option>Designer</option><option>Client</option>
+          <option selected>Developer</option>
+          <option>Designer</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>Assigned Projects *</label>
+        <select id="invAssignedProjects" multiple size="5" style="padding:10px 12px;border-radius:9px;border:1px solid #e0d6ff;font-family:Segoe UI,sans-serif;font-size:0.875rem;width:100%;"></select>
       </div>
     </div>
     <div class="modal-footer">
@@ -295,6 +299,7 @@
 let members = [];
 let invitations = [];
 let editingMemberId = null;
+let inviteProjects = [];
 
 /* ============================================================
    PERMISSIONS DATA
@@ -462,10 +467,44 @@ async function loadInvitations() {
   renderPendingInvites();
 }
 
+function renderInviteProjectOptions(selectedIds = []) {
+  const select = document.getElementById('invAssignedProjects');
+  if (!select) return;
+
+  const selected = new Set((Array.isArray(selectedIds) ? selectedIds : []).map(id => String(id || '').trim()));
+  if (!inviteProjects.length) {
+    select.innerHTML = '<option value="">No projects available yet</option>';
+    return;
+  }
+
+  select.innerHTML = inviteProjects.map(project => `
+    <option value="${project.id}" ${selected.has(String(project.id || '').trim()) ? 'selected' : ''}>${project.name}</option>
+  `).join('');
+}
+
+function getInviteAssignedProjectIds() {
+  const select = document.getElementById('invAssignedProjects');
+  if (!select) return [];
+  return Array.from(select.selectedOptions || [])
+    .map(option => String(option.value || '').trim())
+    .filter(Boolean);
+}
+
+async function loadInviteProjects() {
+  try {
+    const records = await fetchProjects();
+    inviteProjects = Array.isArray(records) ? records : [];
+  } catch (error) {
+    inviteProjects = [];
+  }
+  renderInviteProjectOptions([]);
+}
+
 function openInviteModal() {
   document.getElementById('invName').value = '';
   document.getElementById('invEmail').value = '';
   document.getElementById('invRole').value = 'Developer';
+  renderInviteProjectOptions([]);
   document.getElementById('inviteModal').classList.add('active');
 }
 
@@ -473,10 +512,17 @@ async function sendInvite() {
   const name  = document.getElementById('invName').value.trim();
   const email = document.getElementById('invEmail').value.trim();
   const role  = document.getElementById('invRole').value;
+  const assignedProjectIds = getInviteAssignedProjectIds();
   if (!name)  { showToast('Name is required', 'error'); return; }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Enter a valid email', 'error'); return; }
+  if (!assignedProjectIds.length) { showToast('Select at least one project for this invite.', 'error'); return; }
   try {
-    const response = await inviteTeamMember({ name, email, role });
+    const response = await inviteTeamMember({
+      name,
+      email,
+      role,
+      assignedProjectIds
+    });
     closeModal('inviteModal');
     document.getElementById('invitedName').textContent = name;
     document.getElementById('displayCode').textContent = 'Email sent';
@@ -607,6 +653,7 @@ document.getElementById('roleDetailOverlay').addEventListener('click', function(
 ============================================================ */
 async function init() {
   members = await fetchTeamMembers();
+  await loadInviteProjects();
   renderPermissionsMatrix();
   renderTeamRoles();
   await loadInvitations();

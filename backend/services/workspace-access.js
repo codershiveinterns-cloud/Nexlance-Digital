@@ -52,7 +52,11 @@ function getWorkspaceMemberDocumentId(workspaceId, userId, email) {
 }
 
 function getNormalizedAssignedProjectIds(profile = {}) {
-    return AccessControl.sanitizeAssignedProjectIds(profile.assignedProjectIds);
+    return AccessControl.sanitizeAssignedProjectIds(
+        profile.assignedProjectIds !== undefined
+            ? profile.assignedProjectIds
+            : profile.assigned_project_ids
+    );
 }
 
 function hasAllProjectsAccess(profile = {}) {
@@ -78,6 +82,149 @@ function getNormalizedClientInvitationAccess(invitation = {}) {
         allProjectsAccess,
         projectAccessScope: allProjectsAccess ? 'all' : 'selected',
         primaryProjectId: allProjectsAccess ? '' : (assignedProjectIds[0] || '')
+    };
+}
+
+function normalizeProjectAssignmentRecord(record = {}) {
+    const data = record && record.data ? record.data : record;
+    return {
+        id: String(record && record.id ? record.id : '').trim(),
+        workspaceId: String(data && (data.workspaceId || data.workspace_id) || '').trim(),
+        userId: String(data && (data.userId || data.user_id) || '').trim(),
+        projectId: String(data && (data.projectId || data.project_id) || '').trim(),
+        email: AccessControl.normalizeEmail(data && data.email),
+        role: AccessControl.normalizeRole(data && data.role),
+        status: String(data && data.status || '').trim().toLowerCase(),
+        active: data && Object.prototype.hasOwnProperty.call(data, 'active')
+            ? data.active === true
+            : true,
+        data: data || {}
+    };
+}
+
+function isProjectAssignmentActive(assignment = {}) {
+    const status = String(assignment.status || '').trim().toLowerCase();
+    if (assignment.active === false) return false;
+    if (!status) return true;
+    return !['inactive', 'revoked', 'cancelled', 'deleted'].includes(status);
+}
+
+async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
+    const normalizedUserId = String(userId || '').trim();
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    const results = [];
+    const seenIds = new Set();
+
+    const pushRecords = (records = []) => {
+        (Array.isArray(records) ? records : []).forEach(record => {
+            const entry = normalizeProjectAssignmentRecord(record);
+            if (!entry.id || seenIds.has(entry.id)) return;
+            const userIdMatch = normalizedUserId && entry.userId === normalizedUserId;
+            const emailMatch = normalizedEmail && entry.email === normalizedEmail;
+            if (!userIdMatch && !emailMatch) return;
+            seenIds.add(entry.id);
+            results.push(entry);
+        });
+    };
+
+    if (normalizedUserId) {
+        const userMatched = await queryCollectionDocuments('project_assignments', {
+            fieldPath: 'userId',
+            op: 'EQUAL',
+            value: normalizedUserId,
+            limit: 500
+        }).catch(() => []);
+        pushRecords(userMatched);
+
+        const legacyUserMatched = await queryCollectionDocuments('project_assignments', {
+            fieldPath: 'user_id',
+            op: 'EQUAL',
+            value: normalizedUserId,
+            limit: 500
+        }).catch(() => []);
+        pushRecords(legacyUserMatched);
+    }
+
+    if (!results.length) {
+        const allRecords = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
+        pushRecords(allRecords);
+    }
+
+    return results;
+}
+
+async function markProjectAssignmentInactive(assignment, reason, expectedWorkspaceId = '', actualWorkspaceId = '') {
+    if (!assignment || !assignment.id) return;
+    await patchCollectionDocument('project_assignments', assignment.id, {
+        status: 'inactive',
+        active: false,
+        mismatchReason: String(reason || '').trim(),
+        expectedWorkspaceId: String(expectedWorkspaceId || '').trim(),
+        actualWorkspaceId: String(actualWorkspaceId || '').trim(),
+        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    }).catch(() => undefined);
+}
+
+async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId = '', email = '' } = {}) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
+    const normalizedUserId = String(userId || '').trim();
+    if (!normalizedWorkspaceId || !normalizedUserId) {
+        return {
+            assignedProjectIds: []
+        };
+    }
+
+    const assignments = await listProjectAssignmentsForUser({
+        userId: normalizedUserId,
+        email
+    });
+    const validProjectIds = new Set();
+
+    for (const assignment of assignments) {
+        const assignmentWorkspaceId = String(assignment.workspaceId || '').trim();
+        if (!assignmentWorkspaceId || assignmentWorkspaceId !== normalizedWorkspaceId) {
+            await markProjectAssignmentInactive(
+                assignment,
+                'workspace_mismatch',
+                normalizedWorkspaceId,
+                assignmentWorkspaceId
+            );
+            continue;
+        }
+
+        const projectId = String(assignment.projectId || '').trim();
+        if (!projectId) {
+            await markProjectAssignmentInactive(
+                assignment,
+                'missing_project_id',
+                normalizedWorkspaceId,
+                assignmentWorkspaceId
+            );
+            continue;
+        }
+
+        const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
+        const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
+        if (!projectRecord || !projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
+            await markProjectAssignmentInactive(
+                assignment,
+                'project_workspace_mismatch',
+                normalizedWorkspaceId,
+                projectWorkspaceId
+            );
+            continue;
+        }
+
+        if (!isProjectAssignmentActive(assignment)) {
+            continue;
+        }
+
+        validProjectIds.add(projectId);
+    }
+
+    return {
+        assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(Array.from(validProjectIds))
     };
 }
 
@@ -181,39 +328,52 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
 async function syncProjectAssignmentsForUser({ workspaceId, userId, email, access }) {
     if (!workspaceId || !userId) return;
 
+    const normalizedWorkspaceId = String(workspaceId).trim();
+    const normalizedUserId = String(userId).trim();
     const records = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
     const currentAssignments = records.filter(record => (
-        String(record.workspaceId || '').trim() === String(workspaceId).trim()
-        && String(record.userId || '').trim() === String(userId).trim()
+        String(record.workspaceId || record.workspace_id || '').trim() === normalizedWorkspaceId
+        && String(record.userId || record.user_id || '').trim() === normalizedUserId
     ));
     const assignedProjectIdSet = new Set(access.assignedProjectIds);
 
     for (const assignment of currentAssignments) {
-        const projectId = String(assignment.projectId || '').trim();
+        const projectId = String(assignment.projectId || assignment.project_id || '').trim();
         
         if (!assignedProjectIdSet.has(projectId) || access.allProjectsAccess) {
             const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
             const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
             
-            if (projectWorkspaceId && projectWorkspaceId !== String(workspaceId).trim()) {
+            if (projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
                 console.log('[WorkspaceConsistency] Invalid assignment - marking inactive:', {
                     projectId,
                     assignmentWorkspace: workspaceId,
                     projectWorkspace: projectWorkspaceId
                 });
                 await patchCollectionDocument('project_assignments', assignment.id, {
+                    status: 'inactive',
                     active: false,
-                    updatedAt: new Date().toISOString()
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 }).catch(() => undefined);
                 continue;
             }
         }
         
         const shouldBeActive = access.allProjectsAccess || assignedProjectIdSet.has(projectId);
-        if (Boolean(assignment.active) === shouldBeActive) continue;
+        if (Boolean(assignment.active) === shouldBeActive && String(assignment.status || '').trim().toLowerCase() === (shouldBeActive ? 'active' : 'inactive')) continue;
         await patchCollectionDocument('project_assignments', assignment.id, {
+            workspaceId: normalizedWorkspaceId,
+            workspace_id: normalizedWorkspaceId,
+            userId: normalizedUserId,
+            user_id: normalizedUserId,
+            projectId,
+            project_id: projectId,
+            role: AccessControl.ROLES.CLIENT,
+            status: shouldBeActive ? 'active' : 'inactive',
             active: shouldBeActive,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         }).catch(() => undefined);
     }
 
@@ -223,7 +383,7 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
 
     const existingProjectIdSet = new Set(
         currentAssignments
-            .map(record => String(record.projectId || '').trim())
+            .map(record => String(record.projectId || record.project_id || '').trim())
             .filter(Boolean)
     );
 
@@ -233,7 +393,7 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
         const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
         
-        if (projectWorkspaceId && projectWorkspaceId !== String(workspaceId).trim()) {
+        if (projectWorkspaceId && projectWorkspaceId !== normalizedWorkspaceId) {
             console.log('[WorkspaceConsistency] Skip assignment - project workspace mismatch:', {
                 projectId,
                 assignmentWorkspace: workspaceId,
@@ -244,14 +404,20 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
         
         const assignmentId = sanitizeDocumentId(`${workspaceId}_${projectId}_${userId}`);
         await upsertCollectionDocument('project_assignments', assignmentId, {
-            workspaceId: String(workspaceId).trim(),
+            workspaceId: normalizedWorkspaceId,
+            workspace_id: normalizedWorkspaceId,
             projectId,
-            userId: String(userId).trim(),
+            project_id: projectId,
+            userId: normalizedUserId,
+            user_id: normalizedUserId,
             email: AccessControl.normalizeEmail(email),
             role: AccessControl.ROLES.CLIENT,
             inviteType: 'client',
+            status: 'active',
             createdAt: new Date().toISOString(),
+            created_at: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             active: true
         }).catch(() => undefined);
     }
@@ -590,11 +756,28 @@ async function ensureWorkspaceAccessProfile(authUser) {
     }
 
     const permissionFields = buildPermissionFields(baseProfile, authUser);
-    const nextProfile = {
+    let nextProfile = {
         ...baseProfile,
         ...permissionFields,
         updatedAt: new Date().toISOString()
     };
+
+    const normalizedRole = AccessControl.normalizeRole(nextProfile.role || nextProfile.workspaceRole);
+    const shouldUseProjectAssignmentScope = normalizedRole === AccessControl.ROLES.DEVELOPER
+        || normalizedRole === AccessControl.ROLES.DESIGNER;
+    if (shouldUseProjectAssignmentScope && nextProfile.workspaceId) {
+        const scopedAssignmentState = await resolveScopedAssignedProjectsForLogin({
+            workspaceId: nextProfile.workspaceId,
+            userId: String(authUser.uid || '').trim(),
+            email: nextProfile.email
+        }).catch(() => ({ assignedProjectIds: [] }));
+        nextProfile = {
+            ...nextProfile,
+            assignedProjectIds: scopedAssignmentState.assignedProjectIds,
+            allProjectsAccess: false,
+            projectAccessScope: 'selected'
+        };
+    }
 
     if (nextProfile.workspaceId) {
         await ensureWorkspaceDocument(nextProfile, authUser);

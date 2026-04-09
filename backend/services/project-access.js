@@ -46,11 +46,9 @@ function isPersistedProject(project = {}) {
 }
 
 function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) {
-    const ownerEmail = AccessControl.normalizeEmail(sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email);
-    const recordOwner = AccessControl.normalizeEmail(project.owner_key || project.owner_email || '');
     const sessionWorkspaceId = String(sessionUser.workspaceId || '').trim();
     const recordWorkspaceId = String(project.workspace_id || '').trim();
-    const workspaceMatch = recordWorkspaceId && recordWorkspaceId === sessionWorkspaceId;
+    const workspaceMatch = Boolean(recordWorkspaceId && sessionWorkspaceId && recordWorkspaceId === sessionWorkspaceId);
 
     console.log('[DEBUG ProjectAccess] Diagnosing access:', {
         sessionUserUid: sessionUser.uid,
@@ -61,22 +59,18 @@ function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) 
         allProjectsAccess: sessionUser.allProjectsAccess,
         projectId,
         recordWorkspaceId,
-        recordOwner,
-        ownerEmail,
         workspaceMatch
     });
 
-    if (!((recordOwner && recordOwner === ownerEmail) || workspaceMatch)) {
+    if (!workspaceMatch) {
         console.log('[DEBUG ProjectAccess] Workspace mismatch detected:', {
-            recordOwner,
-            ownerEmail,
             recordWorkspaceId,
             sessionWorkspaceId
         });
         return {
             allowed: false,
             code: 'workspace_mismatch',
-            message: 'Access denied: this project belongs to a different workspace or owner account.'
+            message: 'Access denied: this project belongs to a different workspace.'
         };
     }
 
@@ -97,14 +91,18 @@ function diagnoseProjectRecordAccess(sessionUser = {}, projectId, project = {}) 
 
     const assignedProjectIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
     const hasExplicitProjectScope = assignedProjectIds.length > 0;
-    const shouldRestrictProjects = role === AccessControl.ROLES.CLIENT || hasExplicitProjectScope;
+    const isRoleRestricted = role === AccessControl.ROLES.CLIENT
+        || role === AccessControl.ROLES.DEVELOPER
+        || role === AccessControl.ROLES.DESIGNER;
+    const shouldRestrictProjects = isRoleRestricted || hasExplicitProjectScope;
 
     console.log('[DEBUG ProjectAccess] Project scope check:', {
         role,
         assignedProjectIds,
         hasExplicitProjectScope,
         shouldRestrictProjects,
-        isClient: role === AccessControl.ROLES.CLIENT
+        isClient: role === AccessControl.ROLES.CLIENT,
+        isRoleRestricted
     });
 
     if (!shouldRestrictProjects) {

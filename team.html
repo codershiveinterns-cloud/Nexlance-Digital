@@ -40,7 +40,7 @@
         <p>Manage your agency team and their access</p>
       </div>
       <div class="page-header-actions">
-        <button class="btn btn-primary" id="addMemberBtn" type="button" onclick="openAddModal()">+ Add Member</button>
+        <button class="btn btn-primary" id="addMemberBtn" type="button" onclick="openAddModal()" data-requires-entity="team" data-requires-action="create">+ Add Member</button>
       </div>
     </div>
 
@@ -371,6 +371,10 @@ async function saveMember() {
   const role = document.getElementById('fRole').value;
   if (!name || !email) {
     showToast('Name and email are required', 'error');
+    return;
+  }
+  if (!editingId && !['Developer', 'Designer'].includes(role)) {
+    showToast('New team invitations currently support only Developer or Designer roles.', 'error');
     return;
   }
 
