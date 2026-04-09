@@ -209,7 +209,7 @@ async function syncTeamMemberState(teamMemberInput) {
         access
     });
 
-    if (workspaceId && linkedUserId) {
+    if (workspaceId && (linkedUserId || email)) {
         await syncProjectAssignments({
             workspaceId,
             userId: linkedUserId,

@@ -43,6 +43,44 @@ function getAuthoritativeAssignmentScope(profile = {}) {
     };
 }
 
+async function deactivateExistingProjectAssignments({
+    workspaceId = '',
+    userId = '',
+    email = '',
+    reason = 'assignment_resync'
+} = {}) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
+    const normalizedUserId = String(userId || '').trim();
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    if (!normalizedWorkspaceId || (!normalizedEmail && !normalizedUserId)) {
+        return [];
+    }
+
+    const now = new Date().toISOString();
+    const existingAssignments = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
+    const matchingAssignments = (Array.isArray(existingAssignments) ? existingAssignments : []).filter(record => {
+        const recordWorkspaceId = String(record.workspaceId || record.workspace_id || '').trim();
+        const recordUserId = String(record.userId || record.user_id || '').trim();
+        const recordEmail = AccessControl.normalizeEmail(record.email || record.user_email);
+        const matchesIdentity = normalizedEmail
+            ? recordEmail === normalizedEmail
+            : (normalizedUserId && recordUserId === normalizedUserId);
+        return recordWorkspaceId === normalizedWorkspaceId && matchesIdentity;
+    });
+
+    for (const assignment of matchingAssignments) {
+        await patchCollectionDocument('project_assignments', assignment.id, {
+            status: 'inactive',
+            active: false,
+            deactivatedReason: String(reason || '').trim() || 'assignment_resync',
+            updatedAt: now,
+            updated_at: now
+        }).catch(() => undefined);
+    }
+
+    return matchingAssignments.map(assignment => String(assignment && assignment.id || '').trim()).filter(Boolean);
+}
+
 function createRawInviteToken() {
     return crypto.randomBytes(32).toString('base64url');
 }
@@ -172,11 +210,18 @@ async function createPendingTargetRecord(options) {
     if (reuseTargetRecordId) {
         const existing = await getCollectionDocument(target.collectionId, reuseTargetRecordId).catch(() => null);
         if (existing && existing.data) {
+            const inviteType = String(options && options.inviteType || '').trim().toLowerCase();
+            const existingInvitedUserId = String(existing.data.invited_user_id || existing.data.invitedUserId || '').trim();
+            const existingInviteAcceptedAt = String(existing.data.invite_accepted_at || existing.data.inviteAcceptedAt || '').trim();
+            const existingInviteStatus = String(existing.data.invite_status || existing.data.status || '').trim().toLowerCase();
+            const keepAcceptedState = inviteType === 'team'
+                && (Boolean(existingInvitedUserId) || existingInviteStatus === 'accepted');
             const patched = await patchCollectionDocument(target.collectionId, reuseTargetRecordId, {
                 ...target.record,
                 created_at: existing.data.created_at || target.record.created_at || new Date().toISOString(),
-                invited_user_id: '',
-                invite_accepted_at: ''
+                invite_status: keepAcceptedState ? 'accepted' : String(target.record.invite_status || 'pending').trim().toLowerCase(),
+                invited_user_id: keepAcceptedState ? existingInvitedUserId : '',
+                invite_accepted_at: keepAcceptedState ? existingInviteAcceptedAt : ''
             });
             return {
                 targetCollectionId: target.collectionId,
@@ -215,6 +260,21 @@ function isAcceptedClientRecord(record = {}) {
     return Boolean(invitedUserId) || inviteStatus === 'accepted';
 }
 
+function isAcceptedTeamMemberRecord(record = {}) {
+    const inviteStatus = String(record.invite_status || record.status || '').trim().toLowerCase();
+    const invitedUserId = String(record.invited_user_id || record.invitedUserId || '').trim();
+    return Boolean(invitedUserId) || inviteStatus === 'accepted';
+}
+
+function getTeamRecordSortTimestamp(record = {}) {
+    return (
+        getTimestampMs(record.updated_at)
+        || getTimestampMs(record.invite_accepted_at)
+        || getTimestampMs(record.created_at)
+        || 0
+    );
+}
+
 async function findWorkspaceClientRecordsByEmail({ workspaceId = '', email = '' } = {}) {
     const normalizedWorkspaceId = String(workspaceId || '').trim();
     const normalizedEmail = AccessControl.normalizeEmail(email);
@@ -249,6 +309,77 @@ async function findWorkspaceClientRecordsByEmail({ workspaceId = '', email = '' 
             }
             return getClientRecordSortTimestamp(right.data) - getClientRecordSortTimestamp(left.data);
         });
+}
+
+async function findWorkspaceTeamMemberRecordsByEmail({ workspaceId = '', email = '' } = {}) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    if (!normalizedWorkspaceId || !normalizedEmail) {
+        return [];
+    }
+
+    let workspaceMembers = await queryCollectionDocuments('team_members', {
+        fieldPath: 'workspace_id',
+        op: 'EQUAL',
+        value: normalizedWorkspaceId,
+        limit: 500
+    }).catch(() => []);
+
+    if (!Array.isArray(workspaceMembers) || !workspaceMembers.length) {
+        workspaceMembers = (await listCollectionDocuments('team_members', { pageSize: 500 }).catch(() => []))
+            .filter(record => String(record.workspace_id || '').trim() === normalizedWorkspaceId)
+            .map(record => ({ id: record.id, data: record }));
+    }
+
+    return (Array.isArray(workspaceMembers) ? workspaceMembers : [])
+        .map(record => ({
+            id: record.id || (record.name ? record.name.split('/').pop() : ''),
+            data: record.data || record
+        }))
+        .filter(entry => AccessControl.normalizeEmail(entry && entry.data && entry.data.email) === normalizedEmail)
+        .sort((left, right) => {
+            const leftAccepted = isAcceptedTeamMemberRecord(left.data) ? 1 : 0;
+            const rightAccepted = isAcceptedTeamMemberRecord(right.data) ? 1 : 0;
+            if (leftAccepted !== rightAccepted) {
+                return rightAccepted - leftAccepted;
+            }
+            return getTeamRecordSortTimestamp(right.data) - getTeamRecordSortTimestamp(left.data);
+        });
+}
+
+async function dedupeWorkspaceTeamMembersByEmail({ workspaceId = '', email = '', keepRecordId = '' } = {}) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    const normalizedKeepRecordId = String(keepRecordId || '').trim();
+    if (!normalizedWorkspaceId || !normalizedEmail || !normalizedKeepRecordId) {
+        return;
+    }
+
+    const records = await findWorkspaceTeamMemberRecordsByEmail({
+        workspaceId: normalizedWorkspaceId,
+        email: normalizedEmail
+    }).catch(() => []);
+
+    const now = new Date().toISOString();
+    const duplicates = (Array.isArray(records) ? records : [])
+        .filter(entry => String(entry && entry.id || '').trim() && String(entry.id || '').trim() !== normalizedKeepRecordId);
+
+    if (!duplicates.length) return;
+
+    console.warn('[WorkspaceAssignment] Deduplicating team member records by email', {
+        workspaceId: normalizedWorkspaceId,
+        email: normalizedEmail,
+        keepRecordId: normalizedKeepRecordId,
+        duplicateRecordIds: duplicates.map(entry => String(entry && entry.id || '').trim()).filter(Boolean)
+    });
+
+    for (const duplicate of duplicates) {
+        await patchCollectionDocument('team_members', duplicate.id, {
+            invite_status: 'superseded',
+            status: 'inactive',
+            updated_at: now
+        }).catch(() => undefined);
+    }
 }
 
 async function markWorkspaceClientInvitationsSuperseded({ workspaceId = '', email = '', exceptInvitationId = '' } = {}) {
@@ -406,6 +537,7 @@ async function createInvitation({
     }
 
     let reusablePendingClientRecord = null;
+    let reusableTeamMemberRecord = null;
     if (inviteType === 'client') {
         const existingClientRecords = await findWorkspaceClientRecordsByEmail({
             workspaceId: String(sessionUser.workspaceId || '').trim(),
@@ -414,6 +546,13 @@ async function createInvitation({
 
         reusablePendingClientRecord = (Array.isArray(existingClientRecords) ? existingClientRecords : [])
             .find(entry => !isAcceptedClientRecord(entry && entry.data ? entry.data : {})) || null;
+    }
+    if (inviteType === 'team') {
+        const existingTeamRecords = await findWorkspaceTeamMemberRecordsByEmail({
+            workspaceId: String(sessionUser.workspaceId || '').trim(),
+            email: safeEmail
+        }).catch(() => []);
+        reusableTeamMemberRecord = (Array.isArray(existingTeamRecords) ? existingTeamRecords : [])[0] || null;
     }
 
     const rawToken = createRawInviteToken();
@@ -428,7 +567,9 @@ async function createInvitation({
         sessionUser,
         invitationId,
         metadata,
-        reuseTargetRecordId: reusablePendingClientRecord ? reusablePendingClientRecord.id : ''
+        reuseTargetRecordId: reusablePendingClientRecord
+            ? reusablePendingClientRecord.id
+            : (reusableTeamMemberRecord ? reusableTeamMemberRecord.id : '')
     });
     const expectedWorkspaceId = String(sessionUser.workspaceId || '').trim();
     const targetRecordWorkspaceId = String(
@@ -474,6 +615,13 @@ async function createInvitation({
             workspaceId: String(sessionUser.workspaceId || '').trim(),
             email: safeEmail,
             exceptInvitationId: invitationId
+        }).catch(() => undefined);
+    }
+    if (inviteType === 'team' && targetRecord && targetRecord.targetRecord && targetRecord.targetRecord.id) {
+        await dedupeWorkspaceTeamMembersByEmail({
+            workspaceId: String(sessionUser.workspaceId || '').trim(),
+            email: safeEmail,
+            keepRecordId: String(targetRecord.targetRecord.id || '').trim()
         }).catch(() => undefined);
     }
 
@@ -797,9 +945,18 @@ async function acceptInvitation({ session, token }) {
     });
 
     const assignmentIds = AccessControl.sanitizeAssignedProjectIds(authoritativeScope.assignedProjectIds);
+    const assignmentSyncTimestamp = new Date().toISOString();
+    await deactivateExistingProjectAssignments({
+        workspaceId: authoritativeScope.workspaceId,
+        userId: String(session.authUser.uid || '').trim(),
+        email: safeSessionEmail,
+        reason: 'invitation_accept_resync'
+    }).catch(() => undefined);
+
     if (!authoritativeScope.allProjectsAccess) {
         for (const projectId of assignmentIds) {
-            const assignmentId = sanitizeDocumentId(`${authoritativeScope.workspaceId}_${projectId}_${session.authUser.uid}`);
+            const assignmentIdentityToken = safeSessionEmail || String(session.authUser.uid || '').trim();
+            const assignmentId = sanitizeDocumentId(`${authoritativeScope.workspaceId}_${projectId}_${assignmentIdentityToken}`);
             await upsertCollectionDocument('project_assignments', assignmentId, {
                 workspaceId: authoritativeScope.workspaceId,
                 workspace_id: authoritativeScope.workspaceId,
@@ -808,13 +965,14 @@ async function acceptInvitation({ session, token }) {
                 userId: session.authUser.uid,
                 user_id: session.authUser.uid,
                 email: safeSessionEmail,
+                user_email: safeSessionEmail,
                 role,
                 inviteType: record.inviteType,
                 status: 'active',
-                createdAt: new Date().toISOString(),
-                created_at: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
+                createdAt: assignmentSyncTimestamp,
+                created_at: assignmentSyncTimestamp,
+                updatedAt: assignmentSyncTimestamp,
+                updated_at: assignmentSyncTimestamp,
                 active: true
             });
         }

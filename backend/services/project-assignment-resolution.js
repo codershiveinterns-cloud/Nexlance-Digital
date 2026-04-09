@@ -42,9 +42,6 @@ function buildWorkspaceProjectIndex(projectRecords = []) {
         addLookupToken(byToken, entry.data.id, projectId);
         addLookupToken(byToken, entry.data.backend_id, projectId);
         addLookupToken(byToken, entry.data.backendId, projectId);
-        addLookupToken(byToken, entry.data.template_id, projectId);
-        addLookupToken(byToken, entry.data.templateId, projectId);
-        addLookupToken(byToken, entry.data.name, projectId);
     });
 
     return {

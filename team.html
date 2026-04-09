@@ -194,6 +194,18 @@ function getRolePermissionKeys(role) {
     : [];
 }
 
+function isPersistedWorkspaceProject(project) {
+  if (!project || typeof project !== 'object') return false;
+  if (project.is_persisted_project === false || project.isPersisted === false) return false;
+  const source = String(project.project_source || project.source || '').trim().toLowerCase();
+  if (source && source !== 'database') return false;
+  return Boolean(String(project.id || '').trim() && String(project.workspace_id || project.workspaceId || '').trim());
+}
+
+function filterProjectAssignmentOptions(projects) {
+  return (Array.isArray(projects) ? projects : []).filter(isPersistedWorkspaceProject);
+}
+
 function getSelectableRole(role) {
   const label = getRoleLabel(role);
   return label === 'Project Manager' ? 'Developer' : label;
@@ -232,7 +244,7 @@ async function refreshTeamData() {
     fetchProjects().catch(() => [])
   ]);
   members = Array.isArray(nextMembers) ? nextMembers : [];
-  availableProjects = Array.isArray(nextProjects) ? nextProjects : [];
+  availableProjects = filterProjectAssignmentOptions(nextProjects);
   renderProjectAccessOptions(editingId ? getSelectedProjectIds() : []);
   renderStats();
   filterMembers();

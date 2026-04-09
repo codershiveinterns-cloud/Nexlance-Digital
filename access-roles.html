@@ -341,6 +341,18 @@ function getRoleToggleState(role) {
   };
 }
 
+function isPersistedWorkspaceProject(project) {
+  if (!project || typeof project !== 'object') return false;
+  if (project.is_persisted_project === false || project.isPersisted === false) return false;
+  const source = String(project.project_source || project.source || '').trim().toLowerCase();
+  if (source && source !== 'database') return false;
+  return Boolean(String(project.id || '').trim() && String(project.workspace_id || project.workspaceId || '').trim());
+}
+
+function filterInviteProjects(records) {
+  return (Array.isArray(records) ? records : []).filter(isPersistedWorkspaceProject);
+}
+
 function applyEditRolePermissions(role) {
   const state = getRoleToggleState(role);
   document.getElementById('erTasks').checked = state.tasks;
@@ -493,7 +505,7 @@ function getInviteAssignedProjectIds() {
 async function loadInviteProjects() {
   try {
     const records = await fetchProjects();
-    inviteProjects = Array.isArray(records) ? records : [];
+    inviteProjects = filterInviteProjects(records);
   } catch (error) {
     inviteProjects = [];
   }
