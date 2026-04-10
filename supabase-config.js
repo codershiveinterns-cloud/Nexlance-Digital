@@ -740,6 +740,13 @@ function writeSessionFromAuthFlow(sessionUser = {}, options = {}) {
 }
 
 function hardRefreshSessionFromServer(reason = 'manual_hard_refresh') {
+    SESSION_RUNTIME.assignmentsValidatedByBackend = false;
+    console.info('[SessionDebug] hardRefreshSessionFromServer - starting validation from backend', {
+        reason,
+        previousValidationStatus: SESSION_RUNTIME.assignmentsValidatedByBackend,
+        currentAssignedProjectIds: SESSION_RUNTIME.currentUser ? (SESSION_RUNTIME.currentUser.assignedProjectIds || SESSION_RUNTIME.currentUser.assigned_project_ids || []) : [],
+        timestamp: new Date().toISOString()
+    });
     return refreshCurrentSessionUserFromApi({ reason });
 }
 
@@ -3415,16 +3422,14 @@ async function deleteClient(id) {
 
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
-    if (isSessionHydrationPendingForScopedData()) {
-        await ensureSessionHydration('fetch_projects', { forceRetry: true });
-    }
-    if (isSessionHydrationPendingForScopedData()) {
-        console.info('[SessionState] Project fetch blocked because hydration is not complete', {
+    const hydrationPending = isSessionHydrationPendingForScopedData();
+    if (hydrationPending) {
+        console.info('[SessionState] fetchProjects - hydration pending, running in background', {
             hydrated: SESSION_RUNTIME.isHydrated,
             hydrationCompleted: SESSION_RUNTIME.hydrationCompleted,
-            hydrationError: SESSION_RUNTIME.hydrationError
+            timestamp: new Date().toISOString()
         });
-        return [];
+        ensureSessionHydration('fetch_projects_background', { forceRetry: false }).catch(() => {});
     }
 
     const currentUser = getCurrentSessionUser();

@@ -349,14 +349,28 @@ async function syncProjectToBackendAction() {
 async function init() {
   if (isUpgradeRequiredForData()) { showToast(getUpgradeRequiredMessage(), 'error'); window.location.href = 'projects.html'; return; }
   if (!projectId) { window.location.href = 'projects.html'; return; }
+  
   const projects = await fetchProjects();
   project = resolveProjectRecord(projects, projectId);
-  if (!project) { window.location.href = 'projects.html'; return; }
-  syncProjectUrl(project, projectId);
-  tasks = await fetchTasks(getActiveProjectId());
-  populateOverview();
-  renderProjectSourceNotice();
-  renderKanban();
+  if (!project) {
+    const activeId = getActiveProjectId();
+    if (activeId) {
+      console.info('[ProjectDetail] Project not found yet, will retry shortly', { projectId: activeId });
+      await new Promise(r => setTimeout(r, 1500));
+      const retryProjects = await fetchProjects();
+      project = resolveProjectRecord(retryProjects, activeId);
+    }
+    if (!project) {
+      console.warn('[ProjectDetail] Project still not available after retry, showing page without project data');
+    }
+  }
+  if (project) {
+    syncProjectUrl(project, projectId);
+    tasks = await fetchTasks(getActiveProjectId());
+    populateOverview();
+    renderProjectSourceNotice();
+    renderKanban();
+  }
 
   const currentParams = new URLSearchParams(window.location.search);
   if (currentParams.get('synced') === '1') {

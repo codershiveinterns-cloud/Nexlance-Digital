@@ -342,12 +342,9 @@
     }
 
     async function waitForProject() {
-        for (let attempt = 0; attempt < 80; attempt += 1) {
-            if (typeof window.getProjectDetailProject === 'function') {
-                const project = window.getProjectDetailProject();
-                if (project) return project;
-            }
-            await wait(120);
+        if (typeof window.getProjectDetailProject === 'function') {
+            const project = window.getProjectDetailProject();
+            if (project) return project;
         }
         return null;
     }
@@ -1176,8 +1173,22 @@
         const pageName = window.location.pathname.split('/').pop() || 'index.html';
         if (pageName !== 'project-detail.html') return;
 
-        const project = resolveWorkspaceProject(await waitForProject());
-        if (!project || !project.template_id || !project.template_page) return;
+        async function tryLoadProject(maxAttempts = 30, delayMs = 200) {
+            for (let i = 0; i < maxAttempts; i += 1) {
+                const proj = await waitForProject();
+                if (proj && proj.template_id && proj.template_page) {
+                    return proj;
+                }
+                await wait(delayMs);
+            }
+            return null;
+        }
+
+        const project = resolveWorkspaceProject(await tryLoadProject());
+        if (!project || !project.template_id || !project.template_page) {
+            console.info('[Workspace] Project not yet available, UI will render without workspace template');
+            return;
+        }
         try {
             await mountWorkspace(project);
         } catch (error) {
