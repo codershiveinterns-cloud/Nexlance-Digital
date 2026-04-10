@@ -1301,6 +1301,18 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    const syncProjectAssignmentsHandler = require('./api/sync-project-assignments');
+    if (req.method === 'POST' && url.pathname === '/api/sync-project-assignments') {
+        try {
+            await syncProjectAssignmentsHandler(req, augmentResponse(res));
+        } catch (error) {
+            sendJson(res, error.statusCode || 500, {
+                error: error.message || 'Project assignment sync failed.'
+            });
+        }
+        return;
+    }
+
     if (url.pathname.startsWith('/api/dashboard/')) {
         try {
             await handleDashboardApi(req, res, url);

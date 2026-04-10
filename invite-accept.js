@@ -183,6 +183,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         emailVerified: Boolean(auth.currentUser && auth.currentUser.emailVerified),
       });
       showState("successState");
+      
+      if (typeof window.forceProjectAssignmentSync === 'function') {
+        window.forceProjectAssignmentSync().catch(() => {});
+      }
+      
       window.setTimeout(() => {
         window.location.href = getPostAcceptRedirect(sessionUser);
       }, 900);

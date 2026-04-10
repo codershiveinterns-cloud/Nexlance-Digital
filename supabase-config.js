@@ -755,7 +755,30 @@ if (typeof window !== 'undefined') {
         writeSessionFromAuthFlow,
         hardRefreshSessionFromServer,
         ensureSessionHydration,
-        getCurrentSessionUser
+        getCurrentSessionUser,
+        forceProjectAssignmentSync: async () => {
+            try {
+                console.info('[ForceSync] Starting background project assignment sync');
+                const token = await getDashboardBearerToken();
+                const response = await fetch('/api/sync-project-assignments', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                console.info('[ForceSync] Background sync complete', {
+                    assignedProjectIds: data.assignedProjectIds
+                });
+                await hardRefreshSessionFromServer('invitation_accept_sync');
+                return data;
+            } catch (error) {
+                console.warn('[ForceSync] Background sync failed:', error.message);
+                await hardRefreshSessionFromServer('invitation_accept_fallback');
+                return { assignedProjectIds: [] };
+            }
+        }
     };
 }
 
