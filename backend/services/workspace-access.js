@@ -109,6 +109,35 @@ function isProjectAssignmentActive(assignment = {}) {
     return !['inactive', 'revoked', 'cancelled', 'deleted'].includes(status);
 }
 
+async function deactivateAllActiveAssignmentsForUser({ workspaceId = '', userId = '', email = '' } = {}) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
+    const normalizedUserId = String(userId || '').trim();
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) {
+        return;
+    }
+    const assignments = await listProjectAssignmentsForUser({
+        userId: normalizedUserId,
+        email: normalizedEmail
+    });
+    for (const assignment of assignments) {
+        const assignmentWorkspaceId = String(assignment.workspaceId || '').trim();
+        if (assignmentWorkspaceId !== normalizedWorkspaceId) continue;
+        if (!isProjectAssignmentActive(assignment)) continue;
+        await markProjectAssignmentInactive(
+            assignment,
+            'replaced_by_new_assignment',
+            normalizedWorkspaceId,
+            assignmentWorkspaceId
+        );
+    }
+    console.info('[ProjectAssignmentScope] Deactivated all old assignments', {
+        workspaceId: normalizedWorkspaceId,
+        userId: normalizedUserId,
+        email: normalizedEmail
+    });
+}
+
 async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
     const normalizedUserId = String(userId || '').trim();
     const normalizedEmail = AccessControl.normalizeEmail(email);
@@ -127,28 +156,12 @@ async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
                 ? entry.email === normalizedEmail
                 : (normalizedUserId && entry.userId === normalizedUserId);
             if (!identityMatch) return;
+            const isActive = isProjectAssignmentActive(entry);
+            if (!isActive) return;
             seenIds.add(entry.id);
             results.push(entry);
         });
     };
-
-    if (!useEmailIdentity && normalizedUserId) {
-        const userMatched = await queryCollectionDocuments('project_assignments', {
-            fieldPath: 'userId',
-            op: 'EQUAL',
-            value: normalizedUserId,
-            limit: 500
-        }).catch(() => []);
-        pushRecords(userMatched);
-
-        const legacyUserMatched = await queryCollectionDocuments('project_assignments', {
-            fieldPath: 'user_id',
-            op: 'EQUAL',
-            value: normalizedUserId,
-            limit: 500
-        }).catch(() => []);
-        pushRecords(legacyUserMatched);
-    }
 
     if (normalizedEmail) {
         const emailMatched = await queryCollectionDocuments('project_assignments', {
@@ -168,10 +181,36 @@ async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
         pushRecords(legacyEmailMatched);
     }
 
+    if (!useEmailIdentity && normalizedUserId) {
+        const userMatched = await queryCollectionDocuments('project_assignments', {
+            fieldPath: 'userId',
+            op: 'EQUAL',
+            value: normalizedUserId,
+            limit: 500
+        }).catch(() => []);
+        pushRecords(userMatched);
+
+        const legacyUserMatched = await queryCollectionDocuments('project_assignments', {
+            fieldPath: 'user_id',
+            op: 'EQUAL',
+            value: normalizedUserId,
+            limit: 500
+        }).catch(() => []);
+        pushRecords(legacyUserMatched);
+    }
+
     if (!results.length) {
         const allRecords = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
         pushRecords(allRecords);
     }
+
+    console.info('[ProjectAssignmentScope] Fetched assignments', {
+        userId: normalizedUserId,
+        email: normalizedEmail,
+        useEmailIdentity,
+        count: results.length,
+        ids: results.map(r => r.id)
+    });
 
     return results;
 }
@@ -189,17 +228,26 @@ async function markProjectAssignmentInactive(assignment, reason, expectedWorkspa
     }).catch(() => undefined);
 }
 
-async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId = '', email = '' } = {}) {
+async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId = '', email = '', role = '' } = {}) {
     const normalizedWorkspaceId = String(workspaceId || '').trim();
     const normalizedUserId = String(userId || '').trim();
     const normalizedEmail = AccessControl.normalizeEmail(email);
+    const normalizedRole = AccessControl.normalizeRole(role);
     if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) {
+        console.warn('[ProjectAssignmentScope] Invalid input - returning empty', { workspaceId, userId, email });
         return {
             assignedProjectIds: []
         };
     }
 
-    console.info('[ProjectAssignmentScope] Fetching assignments', {
+    console.info('[ProjectAssignmentScope] Starting resolution', {
+        workspaceId: normalizedWorkspaceId,
+        userId: normalizedUserId,
+        email: normalizedEmail,
+        role: normalizedRole
+    });
+
+    await deactivateAllActiveAssignmentsForUser({
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail
@@ -209,11 +257,11 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         userId: normalizedUserId,
         email: normalizedEmail
     });
-    console.info('[ProjectAssignmentScope] Raw assignments found', {
+    console.info('[ProjectAssignmentScope] Active assignments found', {
         userId: normalizedUserId,
         email: normalizedEmail,
         count: assignments.length,
-        assignments: assignments.map(a => ({ id: a.id, projectId: a.projectId, workspaceId: a.workspaceId, status: a.status }))
+        assignments: assignments.map(a => ({ id: a.id, projectId: a.projectId, workspaceId: a.workspaceId, role: a.role }))
     });
     const validProjectIds = new Set();
     const activeAssignmentsByProjectId = new Map();
@@ -267,6 +315,17 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         }
 
         if (!isProjectAssignmentActive(assignment)) {
+            continue;
+        }
+
+        const assignmentRole = AccessControl.normalizeRole(assignment.role);
+        if (normalizedRole && assignmentRole && assignmentRole !== normalizedRole && assignmentRole !== 'member') {
+            await markProjectAssignmentInactive(
+                assignment,
+                'role_mismatch',
+                normalizedWorkspaceId,
+                assignmentWorkspaceId
+            );
             continue;
         }
 
@@ -828,6 +887,9 @@ async function ensureWorkspaceAccessProfile(authUser) {
         workspaceOwnerEmail: pendingInviteBootstrap ? '' : ownerEmail,
         workspaceOwnerUserId: pendingInviteBootstrap ? '' : ownerUserId,
         isWorkspaceOwner: pendingInviteBootstrap ? false : inferredOwner,
+        canonical_role: canonicalRole || AccessControl.normalizeRole(existingProfile.role || existingProfile.workspaceRole),
+        role: AccessControl.getRoleDisplayLabel(canonicalRole || AccessControl.normalizeRole(existingProfile.role || existingProfile.workspaceRole)),
+        workspaceRole: canonicalRole || AccessControl.normalizeRole(existingProfile.role || existingProfile.workspaceRole),
         assignedProjectIds: getNormalizedAssignedProjectIds(existingProfile),
         allProjectsAccess: hasAllProjectsAccess(existingProfile),
         projectAccessScope: hasAllProjectsAccess(existingProfile) ? 'all' : 'selected',
@@ -839,7 +901,8 @@ async function ensureWorkspaceAccessProfile(authUser) {
         email: normalizedEmail,
         workspaceId: baseProfile.workspaceId,
         existingRole: existingProfile.role,
-        canonicalRole: canonicalRole,
+        canonicalRole: baseProfile.canonical_role,
+        role: baseProfile.role,
         source: canonicalRole ? 'team_members' : 'users'
     });
 
@@ -879,7 +942,8 @@ async function ensureWorkspaceAccessProfile(authUser) {
         const scopedAssignmentState = await resolveScopedAssignedProjectsForLogin({
             workspaceId: nextProfile.workspaceId,
             userId: String(authUser.uid || '').trim(),
-            email: nextProfile.email
+            email: nextProfile.email,
+            role: normalizedRole
         }).catch(() => ({ assignedProjectIds: [] }));
         console.info('[ProjectAssignmentScope] Resolution complete', {
             userId: authUser.uid,
@@ -969,5 +1033,7 @@ module.exports = {
     getWorkspaceMemberDocumentId,
     getWorkspaceOwnerEmail,
     getWorkspaceOwnerUserId,
-    loadUserProfileDocument
+    loadUserProfileDocument,
+    deactivateAllActiveAssignmentsForUser,
+    resolveScopedAssignedProjectsForLogin
 };

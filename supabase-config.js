@@ -2691,7 +2691,17 @@ function shouldSkipOwnerScopedFallbackForCurrentUser() {
     if (!accessControl || !currentUser || !currentUser.workspaceId) {
         return false;
     }
-    return !accessControl.isWorkspaceOwner(currentUser) && !currentUserHasAllProjectsAccess();
+    const isOwner = accessControl.isWorkspaceOwner(currentUser);
+    const hasAllAccess = currentUserHasAllProjectsAccess();
+    console.info('[ScopeBypassDebug] shouldSkipOwnerScopedFallbackForCurrentUser', {
+        email: currentUser.email,
+        workspaceId: currentUser.workspaceId,
+        isWorkspaceOwner: isOwner,
+        hasAllProjectsAccess: hasAllAccess,
+        role: currentUser.role,
+        skipResult: !isOwner && !hasAllAccess
+    });
+    return !isOwner && !hasAllAccess;
 }
 
 function createRestrictedAccessError(entity) {
