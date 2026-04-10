@@ -72,6 +72,71 @@ async function acceptInvitationWithSession(token) {
   return payload.sessionUser;
 }
 
+async function forceSessionRebuildAfterAccept(initialSessionUser) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return initialSessionUser;
+
+  const idToken = await currentUser.getIdToken(true);
+  const headers = { Authorization: `Bearer ${idToken}` };
+
+  // Step 1: Fetch authoritative session from /api/me (forces backend to rebuild from Firestore)
+  let serverSession = null;
+  try {
+    const meResponse = await fetch("/api/me", {
+      method: "GET",
+      headers,
+      credentials: "same-origin",
+    });
+    const mePayload = await meResponse.json().catch(() => ({}));
+    if (meResponse.ok && mePayload.user) {
+      serverSession = mePayload.user;
+    }
+  } catch (err) {
+    console.warn("[InviteAccept] /api/me fetch failed, using accept response", err);
+  }
+
+  let finalSession = serverSession || initialSessionUser;
+  const assignedIds = Array.isArray(finalSession.assignedProjectIds) ? finalSession.assignedProjectIds : [];
+
+  // Step 2: If assignments are still empty, force a sync then re-fetch
+  if (!assignedIds.length && !finalSession.allProjectsAccess) {
+    console.info("[InviteAccept] assignedProjectIds empty — triggering forced sync");
+    try {
+      await fetch("/api/sync-project-assignments", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        credentials: "same-origin",
+      });
+      // Re-fetch /api/me after sync to get updated session
+      const retryResponse = await fetch("/api/me", {
+        method: "GET",
+        headers,
+        credentials: "same-origin",
+      });
+      const retryPayload = await retryResponse.json().catch(() => ({}));
+      if (retryResponse.ok && retryPayload.user) {
+        finalSession = retryPayload.user;
+      }
+    } catch (err) {
+      console.warn("[InviteAccept] Forced sync fallback failed", err);
+    }
+  }
+
+  console.info("[InviteAccept] Session rebuild complete", {
+    workspaceId: finalSession.workspaceId || "",
+    assignedProjectIds: finalSession.assignedProjectIds || [],
+    allProjectsAccess: Boolean(finalSession.allProjectsAccess),
+  });
+
+  // Persist the authoritative server session
+  persistSession({
+    ...finalSession,
+    emailVerified: Boolean(currentUser.emailVerified),
+  });
+
+  return finalSession;
+}
+
 function getPostAcceptRedirect(sessionUser) {
   const accessControl = window.NexlanceAccessControl;
   if (accessControl && accessControl.canViewDashboard(sessionUser)) {
@@ -178,18 +243,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         workspaceId: String(sessionUser.workspaceId || "").trim(),
         assignedProjectIds: Array.isArray(sessionUser.assignedProjectIds) ? sessionUser.assignedProjectIds : [],
       });
-      persistSession({
-        ...sessionUser,
-        emailVerified: Boolean(auth.currentUser && auth.currentUser.emailVerified),
-      });
+      setMessage("Syncing your project access...", "success");
+      const finalSession = await forceSessionRebuildAfterAccept(sessionUser);
       showState("successState");
-      
-      if (typeof window.forceProjectAssignmentSync === 'function') {
-        window.forceProjectAssignmentSync().catch(() => {});
-      }
-      
       window.setTimeout(() => {
-        window.location.href = getPostAcceptRedirect(sessionUser);
+        window.location.href = getPostAcceptRedirect(finalSession);
       }, 900);
     } catch (error) {
       setMessage(error.message || "Invitation could not be accepted.", "error");
@@ -261,13 +319,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         workspaceId: String(sessionUser.workspaceId || "").trim(),
         assignedProjectIds: Array.isArray(sessionUser.assignedProjectIds) ? sessionUser.assignedProjectIds : [],
       });
-      persistSession({
-        ...sessionUser,
-        emailVerified: Boolean(auth.currentUser && auth.currentUser.emailVerified),
-      });
+      setMessage("Syncing your project access...", "success");
+      const finalSession = await forceSessionRebuildAfterAccept(sessionUser);
       showState("successState");
       window.setTimeout(() => {
-        window.location.href = getPostAcceptRedirect(sessionUser);
+        window.location.href = getPostAcceptRedirect(finalSession);
       }, 900);
     } catch (error) {
       setMessage(error.message || "Sign in failed.", "error");

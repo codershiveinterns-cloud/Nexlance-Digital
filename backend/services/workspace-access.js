@@ -948,9 +948,63 @@ async function ensureWorkspaceAccessProfile(authUser) {
             assignedProjectIds: scopedAssignmentState.assignedProjectIds,
             count: scopedAssignmentState.assignedProjectIds ? scopedAssignmentState.assignedProjectIds.length : 0
         });
+
+        let resolvedIds = scopedAssignmentState.assignedProjectIds || [];
+
+        // Fallback: if project_assignments returned empty, cross-check team_members/clients as source of truth
+        if (!resolvedIds.length && nextProfile.workspaceId) {
+            console.info('[ProjectAssignmentScope] Empty from project_assignments — checking team_members/clients fallback', {
+                userId: authUser.uid,
+                email: nextProfile.email,
+                workspaceId: nextProfile.workspaceId
+            });
+            const targetCollection = normalizedRole === AccessControl.ROLES.CLIENT ? 'clients' : 'team_members';
+            const targetDocId = sanitizeDocumentId(`${nextProfile.workspaceId}_${nextProfile.email}`);
+            const targetDoc = await getCollectionDocument(targetCollection, targetDocId).catch(() => null);
+            const targetAssignedIds = targetDoc && targetDoc.data
+                ? AccessControl.sanitizeAssignedProjectIds(
+                    targetDoc.data.assigned_project_ids || targetDoc.data.assignedProjectIds
+                )
+                : [];
+
+            if (targetAssignedIds.length) {
+                console.info('[ProjectAssignmentScope] Recovered assignments from ' + targetCollection, {
+                    userId: authUser.uid,
+                    recoveredIds: targetAssignedIds,
+                    count: targetAssignedIds.length
+                });
+                // Re-create project_assignments records so future lookups work
+                const now = new Date().toISOString();
+                for (const projectId of targetAssignedIds) {
+                    const assignmentId = sanitizeDocumentId(`${nextProfile.workspaceId}_${projectId}_${nextProfile.email}`);
+                    await upsertCollectionDocument('project_assignments', assignmentId, {
+                        workspaceId: nextProfile.workspaceId,
+                        workspace_id: nextProfile.workspaceId,
+                        projectId: projectId,
+                        project_id: projectId,
+                        userId: authUser.uid,
+                        user_id: authUser.uid,
+                        email: nextProfile.email,
+                        user_email: nextProfile.email,
+                        role: normalizedRole,
+                        inviteType: nextProfile.inviteType || '',
+                        status: 'active',
+                        active: true,
+                        createdAt: now,
+                        created_at: now,
+                        updatedAt: now,
+                        updated_at: now
+                    }).catch(err => {
+                        console.warn('[ProjectAssignmentScope] Failed to re-create assignment', { assignmentId, error: err.message });
+                    });
+                }
+                resolvedIds = targetAssignedIds;
+            }
+        }
+
         nextProfile = {
             ...nextProfile,
-            assignedProjectIds: scopedAssignmentState.assignedProjectIds,
+            assignedProjectIds: resolvedIds,
             allProjectsAccess: false,
             projectAccessScope: 'selected'
         };
