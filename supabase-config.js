@@ -207,9 +207,25 @@ const SESSION_RUNTIME = {
     hydrationPromise: null,
     hydrationError: null,
     requestCounter: 0,
+    latestRequestedRequestId: 0,
     lastAppliedRequestId: 0,
-    inFlightRefreshPromise: null
+    inFlightRefreshPromise: null,
+    activeRefreshAbortController: null,
+    assignmentsValidatedByBackend: false
 };
+const TEAM_UPDATE_RUNTIME = {
+    active: false,
+    startedAt: 0,
+    reason: ''
+};
+
+function normalizeSessionRole(user = {}) {
+    return String(user.role || user.workspaceRole || user.dashboardRole || '').trim().toLowerCase();
+}
+
+function isTeamUpdateCacheBypassActive() {
+    return TEAM_UPDATE_RUNTIME.active === true;
+}
 
 function readStoredSessionUser() {
     try {
@@ -233,6 +249,19 @@ function getSessionVersion(user = {}) {
 function getSessionUpdatedAtMs(user = {}) {
     const meta = getSessionMeta(user);
     const value = meta.updatedAt || user.updatedAt || user.updated_at || '';
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getAssignmentStateVersion(user = {}) {
+    const meta = getSessionMeta(user);
+    const value = Number(meta.assignmentVersion || user.assignmentStateVersion || user.assignment_state_version || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function getAssignmentStateUpdatedAtMs(user = {}) {
+    const meta = getSessionMeta(user);
+    const value = meta.assignmentUpdatedAt || user.assignmentStateUpdatedAt || user.assignment_state_updated_at || '';
     const parsed = new Date(value).getTime();
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
@@ -307,8 +336,17 @@ function clearSessionRuntime(reason = 'clear') {
     SESSION_RUNTIME.hydrationCompleted = false;
     SESSION_RUNTIME.hydrationPromise = null;
     SESSION_RUNTIME.hydrationError = null;
+    SESSION_RUNTIME.latestRequestedRequestId = 0;
     SESSION_RUNTIME.lastAppliedRequestId = 0;
     SESSION_RUNTIME.inFlightRefreshPromise = null;
+    if (SESSION_RUNTIME.activeRefreshAbortController) {
+        try {
+            SESSION_RUNTIME.activeRefreshAbortController.abort();
+        } catch (error) {
+            // no-op
+        }
+    }
+    SESSION_RUNTIME.activeRefreshAbortController = null;
     stopRealtimeWorkspaceSync(`session_runtime_clear:${reason}`);
     console.info('[SessionState] Runtime cleared', { reason });
 }
@@ -327,16 +365,81 @@ function applySessionUserUpdate({
     }
 
     const currentUser = SESSION_RUNTIME.currentUser || null;
+    const isAuthoritativeSource = source === SESSION_UPDATE_SOURCE.API_ME;
+    const scopeSource = isAuthoritativeSource ? candidate : (currentUser || {});
+    const trustedScope = normalizeSessionScope(scopeSource);
+    const trustedRole = isAuthoritativeSource
+        ? String(candidate.role || candidate.workspaceRole || candidate.dashboardRole || '').trim()
+        : String(currentUser && (currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole) || '').trim();
+    const trustedPermissions = isAuthoritativeSource
+        ? (candidate.permissions && typeof candidate.permissions === 'object' ? candidate.permissions : (currentUser && currentUser.permissions) || {})
+        : ((currentUser && currentUser.permissions) || {});
+    const trustedPermissionKeys = isAuthoritativeSource
+        ? (Array.isArray(candidate.permissionKeys) ? candidate.permissionKeys : [])
+        : (Array.isArray(currentUser && currentUser.permissionKeys) ? currentUser.permissionKeys : []);
+    const trustedPermissionMode = isAuthoritativeSource
+        ? String(candidate.permissionMode || candidate.permission_mode || '').trim().toLowerCase() || 'default'
+        : String(currentUser && currentUser.permissionMode || 'default').trim().toLowerCase();
+    const projectedCandidate = {
+        ...(currentUser || {}),
+        ...candidate,
+        role: trustedRole,
+        workspaceRole: trustedRole || String(currentUser && currentUser.workspaceRole || '').trim(),
+        isWorkspaceOwner: isAuthoritativeSource
+            ? Boolean(candidate.isWorkspaceOwner)
+            : Boolean(currentUser && currentUser.isWorkspaceOwner),
+        permissionKeys: trustedPermissionKeys,
+        permissions: trustedPermissions,
+        permissionMode: trustedPermissionMode,
+        workspaceId: trustedScope.workspaceId,
+        workspace_id: trustedScope.workspaceId,
+        assignedProjectIds: trustedScope.assignedProjectIds,
+        assigned_project_ids: trustedScope.assignedProjectIds,
+        allProjectsAccess: trustedScope.allProjectsAccess,
+        all_projects_access: trustedScope.allProjectsAccess,
+        projectAccessScope: trustedScope.projectAccessScope,
+        project_access_scope: trustedScope.projectAccessScope
+    };
     const currentFingerprint = buildSessionFingerprint(currentUser || {});
-    const nextFingerprint = buildSessionFingerprint(candidate);
-    const scopeChanged = buildSessionScopeHash(currentUser || {}) !== buildSessionScopeHash(candidate);
+    const nextFingerprint = buildSessionFingerprint(projectedCandidate);
+    const previousScopeHash = buildSessionScopeHash(currentUser || {});
+    const nextScopeHash = buildSessionScopeHash(projectedCandidate);
+    const scopeChanged = previousScopeHash !== nextScopeHash;
+    const previousRole = normalizeSessionRole(currentUser || {});
+    const nextRole = normalizeSessionRole(projectedCandidate);
+    const roleChanged = previousRole !== nextRole;
     const incomingVersion = getSessionVersion(candidate);
     const currentVersion = Math.max(SESSION_RUNTIME.scopeVersion, getSessionVersion(currentUser || {}));
     const incomingUpdatedAtMs = getSessionUpdatedAtMs(candidate);
     const currentUpdatedAtMs = getSessionUpdatedAtMs(currentUser || {});
+    const incomingAssignmentVersionRaw = getAssignmentStateVersion(candidate);
+    const currentAssignmentVersion = getAssignmentStateVersion(currentUser || {});
+    const incomingAssignmentUpdatedAtMsRaw = getAssignmentStateUpdatedAtMs(candidate);
+    const currentAssignmentUpdatedAtMs = getAssignmentStateUpdatedAtMs(currentUser || {});
+    const effectiveIncomingAssignmentVersion = incomingAssignmentVersionRaw > 0
+        ? incomingAssignmentVersionRaw
+        : currentAssignmentVersion;
+    const effectiveIncomingAssignmentUpdatedAtMs = incomingAssignmentUpdatedAtMsRaw > 0
+        ? incomingAssignmentUpdatedAtMsRaw
+        : (incomingUpdatedAtMs > 0 ? incomingUpdatedAtMs : currentAssignmentUpdatedAtMs);
 
     if (source === SESSION_UPDATE_SOURCE.API_ME && Number(requestId) > 0 && Number(requestId) < Number(SESSION_RUNTIME.lastAppliedRequestId || 0)) {
         console.info('[SessionState] Rejected session update', { source, reason: 'stale_request', requestId, latestRequestId: SESSION_RUNTIME.lastAppliedRequestId });
+        return { accepted: false, reason: 'stale_request', changed: false, user: currentUser };
+    }
+
+    if (
+        source === SESSION_UPDATE_SOURCE.API_ME
+        && Number(requestId) > 0
+        && Number(SESSION_RUNTIME.latestRequestedRequestId || 0) > 0
+        && Number(requestId) < Number(SESSION_RUNTIME.latestRequestedRequestId || 0)
+    ) {
+        console.info('[SessionState] Rejected session update', {
+            source,
+            reason: 'superseded_by_newer_request',
+            requestId,
+            latestRequestedRequestId: SESSION_RUNTIME.latestRequestedRequestId
+        });
         return { accepted: false, reason: 'stale_request', changed: false, user: currentUser };
     }
 
@@ -411,38 +514,105 @@ function applySessionUserUpdate({
         return { accepted: false, reason: 'older_timestamp', changed: false, user: currentUser };
     }
 
+    if (scopeChanged && !force) {
+        const newerByVersion = effectiveIncomingAssignmentVersion > currentAssignmentVersion;
+        const sameVersion = effectiveIncomingAssignmentVersion === currentAssignmentVersion;
+        const newerByTimestamp = effectiveIncomingAssignmentUpdatedAtMs > currentAssignmentUpdatedAtMs;
+        if (!newerByVersion && !(sameVersion && newerByTimestamp)) {
+            console.info('[SessionState] Rejected session update', {
+                source,
+                reason: 'stale_assignment_state',
+                incomingAssignmentVersion: effectiveIncomingAssignmentVersion,
+                currentAssignmentVersion,
+                incomingAssignmentUpdatedAtMs: effectiveIncomingAssignmentUpdatedAtMs,
+                currentAssignmentUpdatedAtMs
+            });
+            return { accepted: false, reason: 'stale_assignment_state', changed: false, user: currentUser };
+        }
+    }
+
     if (!force && currentFingerprint === nextFingerprint) {
+        const nextIdempotentVersion = Math.max(currentVersion, incomingVersion, 1);
+        const nextIdempotentUpdatedAtMs = Math.max(currentUpdatedAtMs, incomingUpdatedAtMs, 0);
+        const nextIdempotentAssignmentVersion = Math.max(currentAssignmentVersion, incomingAssignmentVersionRaw, 1);
+        const nextIdempotentAssignmentUpdatedAtMs = Math.max(
+            currentAssignmentUpdatedAtMs,
+            incomingAssignmentUpdatedAtMsRaw,
+            incomingUpdatedAtMs,
+            0
+        );
+        const shouldAdvanceFreshnessMeta = nextIdempotentVersion > currentVersion
+            || nextIdempotentUpdatedAtMs > currentUpdatedAtMs
+            || nextIdempotentAssignmentVersion > currentAssignmentVersion
+            || nextIdempotentAssignmentUpdatedAtMs > currentAssignmentUpdatedAtMs;
+        if (shouldAdvanceFreshnessMeta && currentUser) {
+            const nextIdempotentUpdatedAt = new Date(nextIdempotentUpdatedAtMs > 0 ? nextIdempotentUpdatedAtMs : Date.now()).toISOString();
+            const nextIdempotentAssignmentUpdatedAt = new Date(
+                nextIdempotentAssignmentUpdatedAtMs > 0 ? nextIdempotentAssignmentUpdatedAtMs : Date.now()
+            ).toISOString();
+            const refreshedMeta = {
+                ...getSessionMeta(currentUser),
+                version: nextIdempotentVersion,
+                updatedAt: nextIdempotentUpdatedAt,
+                assignmentVersion: nextIdempotentAssignmentVersion,
+                assignmentUpdatedAt: nextIdempotentAssignmentUpdatedAt,
+                assignmentStateHash: nextScopeHash,
+                source,
+                requestId: Number(requestId) || 0
+            };
+            const refreshedUser = withSessionMeta({
+                ...currentUser,
+                assignmentStateVersion: nextIdempotentAssignmentVersion,
+                assignment_state_version: nextIdempotentAssignmentVersion,
+                assignmentStateUpdatedAt: nextIdempotentAssignmentUpdatedAt,
+                assignment_state_updated_at: nextIdempotentAssignmentUpdatedAt
+            }, refreshedMeta);
+            SESSION_RUNTIME.currentUser = refreshedUser;
+            SESSION_RUNTIME.scopeVersion = Math.max(SESSION_RUNTIME.scopeVersion, nextIdempotentVersion);
+            if (persist) {
+                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(refreshedUser));
+            }
+        }
         if (source === SESSION_UPDATE_SOURCE.API_ME) {
             SESSION_RUNTIME.isHydrated = true;
             SESSION_RUNTIME.hydrationCompleted = true;
             SESSION_RUNTIME.hydrationError = null;
             SESSION_RUNTIME.lastAppliedRequestId = Math.max(SESSION_RUNTIME.lastAppliedRequestId, Number(requestId) || 0);
+        } else if (source === SESSION_UPDATE_SOURCE.AUTH_FLOW) {
+            SESSION_RUNTIME.isHydrated = false;
+            SESSION_RUNTIME.hydrationCompleted = false;
+            SESSION_RUNTIME.hydrationError = null;
         }
         console.info('[SessionState] Idempotent session update ignored', { source, requestId });
-        return { accepted: true, reason: 'idempotent_no_change', changed: false, user: currentUser };
+        return { accepted: true, reason: 'idempotent_no_change', changed: false, user: SESSION_RUNTIME.currentUser || currentUser };
     }
 
     const nextVersion = source === SESSION_UPDATE_SOURCE.API_ME
         ? Math.max(currentVersion + 1, incomingVersion + 1, 1)
         : Math.max(incomingVersion, currentVersion + 1, 1);
+    const nextSessionUpdatedAtMs = Math.max(currentUpdatedAtMs, incomingUpdatedAtMs, 0);
+    const nextAssignmentVersion = scopeChanged
+        ? Math.max(currentAssignmentVersion + 1, effectiveIncomingAssignmentVersion, 1)
+        : Math.max(currentAssignmentVersion, 1);
+    const nextAssignmentUpdatedAtMs = Math.max(currentAssignmentUpdatedAtMs, effectiveIncomingAssignmentUpdatedAtMs, 0);
+    const normalizedSessionUpdatedAt = new Date(nextSessionUpdatedAtMs > 0 ? nextSessionUpdatedAtMs : Date.now()).toISOString();
+    const normalizedAssignmentUpdatedAt = new Date(nextAssignmentUpdatedAtMs > 0 ? nextAssignmentUpdatedAtMs : Date.now()).toISOString();
     const nextMeta = {
         ...getSessionMeta(candidate),
         version: nextVersion,
-        updatedAt: new Date().toISOString(),
+        updatedAt: normalizedSessionUpdatedAt,
+        assignmentVersion: nextAssignmentVersion,
+        assignmentUpdatedAt: normalizedAssignmentUpdatedAt,
+        assignmentStateHash: nextScopeHash,
         source,
         requestId: Number(requestId) || 0
     };
-    const nextScoped = normalizeSessionScope(candidate);
     const nextSessionUser = withSessionMeta({
-        ...candidate,
-        workspaceId: nextScoped.workspaceId,
-        workspace_id: nextScoped.workspaceId,
-        assignedProjectIds: nextScoped.assignedProjectIds,
-        assigned_project_ids: nextScoped.assignedProjectIds,
-        allProjectsAccess: nextScoped.allProjectsAccess,
-        all_projects_access: nextScoped.allProjectsAccess,
-        projectAccessScope: nextScoped.projectAccessScope,
-        project_access_scope: nextScoped.projectAccessScope
+        ...projectedCandidate,
+        assignmentStateVersion: nextAssignmentVersion,
+        assignment_state_version: nextAssignmentVersion,
+        assignmentStateUpdatedAt: normalizedAssignmentUpdatedAt,
+        assignment_state_updated_at: normalizedAssignmentUpdatedAt
     }, nextMeta);
 
     SESSION_RUNTIME.currentUser = nextSessionUser;
@@ -452,18 +622,41 @@ function applySessionUserUpdate({
         SESSION_RUNTIME.hydrationCompleted = true;
         SESSION_RUNTIME.hydrationError = null;
         SESSION_RUNTIME.lastAppliedRequestId = Math.max(SESSION_RUNTIME.lastAppliedRequestId, Number(requestId) || 0);
+    } else if (source === SESSION_UPDATE_SOURCE.AUTH_FLOW) {
+        SESSION_RUNTIME.isHydrated = false;
+        SESSION_RUNTIME.hydrationCompleted = false;
+        SESSION_RUNTIME.hydrationError = null;
     }
 
     if (persist) {
         localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSessionUser));
     }
 
+    const contextChanged = scopeChanged || roleChanged;
+    if (contextChanged && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('nexlance-session-context-changed', {
+            detail: {
+                source,
+                requestId: Number(requestId) || 0,
+                roleChanged,
+                scopeChanged,
+                workspaceId: trustedScope.workspaceId
+            }
+        }));
+        window.dispatchEvent(new CustomEvent('nexlance-data-changed', {
+            detail: {
+                entity: 'session_context',
+                source
+            }
+        }));
+    }
+
     console.info('[SessionState] Accepted session update', {
         source,
         requestId: Number(requestId) || 0,
         version: nextVersion,
-        workspaceId: nextScoped.workspaceId,
-        assignedProjectIds: nextScoped.assignedProjectIds
+        workspaceId: trustedScope.workspaceId,
+        assignedProjectIds: trustedScope.assignedProjectIds
     });
     return { accepted: true, reason: 'applied', changed: true, user: nextSessionUser };
 }
@@ -471,13 +664,29 @@ function applySessionUserUpdate({
 function initializeSessionRuntimeFromCache() {
     const cachedUser = readStoredSessionUser();
     if (cachedUser && typeof cachedUser === 'object') {
-        SESSION_RUNTIME.currentUser = cachedUser;
-        SESSION_RUNTIME.scopeVersion = getSessionVersion(cachedUser);
+        const bootstrapResult = applySessionUserUpdate({
+            source: SESSION_UPDATE_SOURCE.BOOTSTRAP_CACHE,
+            nextUser: cachedUser,
+            persist: false,
+            force: true
+        });
+        SESSION_RUNTIME.currentUser = bootstrapResult.user || null;
+        SESSION_RUNTIME.scopeVersion = getSessionVersion(bootstrapResult.user || {});
     }
-    console.info('[SessionState] App boot cache snapshot', {
+    SESSION_RUNTIME.assignmentsValidatedByBackend = false;
+    const cachedAssignedProjectIds = SESSION_RUNTIME.currentUser
+        ? normalizeScopeProjectIds(
+            SESSION_RUNTIME.currentUser.assignedProjectIds !== undefined
+                ? SESSION_RUNTIME.currentUser.assignedProjectIds
+                : SESSION_RUNTIME.currentUser.assigned_project_ids
+        )
+        : [];
+    console.warn('[SessionState] App boot cache snapshot - ASSIGNMENTS NOT VALIDATED BY BACKEND', {
         hasCachedUser: Boolean(cachedUser),
-        workspaceId: String(cachedUser && (cachedUser.workspaceId || cachedUser.workspace_id) || '').trim(),
-        assignedProjectIds: normalizeScopeProjectIds(cachedUser && (cachedUser.assignedProjectIds !== undefined ? cachedUser.assignedProjectIds : cachedUser && cachedUser.assigned_project_ids))
+        workspaceId: String(SESSION_RUNTIME.currentUser && (SESSION_RUNTIME.currentUser.workspaceId || SESSION_RUNTIME.currentUser.workspace_id) || '').trim(),
+        assignedProjectIds: cachedAssignedProjectIds,
+        requiresBackendValidation: true,
+        validationRequiredBeforeUse: true
     });
 }
 
@@ -485,6 +694,62 @@ initializeSessionRuntimeFromCache();
 
 function getCurrentSessionUser() {
     return SESSION_RUNTIME.currentUser;
+}
+
+async function beginTeamUpdateCacheBypass(teamMemberId = '') {
+    TEAM_UPDATE_RUNTIME.active = true;
+    TEAM_UPDATE_RUNTIME.startedAt = Date.now();
+    TEAM_UPDATE_RUNTIME.reason = `team_member_update_${String(teamMemberId || '').trim() || 'unknown'}`;
+    console.info('[SessionState] Team update cache bypass enabled', {
+        teamMemberId: String(teamMemberId || '').trim(),
+        reason: TEAM_UPDATE_RUNTIME.reason
+    });
+
+    if (!isFirebaseUserAuthenticated()) return;
+    const refreshedUser = await refreshCurrentSessionUserFromApi({
+        reason: `${TEAM_UPDATE_RUNTIME.reason}_prefetch`
+    });
+    if (!refreshedUser || typeof refreshedUser !== 'object') {
+        const error = new Error('Unable to refresh backend session before team member update.');
+        error.code = 'session_prefetch_failed';
+        throw error;
+    }
+}
+
+function endTeamUpdateCacheBypass(reason = 'team_update_complete') {
+    if (!TEAM_UPDATE_RUNTIME.active) return;
+    const durationMs = TEAM_UPDATE_RUNTIME.startedAt
+        ? Math.max(0, Date.now() - TEAM_UPDATE_RUNTIME.startedAt)
+        : 0;
+    console.info('[SessionState] Team update cache bypass disabled', {
+        reason,
+        durationMs
+    });
+    TEAM_UPDATE_RUNTIME.active = false;
+    TEAM_UPDATE_RUNTIME.startedAt = 0;
+    TEAM_UPDATE_RUNTIME.reason = '';
+}
+
+function writeSessionFromAuthFlow(sessionUser = {}, options = {}) {
+    return applySessionUserUpdate({
+        source: SESSION_UPDATE_SOURCE.AUTH_FLOW,
+        nextUser: sessionUser,
+        persist: options.persist !== false,
+        force: options.force === true
+    });
+}
+
+function hardRefreshSessionFromServer(reason = 'manual_hard_refresh') {
+    return refreshCurrentSessionUserFromApi({ reason });
+}
+
+if (typeof window !== 'undefined') {
+    window.NexlanceSessionState = {
+        writeSessionFromAuthFlow,
+        hardRefreshSessionFromServer,
+        ensureSessionHydration,
+        getCurrentSessionUser
+    };
 }
 
 function getStoredTrialRecord() {
@@ -1160,15 +1425,17 @@ async function getDashboardBearerToken() {
 async function refreshCurrentSessionUserFromApi(options = {}) {
     const reason = String(options.reason || 'manual_refresh').trim();
     if (!isFirebaseUserAuthenticated()) return null;
-    if (SESSION_RUNTIME.inFlightRefreshPromise) {
-        console.info('[AuthContext] /api/me refresh skipped because request is already in-flight', {
-            reason,
-            requestId: SESSION_RUNTIME.requestCounter
-        });
-        return SESSION_RUNTIME.inFlightRefreshPromise;
-    }
-
     const requestId = ++SESSION_RUNTIME.requestCounter;
+    SESSION_RUNTIME.latestRequestedRequestId = requestId;
+    if (SESSION_RUNTIME.activeRefreshAbortController) {
+        try {
+            SESSION_RUNTIME.activeRefreshAbortController.abort();
+        } catch (error) {
+            // no-op
+        }
+    }
+    const refreshAbortController = new AbortController();
+    SESSION_RUNTIME.activeRefreshAbortController = refreshAbortController;
     const startedAt = Date.now();
     const refreshPromise = (async () => {
         try {
@@ -1177,15 +1444,24 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
                 requestId,
                 reason,
                 hasBearerToken: Boolean(token),
-                hasCachedSession: localStorage.getItem('nexlance_auth') === '1'
+                hasCachedSession: localStorage.getItem('nexlance_auth') === '1',
+                latestRequestedRequestId: SESSION_RUNTIME.latestRequestedRequestId
             });
             const response = await fetch('/api/me', {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${token}`
                 },
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                signal: refreshAbortController.signal
             });
+            if (requestId < Number(SESSION_RUNTIME.latestRequestedRequestId || 0)) {
+                console.info('[AuthContext] /api/me response ignored because a newer refresh is in-flight', {
+                    requestId,
+                    latestRequestedRequestId: SESSION_RUNTIME.latestRequestedRequestId
+                });
+                return getCurrentSessionUser();
+            }
             const payload = await response.json().catch(() => ({}));
             if (!response.ok || !payload || !payload.user) {
                 SESSION_RUNTIME.hydrationCompleted = true;
@@ -1199,15 +1475,47 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
             }
 
             const nextScope = normalizeSessionScope(payload.user);
+            const currentUser = getCurrentSessionUser() || {};
+            const currentFrontendAssignedProjectIds = currentUser
+                ? normalizeScopeProjectIds(
+                    currentUser.assignedProjectIds !== undefined
+                        ? currentUser.assignedProjectIds
+                        : currentUser.assigned_project_ids
+                )
+                : [];
+            const backendAssignedProjectIds = nextScope.assignedProjectIds;
+            const frontendSorted = currentFrontendAssignedProjectIds.slice().sort();
+            const backendSorted = backendAssignedProjectIds.slice().sort();
+            const isMismatch = JSON.stringify(frontendSorted) !== JSON.stringify(backendSorted);
+            if (isMismatch) {
+                console.error('[ProjectAssignmentMismatch] FORCED_RESYNC_TRIGGERED', {
+                    requestId,
+                    reason: 'backend_frontend_assignedProjectIds_mismatch',
+                    workspaceId: nextScope.workspaceId,
+                    email: currentUser.email,
+                    frontendAssignedProjectIds: frontendSorted,
+                    backendAssignedProjectIds: backendSorted,
+                    frontendCount: frontendSorted.length,
+                    backendCount: backendSorted.length,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                console.info('[ProjectAssignmentMatch] Backend and frontend assignedProjectIds match', {
+                    requestId,
+                    workspaceId: nextScope.workspaceId,
+                    assignedProjectIds: backendSorted,
+                    count: backendSorted.length,
+                    timestamp: new Date().toISOString()
+                });
+            }
             console.info('[AuthContext] /api/me response scope', {
                 requestId,
                 workspaceId: nextScope.workspaceId,
                 assignedProjectIds: nextScope.assignedProjectIds,
                 allProjectsAccess: nextScope.allProjectsAccess,
-                projectAccessScope: nextScope.projectAccessScope
+                projectAccessScope: nextScope.projectAccessScope,
+                mismatchDetected: isMismatch
             });
-
-            const currentUser = getCurrentSessionUser() || {};
             const nextUser = {
                 ...currentUser,
                 ...payload.user,
@@ -1228,15 +1536,26 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
             });
             SESSION_RUNTIME.hydrationCompleted = true;
             SESSION_RUNTIME.hydrationError = null;
+            SESSION_RUNTIME.assignmentsValidatedByBackend = true;
             console.info('[AuthContext] /api/me request end', {
                 requestId,
                 accepted: updateResult.accepted,
                 changed: updateResult.changed,
                 reason: updateResult.reason,
-                durationMs: Date.now() - startedAt
+                durationMs: Date.now() - startedAt,
+                mismatchDetected: isMismatch,
+                forcedResync: isMismatch,
+                assignmentsValidatedByBackend: true
             });
             return updateResult.user || getCurrentSessionUser();
         } catch (error) {
+            if (error && (error.name === 'AbortError' || error.code === 20)) {
+                console.info('[AuthContext] /api/me request aborted in favor of a newer request', {
+                    requestId,
+                    reason
+                });
+                return getCurrentSessionUser();
+            }
             SESSION_RUNTIME.hydrationCompleted = true;
             SESSION_RUNTIME.hydrationError = String(error && error.message || 'unknown_error');
             console.warn('[AuthContext] Failed to refresh /api/me session', {
@@ -1246,6 +1565,9 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
             });
             return null;
         } finally {
+            if (SESSION_RUNTIME.activeRefreshAbortController === refreshAbortController) {
+                SESSION_RUNTIME.activeRefreshAbortController = null;
+            }
             if (SESSION_RUNTIME.inFlightRefreshPromise === refreshPromise) {
                 SESSION_RUNTIME.inFlightRefreshPromise = null;
             }
@@ -1262,14 +1584,14 @@ async function ensureSessionHydration(reason = 'initial_hydration', options = {}
         SESSION_RUNTIME.hydrationCompleted = true;
         return getCurrentSessionUser();
     }
+    if (forceRetry) {
+        return refreshCurrentSessionUserFromApi({ reason: `${reason}_force_retry` });
+    }
     if (SESSION_RUNTIME.isHydrated && !forceRetry) {
         return getCurrentSessionUser();
     }
     if (SESSION_RUNTIME.hydrationPromise) {
         return SESSION_RUNTIME.hydrationPromise;
-    }
-    if (SESSION_RUNTIME.isHydrated && forceRetry) {
-        return refreshCurrentSessionUserFromApi({ reason: `${reason}_force_retry` });
     }
     if (SESSION_RUNTIME.hydrationCompleted && !forceRetry) {
         return getCurrentSessionUser();
@@ -1879,31 +2201,72 @@ function isSessionHydrationPendingForScopedData() {
     return isFirebaseUserAuthenticated() && !SESSION_RUNTIME.isHydrated;
 }
 
+function syncSessionHydrationOverlay() {
+    if (typeof document === 'undefined') return;
+    const pageName = getCurrentPageName();
+    const shouldShow = isAuthenticatedAppPage(pageName) && isSessionHydrationPendingForScopedData();
+    const overlayId = 'nexlanceSessionHydrationOverlay';
+    let overlay = document.getElementById(overlayId);
+
+    if (!shouldShow) {
+        if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+        }
+        return;
+    }
+
+    if (overlay) return;
+
+    overlay = document.createElement('div');
+    overlay.id = overlayId;
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.padding = '20px';
+    overlay.style.background = 'rgba(255,255,255,0.9)';
+    overlay.style.backdropFilter = 'blur(6px)';
+    overlay.innerHTML = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;font-weight:600;color:#2c2f36;">Syncing latest workspace access...</div>';
+    document.body.appendChild(overlay);
+}
+
 function syncAccessUiState() {
     if (isFirebaseUserAuthenticated()) {
         clearAuthRedirectLock();
     }
+    syncSessionHydrationOverlay();
     ensureStoredAccessConsistency();
     syncPlanUiVisibility();
     syncAdminUiVisibility();
     enforcePlanPageAccess();
     applyRestrictedPreviewOverlay();
-    startRealtimeWorkspaceSync('sync_access_ui_state');
+    if (isSessionHydrationPendingForScopedData()) {
+        stopRealtimeWorkspaceSync('hydration_pending');
+    }
     const previousScope = normalizeSessionScope(getCurrentSessionUser() || {});
     const previousScopeHash = buildSessionScopeHash(previousScope);
     ensureSessionHydration('sync_access_ui_state', { forceRetry: true }).then(nextUser => {
+        syncSessionHydrationOverlay();
         if (!nextUser) return;
         const nextScopeHash = buildSessionScopeHash(nextUser);
-        if (previousScopeHash === nextScopeHash) return;
-        const nextScope = normalizeSessionScope(nextUser || {});
-        console.info('[SessionState] UI scope update', {
-            previousWorkspaceId: previousScope.workspaceId,
-            nextWorkspaceId: nextScope.workspaceId
-        });
-        syncPlanUiVisibility();
-        syncAdminUiVisibility();
-        enforcePlanPageAccess();
-        startRealtimeWorkspaceSync('scope_update');
+        if (previousScopeHash !== nextScopeHash) {
+            const nextScope = normalizeSessionScope(nextUser || {});
+            console.info('[SessionState] UI scope update', {
+                previousWorkspaceId: previousScope.workspaceId,
+                nextWorkspaceId: nextScope.workspaceId
+            });
+            syncPlanUiVisibility();
+            syncAdminUiVisibility();
+            enforcePlanPageAccess();
+        }
+        startRealtimeWorkspaceSync(previousScopeHash === nextScopeHash ? 'sync_access_ui_state_no_scope_change' : 'scope_update');
+    }).catch(() => {
+        syncSessionHydrationOverlay();
+        stopRealtimeWorkspaceSync('hydration_failed');
     });
 }
 
@@ -2567,6 +2930,21 @@ function currentUserHasAllProjectsAccess() {
 function getAssignedProjectIdsForCurrentUser() {
     const accessControl = getAccessControl();
     const currentUser = getCurrentSessionUser();
+    const isValidated = SESSION_RUNTIME.assignmentsValidatedByBackend === true;
+    if (!isValidated && currentUser) {
+        const cachedIds = currentUser.assignedProjectIds !== undefined
+            ? currentUser.assignedProjectIds
+            : currentUser.assigned_project_ids;
+        console.warn('[ProjectAssignmentSecurity] FRONTEND USING UNVALIDATED ASSIGNMENTS - BACKEND VALIDATION REQUIRED', {
+            email: currentUser.email,
+            workspaceId: currentUser.workspaceId,
+            role: currentUser.role,
+            rawUnvalidatedProjectIds: Array.isArray(cachedIds) ? cachedIds : [],
+            securityWarning: 'Frontend assignments used without backend validation - possible stale or tampered state',
+            requiringBackendValidation: true,
+            timestamp: new Date().toISOString()
+        });
+    }
     const sourceIds = currentUser
         ? (
             currentUser.assignedProjectIds !== undefined
@@ -2576,14 +2954,15 @@ function getAssignedProjectIdsForCurrentUser() {
         : [];
     const fallback = (Array.isArray(sourceIds) ? sourceIds : []).map(projectId => String(projectId || '').trim()).filter(Boolean);
     const sanitized = accessControl ? accessControl.sanitizeAssignedProjectIds(sourceIds) : fallback;
-    if (sanitized.length && currentUser && currentUser.email) {
-        console.info('[ProjectAssignmentDebug] User project assignments', {
-            email: currentUser.email,
-            workspaceId: currentUser.workspaceId,
-            rawProjectIds: sourceIds,
-            sanitizedProjectIds: sanitized
-        });
-    }
+    console.info('[ProjectAssignmentDebug] getAssignedProjectIdsForCurrentUser', {
+        email: currentUser ? currentUser.email : null,
+        workspaceId: currentUser ? currentUser.workspaceId : null,
+        role: currentUser ? currentUser.role : null,
+        validatedByBackend: isValidated,
+        rawSourceIds: sourceIds,
+        sanitizedProjectIds: sanitized,
+        timestamp: new Date().toISOString()
+    });
     return sanitized;
 }
 
@@ -2614,6 +2993,22 @@ function filterRecordsForCurrentUserScope(entity, records) {
     const safeRecords = Array.isArray(records) ? records : [];
     const normalizedEntity = String(entity || '').trim().toLowerCase();
     const hydrationScopedEntities = new Set(['projects', 'tasks', 'clients', 'invoices', 'services', 'team', 'team_members']);
+    if (
+        isTeamUpdateCacheBypassActive()
+        && hydrationScopedEntities.has(normalizedEntity)
+        && (
+            !SESSION_RUNTIME.isHydrated
+            || Number(SESSION_RUNTIME.lastAppliedRequestId || 0) < Number(SESSION_RUNTIME.latestRequestedRequestId || 0)
+        )
+    ) {
+        console.info('[SessionState] Scope filtering blocked during team-update cache bypass until fresh backend session is applied', {
+            entity: normalizedEntity,
+            isHydrated: SESSION_RUNTIME.isHydrated,
+            lastAppliedRequestId: SESSION_RUNTIME.lastAppliedRequestId,
+            latestRequestedRequestId: SESSION_RUNTIME.latestRequestedRequestId
+        });
+        return [];
+    }
     if (isSessionHydrationPendingForScopedData() && hydrationScopedEntities.has(normalizedEntity)) {
         console.info('[SessionState] Scope filtering deferred during hydration', {
             entity: normalizedEntity,
@@ -2627,6 +3022,17 @@ function filterRecordsForCurrentUserScope(entity, records) {
 
     const expectedWorkspaceId = String(currentUser.workspaceId || '').trim();
     const assignedProjectIds = new Set(getAssignedProjectIdsForCurrentUser());
+
+    console.info('[WorkspaceFilterDebug] ========== FILTER START ==========', {
+        email: currentUser.email,
+        workspaceId: expectedWorkspaceId,
+        role: currentUser.role,
+        canonical_role: currentUser.canonical_role,
+        assignedProjectIds: Array.from(assignedProjectIds),
+        isOwner: accessControl.isWorkspaceOwner(currentUser),
+        hasAllAccess: currentUserHasAllProjectsAccess(),
+        timestamp: new Date().toISOString()
+    });
 
     const workspaceScopedRecords = entity === 'projects'
         ? safeRecords.filter(record => {
@@ -3053,6 +3459,18 @@ async function fetchProjects(clientId = null) {
             });
         }
     };
+
+    if (isTeamUpdateCacheBypassActive() && isFirebaseConfigured && isFirebaseUserAuthenticated()) {
+        const records = enforceWorkspaceConsistencyForProjects(
+            decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database'),
+            'team_update_backend_only'
+        );
+        const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(Array.isArray(records) ? records : []));
+        const filtered = applyClientFilter(visibleRecords);
+        logProjectFetchDiagnostics('team_update_backend_only', records, filtered);
+        logMissingAssignedProjects(filtered);
+        return filtered;
+    }
 
     const scopedProjects = decorateProjectRecords(
         filterRecordsForCurrentUserScope('projects', getLocalEntityData('projects')),
@@ -4142,6 +4560,10 @@ async function fetchTeamMembers() {
     if (!canAccessEntity('team')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('team_members', sampleTeamMembers);
     try {
+        if (isTeamUpdateCacheBypassActive() && isFirebaseUserAuthenticated()) {
+            const records = await dashboardApiRequest('GET', 'team_members');
+            return Array.isArray(records) ? records : [];
+        }
         if (isFirebaseUserAuthenticated()) {
             try {
                 const records = await dashboardApiRequest('GET', 'team_members');
@@ -4205,44 +4627,72 @@ async function addTeamMember(d) {
     }
 }
 
+async function forceFullSessionRefreshAfterTeamMemberUpdate(teamMemberId = '') {
+    if (!isFirebaseUserAuthenticated()) return null;
+    const refreshedUser = await refreshCurrentSessionUserFromApi({
+        reason: `team_member_update_${String(teamMemberId || '').trim() || 'unknown'}`
+    });
+    if (!refreshedUser || typeof refreshedUser !== 'object') {
+        const error = new Error('Team member updated, but session refresh failed to return updated access context.');
+        error.code = 'session_refresh_failed';
+        throw error;
+    }
+    const accessControl = getAccessControl();
+    const assignedProjectIds = accessControl
+        ? accessControl.sanitizeAssignedProjectIds(
+        refreshedUser.assignedProjectIds !== undefined
+            ? refreshedUser.assignedProjectIds
+            : refreshedUser.assigned_project_ids
+        )
+        : (Array.isArray(refreshedUser.assignedProjectIds) ? refreshedUser.assignedProjectIds : []);
+    console.info('[SessionState] Forced backend session refresh after team member update', {
+        teamMemberId: String(teamMemberId || '').trim(),
+        workspaceId: String(refreshedUser.workspaceId || refreshedUser.workspace_id || '').trim(),
+        assignedProjectIds
+    });
+    return refreshedUser;
+}
+
 async function updateTeamMember(id, d) {
     if (!canAccessEntity('team')) throw createRestrictedAccessError('team');
-    const doc = withOwnerFields(d);
-    const existingLocalRecord = getLocalEntityData('team_members').find(member => String(member && member.id) === String(id)) || null;
-    if (isFirebaseConfigured) {
-        if (!hasDashboardPermission('team', 'update')) throw createDashboardPermissionError('team', 'update');
-        if (isFirebaseUserAuthenticated()) {
-            try {
+    await beginTeamUpdateCacheBypass(id);
+    try {
+        const doc = withOwnerFields(d);
+        const existingLocalRecord = getLocalEntityData('team_members').find(member => String(member && member.id) === String(id)) || null;
+        if (isFirebaseConfigured) {
+            if (!hasDashboardPermission('team', 'update')) throw createDashboardPermissionError('team', 'update');
+            if (isFirebaseUserAuthenticated()) {
                 const record = await dashboardApiRequest('PATCH', 'team_members', id, doc);
                 if (record) upsertLocalEntityRecord('team_members', record);
+                await forceFullSessionRefreshAfterTeamMemberUpdate(id);
                 return record;
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
             }
         }
-    }
-    if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('team_members');
-        const i = records.findIndex(m => m.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc };
-            setLocalEntityData('team_members', records);
-            return records[i];
+        if (!isFirebaseConfigured) {
+            const records = getLocalEntityData('team_members');
+            const i = records.findIndex(m => m.id === id);
+            if (i > -1) {
+                records[i] = { ...records[i], ...doc };
+                setLocalEntityData('team_members', records);
+                return records[i];
+            }
+            return null;
         }
-        return null;
-    }
-    if (shouldBypassDirectFirestoreForCollection('team_members')) {
-        const records = getLocalEntityData('team_members');
-        const i = records.findIndex(m => m.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc, storage_fallback: true };
-            setLocalEntityData('team_members', records);
-            return records[i];
+        if (shouldBypassDirectFirestoreForCollection('team_members')) {
+            const records = getLocalEntityData('team_members');
+            const i = records.findIndex(m => m.id === id);
+            if (i > -1) {
+                records[i] = { ...records[i], ...doc, storage_fallback: true };
+                setLocalEntityData('team_members', records);
+                return records[i];
+            }
+            return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
         }
-        return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
+        await db.collection('team_members').doc(id).update(doc);
+        return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc });
+    } finally {
+        endTeamUpdateCacheBypass(`team_member_update_${String(id || '').trim()}_complete`);
     }
-    await db.collection('team_members').doc(id).update(doc);
-    return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc });
 }
 
 async function deleteTeamMember(id) {
@@ -4484,6 +4934,9 @@ function scheduleAccessUiStateSync(reason = 'event', delayMs = 350) {
         accessUiSyncDebounceTimer = null;
         if (SESSION_RUNTIME.inFlightRefreshPromise) {
             console.info('[SessionState] UI sync skipped because /api/me request is already in-flight', { reason });
+            Promise.resolve(SESSION_RUNTIME.inFlightRefreshPromise).finally(() => {
+                scheduleAccessUiStateSync(`${reason}_post_refresh`, 120);
+            });
             return;
         }
         console.info('[SessionState] Running debounced UI sync', { reason });
@@ -4519,23 +4972,19 @@ function handleSessionStorageEvent(event) {
         return;
     }
 
-    const updateResult = applySessionUserUpdate({
-        source: SESSION_UPDATE_SOURCE.STORAGE_EVENT,
-        nextUser: incomingSession,
-        persist: false
-    });
-    console.info('[SessionState] Storage session update processed', {
-        accepted: updateResult.accepted,
-        changed: updateResult.changed,
-        reason: updateResult.reason,
+    console.info('[SessionState] Storage session update received; payload overwrite is disabled. Triggering server re-hydration.', {
         source: SESSION_UPDATE_SOURCE.STORAGE_EVENT
     });
+    if (isFirebaseUserAuthenticated()) {
+        ensureSessionHydration('storage_event_session_update', { forceRetry: true }).catch(() => undefined);
+    }
     scheduleAccessUiStateSync('storage_event_session_update', 400);
 }
 
 window.addEventListener('pageshow', () => scheduleAccessUiStateSync('pageshow', 350));
 window.addEventListener('focus', () => scheduleAccessUiStateSync('focus', 350));
 window.addEventListener('storage', handleSessionStorageEvent);
+window.addEventListener('nexlance-session-context-changed', () => scheduleAccessUiStateSync('session_context_changed', 150));
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleAccessUiStateSync('visibilitychange', 350);
 });

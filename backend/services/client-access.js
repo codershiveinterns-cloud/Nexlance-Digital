@@ -6,7 +6,10 @@ const {
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
-const { getWorkspaceMemberDocumentId } = require('./workspace-access');
+const {
+    getWorkspaceMemberDocumentId,
+    resolveScopedAssignedProjectsForLogin
+} = require('./workspace-access');
 
 function normalizeProjectAccess(source = {}) {
     const explicitScope = String(
@@ -70,6 +73,40 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
 
     const normalizedRole = AccessControl.normalizeRole(role);
     const now = new Date().toISOString();
+    const projectWorkspaceCache = new Map();
+    const resolveProjectWorkspaceId = async (projectId = '') => {
+        const normalizedProjectId = String(projectId || '').trim();
+        if (!normalizedProjectId) return '';
+        if (projectWorkspaceCache.has(normalizedProjectId)) {
+            return projectWorkspaceCache.get(normalizedProjectId);
+        }
+        const projectRecord = await getCollectionDocument('projects', normalizedProjectId).catch(() => null);
+        const projectWorkspaceId = String(
+            projectRecord
+            && projectRecord.data
+            && (projectRecord.data.workspace_id || projectRecord.data.workspaceId)
+            || ''
+        ).trim();
+        projectWorkspaceCache.set(normalizedProjectId, projectWorkspaceId);
+        return projectWorkspaceId;
+    };
+
+    // 1) Strict validation: validate incoming project IDs against workspace first.
+    const requestedProjectIds = access && access.allProjectsAccess
+        ? []
+        : AccessControl.sanitizeAssignedProjectIds(access && access.assignedProjectIds);
+    const validRequestedProjectIds = [];
+    const invalidRequestedProjectIds = [];
+    for (const projectId of requestedProjectIds) {
+        const projectWorkspaceId = await resolveProjectWorkspaceId(projectId);
+        if (!projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
+            invalidRequestedProjectIds.push(String(projectId || '').trim());
+            continue;
+        }
+        validRequestedProjectIds.push(String(projectId || '').trim());
+    }
+    const validProjectIdSet = new Set(AccessControl.sanitizeAssignedProjectIds(validRequestedProjectIds));
+
     const existingAssignments = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
     const matchingAssignments = existingAssignments.filter(record => {
         const recordWorkspaceId = String(record.workspaceId || record.workspace_id || '').trim();
@@ -81,39 +118,39 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
         return recordWorkspaceId === normalizedWorkspaceId && matchesIdentity;
     });
 
-    // Single source of truth: deactivate all existing assignments first.
+    // 2) Deactivate only invalid or out-of-scope existing assignments.
     for (const assignment of matchingAssignments) {
+        const assignmentProjectId = String(assignment.projectId || assignment.project_id || '').trim();
+        const assignmentProjectWorkspaceId = await resolveProjectWorkspaceId(assignmentProjectId);
+        const assignmentIsWorkspaceValid = Boolean(
+            assignmentProjectId
+            && assignmentProjectWorkspaceId
+            && assignmentProjectWorkspaceId === normalizedWorkspaceId
+        );
+        const assignmentShouldRemainActive = access && access.allProjectsAccess
+            ? false
+            : (assignmentIsWorkspaceValid && validProjectIdSet.has(assignmentProjectId));
+        if (assignmentShouldRemainActive) continue;
         await patchCollectionDocument('project_assignments', assignment.id, {
             status: 'inactive',
             active: false,
+            mismatchReason: assignmentIsWorkspaceValid ? 'not_in_requested_scope' : 'project_workspace_mismatch',
             updatedAt: now,
             updated_at: now
         }).catch(() => undefined);
     }
 
-    if (access.allProjectsAccess) {
-        return;
+    if (invalidRequestedProjectIds.length) {
+        console.warn('[WorkspaceConsistency] Invalid project assignments dropped before syncProjectAssignments upsert', {
+            workspaceId: normalizedWorkspaceId,
+            userId: normalizedUserId,
+            email: normalizedEmail,
+            invalidRequestedProjectIds: AccessControl.sanitizeAssignedProjectIds(invalidRequestedProjectIds)
+        });
     }
 
-    const validProjectIds = [];
-    for (const rawProjectId of access.assignedProjectIds) {
-        const projectId = String(rawProjectId || '').trim();
-        if (!projectId) continue;
-        const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
-        const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
-
-        if (!projectRecord || !projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
-            console.error('[WorkspaceConsistency] Assignment rejected due to workspace mismatch', {
-                workspaceId: normalizedWorkspaceId,
-                projectId,
-                projectWorkspaceId
-            });
-            continue;
-        }
-        validProjectIds.push(projectId);
-    }
-
-    for (const projectId of AccessControl.sanitizeAssignedProjectIds(validProjectIds)) {
+    // 3) Insert/update only validated project assignments.
+    for (const projectId of validProjectIdSet) {
         const assignmentId = sanitizeDocumentId(`${normalizedWorkspaceId}_${projectId}_${identityToken}`);
         await upsertCollectionDocument('project_assignments', assignmentId, {
             workspaceId: normalizedWorkspaceId,
@@ -134,6 +171,14 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
             active: true
         }).catch(() => undefined);
     }
+
+    // 4) Canonical post-sync resolution for consistent assignment scope.
+    await resolveScopedAssignedProjectsForLogin({
+        workspaceId: normalizedWorkspaceId,
+        userId: normalizedUserId,
+        email: normalizedEmail,
+        role: normalizedRole
+    }).catch(() => undefined);
 }
 
 async function syncClientAccessState(clientRecordInput) {

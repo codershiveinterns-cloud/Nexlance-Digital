@@ -219,6 +219,75 @@ function syncPlanFromRecord(record) {
   }
 }
 
+async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFields = {}) {
+  const provisionalSession = {
+    uid: user.uid,
+    name: profile?.name || user.displayName || user.email,
+    email: user.email,
+    emailVerified: Boolean(user.emailVerified),
+    role: "",
+    workspaceRole: "",
+    workspaceId: "",
+    workspaceOwnerEmail: "",
+    workspaceOwnerUserId: "",
+    isWorkspaceOwner: false,
+    permissionKeys: [],
+    permissionMode: "default",
+    assignedProjectIds: [],
+    allProjectsAccess: false,
+    projectAccessScope: "selected",
+    membershipStatus: profile?.membershipStatus || "active",
+    inviteType: profile?.inviteType || "",
+    permissions: {},
+    businessName: profile?.businessName || "",
+    businessEmail: profile?.businessEmail || "",
+    businessAddress: profile?.businessAddress || "",
+  };
+
+  persistSession(provisionalSession);
+
+  const sessionApi =
+    typeof window !== "undefined" && window.NexlanceSessionState
+      ? window.NexlanceSessionState
+      : null;
+  if (sessionApi && typeof sessionApi.hardRefreshSessionFromServer === "function") {
+    const hydrated = await sessionApi.hardRefreshSessionFromServer("login_hard_refresh");
+    if (hydrated && hydrated.workspaceId !== undefined) {
+      return hydrated;
+    }
+  }
+
+  const token = await user.getIdToken(true);
+  const response = await fetch("/api/me", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: "same-origin",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload || !payload.user) {
+    throw new Error("Could not refresh workspace session from server.");
+  }
+
+  const mergedSession = {
+    ...provisionalSession,
+    ...payload.user,
+    role: payload.user.role || payload.user.workspaceRole || "",
+    workspaceRole: payload.user.workspaceRole || payload.user.role || "",
+    workspaceId: payload.user.workspaceId || "",
+    assignedProjectIds: payload.user.assignedProjectIds || [],
+    allProjectsAccess: Boolean(payload.user.allProjectsAccess),
+    projectAccessScope:
+      payload.user.projectAccessScope ||
+      (payload.user.allProjectsAccess ? "all" : "selected"),
+    permissionKeys: payload.user.permissionKeys || accessFields.permissionKeys || [],
+    permissions: payload.user.permissions || {},
+  };
+  persistSession(mergedSession);
+  return mergedSession;
+}
+
 async function trackActivity(eventName, payload) {
   if (typeof window.trackPlatformActivity !== "function") return;
 
@@ -541,32 +610,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const { user, profile } = result;
-    const role = profile?.role || accessFields.role;
-    const permissions = profile?.permissions || accessFields.permissions;
-
-    persistSession({
-      uid: user.uid,
-      name: profile?.name || user.displayName || user.email,
-      email: user.email,
-      emailVerified: Boolean(user.emailVerified),
-      role,
-      workspaceRole: profile?.workspaceRole || role,
-      workspaceId: profile?.workspaceId || "",
-      workspaceOwnerEmail: profile?.workspaceOwnerEmail || profile?.ownerEmail || user.email,
-      workspaceOwnerUserId: profile?.workspaceOwnerUserId || profile?.ownerUserId || user.uid,
-      isWorkspaceOwner: Boolean(profile?.isWorkspaceOwner),
-      permissionKeys: profile?.permissionKeys || accessFields.permissionKeys,
-      permissionMode: profile?.permissionMode || "default",
-      assignedProjectIds: profile?.assignedProjectIds || [],
-      allProjectsAccess: Boolean(profile?.allProjectsAccess),
-      projectAccessScope: profile?.projectAccessScope || (profile?.allProjectsAccess ? "all" : "selected"),
-      membershipStatus: profile?.membershipStatus || "active",
-      inviteType: profile?.inviteType || "",
-      permissions,
-      businessName: profile?.businessName || "",
-      businessEmail: profile?.businessEmail || "",
-      businessAddress: profile?.businessAddress || "",
-    });
+    try {
+      await hardRefreshServerSessionAfterLogin(user, profile, accessFields);
+    } catch (error) {
+      clearPersistedSession();
+      if (typeof window.clearSessionRuntime === "function") {
+        window.clearSessionRuntime("login_session_sync_failed");
+      }
+      setMessage(
+        "loginMessage",
+        "Login succeeded but workspace session sync failed. Please try signing in again.",
+        "error"
+      );
+      return;
+    }
 
     if (isVipEmail(user.email)) {
       persistTrialRecord(buildActiveRecord());

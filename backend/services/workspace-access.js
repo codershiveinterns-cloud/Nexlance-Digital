@@ -117,6 +117,7 @@ async function deactivateAllActiveAssignmentsForUser({ workspaceId = '', userId 
         return;
     }
     const assignments = await listProjectAssignmentsForUser({
+        workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail
     });
@@ -138,10 +139,11 @@ async function deactivateAllActiveAssignmentsForUser({ workspaceId = '', userId 
     });
 }
 
-async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
+async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', email = '' } = {}) {
+    const normalizedWorkspaceId = String(workspaceId || '').trim();
     const normalizedUserId = String(userId || '').trim();
     const normalizedEmail = AccessControl.normalizeEmail(email);
-    if (!normalizedUserId && !normalizedEmail) {
+    if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) {
         return [];
     }
     const useEmailIdentity = Boolean(normalizedEmail);
@@ -152,6 +154,7 @@ async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
         (Array.isArray(records) ? records : []).forEach(record => {
             const entry = normalizeProjectAssignmentRecord(record);
             if (!entry.id || seenIds.has(entry.id)) return;
+            if (!entry.workspaceId || entry.workspaceId !== normalizedWorkspaceId) return;
             const identityMatch = useEmailIdentity
                 ? entry.email === normalizedEmail
                 : (normalizedUserId && entry.userId === normalizedUserId);
@@ -199,12 +202,8 @@ async function listProjectAssignmentsForUser({ userId = '', email = '' } = {}) {
         pushRecords(legacyUserMatched);
     }
 
-    if (!results.length) {
-        const allRecords = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
-        pushRecords(allRecords);
-    }
-
     console.info('[ProjectAssignmentScope] Fetched assignments', {
+        workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail,
         useEmailIdentity,
@@ -240,28 +239,25 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         };
     }
 
-    console.info('[ProjectAssignmentScope] Starting resolution', {
+    console.info('[ProjectAssignmentScope] ========== START RESOLUTION ==========', {
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail,
-        role: normalizedRole
-    });
-
-    await deactivateAllActiveAssignmentsForUser({
-        workspaceId: normalizedWorkspaceId,
-        userId: normalizedUserId,
-        email: normalizedEmail
+        role: normalizedRole,
+        timestamp: new Date().toISOString()
     });
 
     const assignments = await listProjectAssignmentsForUser({
+        workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail
     });
-    console.info('[ProjectAssignmentScope] Active assignments found', {
+    
+    console.info('[ProjectAssignmentScope] ========== ACTIVE ASSIGNMENTS SNAPSHOT ==========', {
         userId: normalizedUserId,
         email: normalizedEmail,
-        count: assignments.length,
-        assignments: assignments.map(a => ({ id: a.id, projectId: a.projectId, workspaceId: a.workspaceId, role: a.role }))
+        activeAssignments: assignments.length,
+        assignments: assignments.map(a => ({ id: a.id, projectId: a.projectId, workspaceId: a.workspaceId, role: a.role, active: a.active, status: a.status }))
     });
     const validProjectIds = new Set();
     const activeAssignmentsByProjectId = new Map();
@@ -377,12 +373,14 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         validProjectIds.add(projectId);
     }
 
-    console.info('[ProjectAssignmentScope] Final resolved project IDs', {
+    console.info('[ProjectAssignmentScope] ========== FINAL RESULT ==========', {
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail,
+        role: normalizedRole,
         assignedProjectIds: Array.from(validProjectIds),
-        count: validProjectIds.size
+        count: validProjectIds.size,
+        timestamp: new Date().toISOString()
     });
 
     return {

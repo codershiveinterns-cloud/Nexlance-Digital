@@ -14,7 +14,8 @@ const {
 } = require('./client-access');
 const {
     buildPermissionFields,
-    getWorkspaceMemberDocumentId
+    getWorkspaceMemberDocumentId,
+    resolveScopedAssignedProjectsForLogin
 } = require('./workspace-access');
 
 function buildTeamPermissionFields(role) {
@@ -217,6 +218,15 @@ async function syncTeamMemberState(teamMemberInput) {
             access,
             role: roleFields.canonical_role,
             inviteType: 'team'
+        }).catch(() => undefined);
+    }
+
+    if (workspaceId && (linkedUserId || email) && access.assignedProjectIds && access.assignedProjectIds.length) {
+        await resolveScopedAssignedProjectsForLogin({
+            workspaceId,
+            userId: linkedUserId,
+            email,
+            role: roleFields.canonical_role
         }).catch(() => undefined);
     }
 

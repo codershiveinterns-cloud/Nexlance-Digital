@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let revenueChartInstance = null;
     let hasHandledTrialExpiry = false;
     let currentSettings = null;
+    let dashboardRefreshRequestId = 0;
 
     function normalizeEmail(email) {
         return (email || '').trim().toLowerCase();
@@ -896,7 +897,20 @@ document.addEventListener('DOMContentLoaded', () => {
         alertsSection.innerHTML = `<h3>Urgent Alerts</h3>${alerts.join('') || '<div class="alert warning">No urgent real-data alerts right now.</div>'}`;
     }
 
+    async function ensureSessionReadyForDashboard(reason = 'dashboard_refresh') {
+        if (
+            window.NexlanceSessionState &&
+            typeof window.NexlanceSessionState.ensureSessionHydration === 'function'
+        ) {
+            await window.NexlanceSessionState.ensureSessionHydration(reason, { forceRetry: true });
+        }
+    }
+
     async function refreshDashboardData() {
+        const requestId = ++dashboardRefreshRequestId;
+        await ensureSessionReadyForDashboard('dashboard_refresh');
+        if (requestId !== dashboardRefreshRequestId) return;
+
         destroyRevenueChart();
         setRevenueChartState({
             year: getRevenueChartYear([]),
@@ -911,6 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchProjects(),
                 fetchInvoices()
             ]);
+            if (requestId !== dashboardRefreshRequestId) return;
 
             const paidInvoices = invoices.filter(invoice => invoice.status === 'paid');
             const pendingInvoices = invoices.filter(invoice => ['pending', 'overdue'].includes(invoice.status));
@@ -1234,17 +1249,22 @@ document.addEventListener('DOMContentLoaded', () => {
         setStoredTrial(buildActiveRecord());
     }
 
-    currentSettings = getStoredDashboardSettings();
-    populateSettingsControls(currentSettings);
-    renderDashboardGreeting();
-    syncProfileButtonVisibility();
-    applyRoleAwareUi();
-    resolveHashRoute();
-    hydrateProfileUi().catch(error => {
-        console.error('Could not load settings profile:', error);
+    (async () => {
+        await ensureSessionReadyForDashboard('dashboard_bootstrap');
+        currentSettings = getStoredDashboardSettings();
+        populateSettingsControls(currentSettings);
+        renderDashboardGreeting();
+        syncProfileButtonVisibility();
+        applyRoleAwareUi();
+        resolveHashRoute();
+        hydrateProfileUi().catch(error => {
+            console.error('Could not load settings profile:', error);
+        });
+        renderTrialState();
+        refreshDashboardData();
+    })().catch(error => {
+        console.error('Dashboard bootstrap failed:', error);
     });
-    renderTrialState();
-    refreshDashboardData();
 
     window.setInterval(renderTrialState, 1000);
     window.addEventListener('focus', refreshDashboardData);

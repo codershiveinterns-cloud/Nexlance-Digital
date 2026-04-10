@@ -105,7 +105,24 @@ async function ensureUserProfile(uid, defaults = {}) {
 
 export function persistSession(sessionUser) {
   localStorage.setItem("nexlance_auth", "1");
+  try {
+    if (
+      typeof window !== "undefined" &&
+      window.NexlanceSessionState &&
+      typeof window.NexlanceSessionState.writeSessionFromAuthFlow === "function"
+    ) {
+      const result = window.NexlanceSessionState.writeSessionFromAuthFlow(sessionUser, {
+        persist: true,
+      });
+      if (result && result.user) {
+        return result.user;
+      }
+    }
+  } catch (error) {
+    console.warn("Could not write session through NexlanceSessionState:", error);
+  }
   localStorage.setItem("nexlance_user", JSON.stringify(sessionUser));
+  return sessionUser;
 }
 
 export function clearPersistedSession() {
