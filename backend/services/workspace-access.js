@@ -199,9 +199,21 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         };
     }
 
+    console.info('[ProjectAssignmentScope] Fetching assignments', {
+        workspaceId: normalizedWorkspaceId,
+        userId: normalizedUserId,
+        email: normalizedEmail
+    });
+
     const assignments = await listProjectAssignmentsForUser({
         userId: normalizedUserId,
         email: normalizedEmail
+    });
+    console.info('[ProjectAssignmentScope] Raw assignments found', {
+        userId: normalizedUserId,
+        email: normalizedEmail,
+        count: assignments.length,
+        assignments: assignments.map(a => ({ id: a.id, projectId: a.projectId, workspaceId: a.workspaceId, status: a.status }))
     });
     const validProjectIds = new Set();
     const activeAssignmentsByProjectId = new Map();
@@ -305,6 +317,14 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
 
         validProjectIds.add(projectId);
     }
+
+    console.info('[ProjectAssignmentScope] Final resolved project IDs', {
+        workspaceId: normalizedWorkspaceId,
+        userId: normalizedUserId,
+        email: normalizedEmail,
+        assignedProjectIds: Array.from(validProjectIds),
+        count: validProjectIds.size
+    });
 
     return {
         assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(Array.from(validProjectIds))
@@ -788,6 +808,18 @@ async function ensureWorkspaceAccessProfile(authUser) {
     const inferredOwner = existingProfile.isWorkspaceOwner === true
         || (bootstrapRequired && ownerEmail === AccessControl.normalizeEmail(authUser.email));
 
+    const normalizedEmail = AccessControl.normalizeEmail(existingProfile.email || authUser.email);
+    const workspaceIdForLookup = pendingInviteBootstrap ? '' : getWorkspaceId(existingProfile, authUser);
+    let canonicalRole = existingProfile.canonical_role || existingProfile.role;
+    if (!canonicalRole && workspaceIdForLookup && normalizedEmail) {
+        const teamMemberDoc = await getCollectionDocument('team_members', sanitizeDocumentId(`${workspaceIdForLookup}_${normalizedEmail}`)).catch(() => null);
+        if (teamMemberDoc && teamMemberDoc.data && teamMemberDoc.data.canonical_role) {
+            canonicalRole = teamMemberDoc.data.canonical_role;
+            existingProfile.canonical_role = canonicalRole;
+            existingProfile.role = AccessControl.getRoleDisplayLabel(canonicalRole);
+        }
+    }
+
     const baseProfile = {
         ...existingProfile,
         email: AccessControl.normalizeEmail(existingProfile.email || authUser.email),
@@ -801,6 +833,15 @@ async function ensureWorkspaceAccessProfile(authUser) {
         projectAccessScope: hasAllProjectsAccess(existingProfile) ? 'all' : 'selected',
         membershipStatus: String(existingProfile.membershipStatus || 'active').trim().toLowerCase()
     };
+
+    console.info('[RoleResolution] Profile role lookup', {
+        userId: authUser.uid,
+        email: normalizedEmail,
+        workspaceId: baseProfile.workspaceId,
+        existingRole: existingProfile.role,
+        canonicalRole: canonicalRole,
+        source: canonicalRole ? 'team_members' : 'users'
+    });
 
     if (bootstrapRequired) {
         baseProfile.role = AccessControl.normalizeRole(existingProfile.role || 'admin');
@@ -828,11 +869,23 @@ async function ensureWorkspaceAccessProfile(authUser) {
             || normalizedRole === AccessControl.ROLES.DESIGNER
         );
     if (shouldUseProjectAssignmentScope && nextProfile.workspaceId) {
+        console.info('[ProjectAssignmentScope] Starting resolution', {
+            userId: authUser.uid,
+            email: nextProfile.email,
+            workspaceId: nextProfile.workspaceId,
+            normalizedRole,
+            shouldUseProjectAssignmentScope
+        });
         const scopedAssignmentState = await resolveScopedAssignedProjectsForLogin({
             workspaceId: nextProfile.workspaceId,
             userId: String(authUser.uid || '').trim(),
             email: nextProfile.email
         }).catch(() => ({ assignedProjectIds: [] }));
+        console.info('[ProjectAssignmentScope] Resolution complete', {
+            userId: authUser.uid,
+            assignedProjectIds: scopedAssignmentState.assignedProjectIds,
+            count: scopedAssignmentState.assignedProjectIds ? scopedAssignmentState.assignedProjectIds.length : 0
+        });
         nextProfile = {
             ...nextProfile,
             assignedProjectIds: scopedAssignmentState.assignedProjectIds,
@@ -855,6 +908,7 @@ async function ensureWorkspaceAccessProfile(authUser) {
         isWorkspaceOwner: nextProfile.isWorkspaceOwner,
         role: nextProfile.role,
         workspaceRole: nextProfile.workspaceRole,
+        canonical_role: nextProfile.canonical_role || AccessControl.normalizeRole(nextProfile.role || nextProfile.workspaceRole),
         permissionKeys: nextProfile.permissionKeys,
         permissions: nextProfile.permissions,
         permissionMode: nextProfile.permissionMode,
