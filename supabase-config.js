@@ -2575,7 +2575,16 @@ function getAssignedProjectIdsForCurrentUser() {
         )
         : [];
     const fallback = (Array.isArray(sourceIds) ? sourceIds : []).map(projectId => String(projectId || '').trim()).filter(Boolean);
-    return accessControl ? accessControl.sanitizeAssignedProjectIds(sourceIds) : fallback;
+    const sanitized = accessControl ? accessControl.sanitizeAssignedProjectIds(sourceIds) : fallback;
+    if (sanitized.length && currentUser && currentUser.email) {
+        console.info('[ProjectAssignmentDebug] User project assignments', {
+            email: currentUser.email,
+            workspaceId: currentUser.workspaceId,
+            rawProjectIds: sourceIds,
+            sanitizedProjectIds: sanitized
+        });
+    }
+    return sanitized;
 }
 
 function getProjectScopedIdsForRecord(entity, record = {}) {
@@ -2668,7 +2677,9 @@ function filterRecordsForCurrentUserScope(entity, records) {
         if (!projectIds.length) {
             return false;
         }
-        return projectIds.some(projectId => assignedProjectIds.has(String(projectId || '').trim()));
+        const normalizedProjectId = String(projectIds[0] || '').trim();
+        const matchedId = Array.from(assignedProjectIds).find(pid => String(pid || '').trim() === normalizedProjectId);
+        return Boolean(matchedId);
     });
     debugProjectFilter(filteredRecords, 'project_scope_filter');
     return filteredRecords;
