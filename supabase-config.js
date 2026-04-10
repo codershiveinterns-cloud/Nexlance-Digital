@@ -2209,72 +2209,26 @@ function isSessionHydrationPendingForScopedData() {
 }
 
 function syncSessionHydrationOverlay() {
-    if (typeof document === 'undefined') return;
-    const pageName = getCurrentPageName();
-    const shouldShow = isAuthenticatedAppPage(pageName) && isSessionHydrationPendingForScopedData();
-    const overlayId = 'nexlanceSessionHydrationOverlay';
-    let overlay = document.getElementById(overlayId);
-
-    if (!shouldShow) {
-        if (overlay && overlay.parentNode) {
-            overlay.parentNode.removeChild(overlay);
-        }
-        return;
-    }
-
-    if (overlay) return;
-
-    overlay = document.createElement('div');
-    overlay.id = overlayId;
-    overlay.setAttribute('role', 'status');
-    overlay.setAttribute('aria-live', 'polite');
-    overlay.style.position = 'fixed';
-    overlay.style.inset = '0';
-    overlay.style.zIndex = '9999';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.padding = '20px';
-    overlay.style.background = 'rgba(255,255,255,0.9)';
-    overlay.style.backdropFilter = 'blur(6px)';
-    overlay.innerHTML = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;font-weight:600;color:#2c2f36;">Syncing latest workspace access...</div>';
-    document.body.appendChild(overlay);
+    return;
 }
 
 function syncAccessUiState() {
     if (isFirebaseUserAuthenticated()) {
         clearAuthRedirectLock();
     }
-    syncSessionHydrationOverlay();
     ensureStoredAccessConsistency();
     syncPlanUiVisibility();
     syncAdminUiVisibility();
     enforcePlanPageAccess();
     applyRestrictedPreviewOverlay();
-    if (isSessionHydrationPendingForScopedData()) {
-        stopRealtimeWorkspaceSync('hydration_pending');
-    }
-    const previousScope = normalizeSessionScope(getCurrentSessionUser() || {});
-    const previousScopeHash = buildSessionScopeHash(previousScope);
-    ensureSessionHydration('sync_access_ui_state', { forceRetry: true }).then(nextUser => {
-        syncSessionHydrationOverlay();
+    ensureSessionHydration('sync_access_ui_state_background', { forceRetry: false }).then(nextUser => {
         if (!nextUser) return;
         const nextScopeHash = buildSessionScopeHash(nextUser);
-        if (previousScopeHash !== nextScopeHash) {
-            const nextScope = normalizeSessionScope(nextUser || {});
-            console.info('[SessionState] UI scope update', {
-                previousWorkspaceId: previousScope.workspaceId,
-                nextWorkspaceId: nextScope.workspaceId
-            });
-            syncPlanUiVisibility();
-            syncAdminUiVisibility();
-            enforcePlanPageAccess();
-        }
-        startRealtimeWorkspaceSync(previousScopeHash === nextScopeHash ? 'sync_access_ui_state_no_scope_change' : 'scope_update');
-    }).catch(() => {
-        syncSessionHydrationOverlay();
-        stopRealtimeWorkspaceSync('hydration_failed');
-    });
+        syncPlanUiVisibility();
+        syncAdminUiVisibility();
+        enforcePlanPageAccess();
+    }).catch(() => {});
+    return;
 }
 
 function getEntityStorageKey(entity) {
