@@ -955,13 +955,24 @@ async function acceptInvitation({ session, token }) {
 
     if (!authoritativeScope.allProjectsAccess) {
         for (const projectId of assignmentIds) {
+            // Enforce NOT NULL: skip if workspace_id or project_id is empty
+            const safeWorkspaceId = String(authoritativeScope.workspaceId || '').trim();
+            const safeProjectId = String(projectId || '').trim();
+            if (!safeWorkspaceId || !safeProjectId) {
+                console.error('[ProjectAssignment] SKIPPED: workspace_id or project_id is empty', {
+                    workspaceId: safeWorkspaceId,
+                    projectId: safeProjectId,
+                    email: safeSessionEmail
+                });
+                continue;
+            }
             const assignmentIdentityToken = safeSessionEmail || String(session.authUser.uid || '').trim();
-            const assignmentId = sanitizeDocumentId(`${authoritativeScope.workspaceId}_${projectId}_${assignmentIdentityToken}`);
+            const assignmentId = sanitizeDocumentId(`${safeWorkspaceId}_${safeProjectId}_${assignmentIdentityToken}`);
             await upsertCollectionDocument('project_assignments', assignmentId, {
-                workspaceId: authoritativeScope.workspaceId,
-                workspace_id: authoritativeScope.workspaceId,
-                projectId,
-                project_id: projectId,
+                workspaceId: safeWorkspaceId,
+                workspace_id: safeWorkspaceId,
+                projectId: safeProjectId,
+                project_id: safeProjectId,
                 userId: session.authUser.uid,
                 user_id: session.authUser.uid,
                 email: safeSessionEmail,

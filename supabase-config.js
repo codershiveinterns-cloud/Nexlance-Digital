@@ -3498,10 +3498,22 @@ async function fetchProjects(clientId = null) {
             }
         }
         if (shouldBypassDirectFirestoreForCollection('projects') || shouldSkipOwnerScopedFallbackForCurrentUser()) {
-            const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'local_scope_bypass');
+            // No local_scope_bypass: if API path was not taken and workspaceId is empty, return empty
+            // This prevents stale localStorage data from masking real sync failures
+            const bypassUser = getCurrentSessionUser();
+            const bypassWorkspaceId = String(bypassUser && bypassUser.workspaceId || '').trim();
+            if (!bypassWorkspaceId) {
+                console.error('[FetchProjects] BLOCKED: workspaceId is empty — cannot load projects without workspace context', {
+                    email: bypassUser ? bypassUser.email : null,
+                    role: bypassUser ? bypassUser.role : null,
+                    source: 'local_scope_bypass_removed'
+                });
+                return [];
+            }
+            const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'workspace_scoped_fallback');
             const combinedScoped = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
             const filtered = applyClientFilter(combinedScoped);
-            logProjectFetchDiagnostics('local_scope_bypass', consistentScopedProjects, filtered);
+            logProjectFetchDiagnostics('workspace_scoped_fallback', consistentScopedProjects, filtered);
             logMissingAssignedProjects(filtered);
             return filtered;
         }

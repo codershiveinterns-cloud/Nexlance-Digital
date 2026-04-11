@@ -558,6 +558,81 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
     }
 }
 
+async function resolveWorkspaceFromTeamMembership(email) {
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    if (!normalizedEmail) return null;
+
+    // Query team_members by email to find workspace membership
+    const teamResults = await queryCollectionDocuments('team_members', {
+        fieldPath: 'email',
+        op: 'EQUAL',
+        value: normalizedEmail,
+        limit: 10
+    }).catch(() => []);
+
+    // Find the first active team member record with a valid workspace_id
+    for (const doc of (Array.isArray(teamResults) ? teamResults : [])) {
+        const data = doc && doc.data ? doc.data : {};
+        const wsId = String(data.workspace_id || data.workspaceId || '').trim();
+        const status = String(data.invite_status || data.status || '').trim().toLowerCase();
+        if (wsId && status === 'accepted') {
+            console.info('[WorkspaceResolution] Found workspace from team_members', {
+                email: normalizedEmail,
+                workspaceId: wsId,
+                role: data.canonical_role || data.role || '',
+                assignedProjectIds: data.assigned_project_ids || data.assignedProjectIds || []
+            });
+            return {
+                workspaceId: wsId,
+                role: data.canonical_role || data.role || '',
+                workspaceOwnerEmail: AccessControl.normalizeEmail(data.workspace_owner_email || data.workspaceOwnerEmail || ''),
+                workspaceOwnerUserId: String(data.workspace_owner_user_id || data.workspaceOwnerUserId || '').trim(),
+                assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(
+                    data.assigned_project_ids || data.assignedProjectIds
+                ),
+                allProjectsAccess: data.all_projects_access === true || data.allProjectsAccess === true,
+                inviteType: String(data.invite_type || data.inviteType || 'team').trim()
+            };
+        }
+    }
+
+    // Also check clients collection
+    const clientResults = await queryCollectionDocuments('clients', {
+        fieldPath: 'email',
+        op: 'EQUAL',
+        value: normalizedEmail,
+        limit: 10
+    }).catch(() => []);
+
+    for (const doc of (Array.isArray(clientResults) ? clientResults : [])) {
+        const data = doc && doc.data ? doc.data : {};
+        const wsId = String(data.workspace_id || data.workspaceId || '').trim();
+        const status = String(data.invite_status || data.status || '').trim().toLowerCase();
+        if (wsId && status === 'accepted') {
+            console.info('[WorkspaceResolution] Found workspace from clients', {
+                email: normalizedEmail,
+                workspaceId: wsId,
+                role: 'client',
+                assignedProjectIds: data.assigned_project_ids || data.assignedProjectIds || []
+            });
+            return {
+                workspaceId: wsId,
+                role: 'client',
+                workspaceOwnerEmail: AccessControl.normalizeEmail(data.workspace_owner_email || data.workspaceOwnerEmail || ''),
+                workspaceOwnerUserId: String(data.workspace_owner_user_id || data.workspaceOwnerUserId || '').trim(),
+                assignedProjectIds: AccessControl.sanitizeAssignedProjectIds(
+                    data.assigned_project_ids || data.assignedProjectIds
+                ),
+                allProjectsAccess: data.all_projects_access === true || data.allProjectsAccess === true,
+                inviteType: 'client'
+            };
+        }
+    }
+
+    console.warn('[WorkspaceResolution] No workspace membership found for email', { email: normalizedEmail });
+    return null;
+}
+
 async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUser }) {
     if (!shouldTryClientInvitationAutoBootstrap(existingProfile)) {
         return null;
@@ -858,6 +933,50 @@ async function ensureWorkspaceAccessProfile(authUser) {
     if (autoBootstrappedClientProfile) {
         existingProfile = autoBootstrappedClientProfile;
     }
+
+    // CRITICAL: If workspaceId is still empty, resolve from team_members/clients by email
+    if (!String(existingProfile.workspaceId || '').trim()) {
+        const membership = await resolveWorkspaceFromTeamMembership(authUser.email).catch(() => null);
+        if (membership && membership.workspaceId) {
+            console.info('[WorkspaceResolution] Patching user profile with resolved workspace', {
+                userId: authUser.uid,
+                email: AccessControl.normalizeEmail(authUser.email),
+                workspaceId: membership.workspaceId,
+                role: membership.role
+            });
+            existingProfile.workspaceId = membership.workspaceId;
+            existingProfile.workspaceOwnerEmail = membership.workspaceOwnerEmail || existingProfile.workspaceOwnerEmail;
+            existingProfile.workspaceOwnerUserId = membership.workspaceOwnerUserId || existingProfile.workspaceOwnerUserId;
+            existingProfile.assignedProjectIds = membership.assignedProjectIds.length
+                ? membership.assignedProjectIds
+                : existingProfile.assignedProjectIds;
+            existingProfile.allProjectsAccess = membership.allProjectsAccess;
+            existingProfile.inviteType = membership.inviteType || existingProfile.inviteType;
+            existingProfile.membershipStatus = 'active';
+            if (membership.role) {
+                existingProfile.role = membership.role;
+                existingProfile.workspaceRole = membership.role;
+                existingProfile.canonical_role = AccessControl.normalizeRole(membership.role);
+            }
+            // Persist this back to users document so future lookups don't repeat this
+            await patchCollectionDocument('users', profileDocument.id || authUser.uid, {
+                workspaceId: membership.workspaceId,
+                workspaceOwnerEmail: existingProfile.workspaceOwnerEmail,
+                workspaceOwnerUserId: existingProfile.workspaceOwnerUserId,
+                assignedProjectIds: existingProfile.assignedProjectIds,
+                allProjectsAccess: existingProfile.allProjectsAccess,
+                membershipStatus: 'active',
+                role: existingProfile.role,
+                workspaceRole: existingProfile.workspaceRole,
+                canonical_role: existingProfile.canonical_role,
+                inviteType: existingProfile.inviteType,
+                updatedAt: new Date().toISOString()
+            }).catch(err => {
+                console.warn('[WorkspaceResolution] Failed to persist workspace to users doc', { error: err.message });
+            });
+        }
+    }
+
     const pendingInviteBootstrap = hasPendingInviteState(existingProfile);
     const ownerEmail = getWorkspaceOwnerEmail(existingProfile, authUser);
     const ownerUserId = getWorkspaceOwnerUserId(existingProfile, authUser);
