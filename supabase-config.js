@@ -3551,6 +3551,18 @@ async function fetchProjects(clientId = null) {
 
 async function addProject(d) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
+
+    // Ensure workspace context exists before creating a project
+    const projectUser = getCurrentSessionUser();
+    if (!projectUser || !String(projectUser.workspaceId || '').trim()) {
+        console.error('[addProject] BLOCKED: workspaceId is empty — forcing session refresh before project creation');
+        await ensureSessionHydration('add_project_workspace_check', { forceRetry: true }).catch(() => {});
+        const refreshedUser = getCurrentSessionUser();
+        if (!refreshedUser || !String(refreshedUser.workspaceId || '').trim()) {
+            throw new Error('Cannot create project: your workspace could not be resolved. Please log out and log back in.');
+        }
+    }
+
     const doc = sanitizeFirestoreData({ ...withOwnerFields(d), created_at: new Date().toISOString() });
     const optimisticMutationId = createOptimisticMutationId('projects', '');
     let optimisticSnapshot = null;

@@ -109,7 +109,9 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
     if (!ownerKey && !workspaceId) return [];
 
     const queryResults = [];
-    if (ownerKey && (!workspaceId || collectionId !== 'projects')) {
+
+    // Always query by owner_key (catches projects with empty workspace_id)
+    if (ownerKey) {
         const ownerMatched = await queryCollectionDocuments(collectionId, {
             fieldPath: 'owner_key',
             op: 'EQUAL',
@@ -131,10 +133,9 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
 
     if (!queryResults.length) {
         const all = await listCollectionDocuments(collectionId, { pageSize: 500 }).catch(() => []);
-        const requireWorkspaceMatch = collectionId === 'projects' && Boolean(workspaceId);
         return all
             .filter(record => (
-                (!requireWorkspaceMatch && ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
+                (ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
                 || (workspaceId && String(record.workspace_id || '').trim() === workspaceId)
             ))
             .map(record => ({
@@ -144,7 +145,7 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
     }
 
     const seen = new Set();
-    return queryResults
+    const deduped = queryResults
         .map(record => ({
             id: record.id || (record.name ? record.name.split('/').pop() : ''),
             data: record.data || record
@@ -154,6 +155,26 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
             seen.add(record.id);
             return true;
         });
+
+    // Auto-repair: patch projects with empty workspace_id if session has one
+    if (collectionId === 'projects' && workspaceId) {
+        for (const record of deduped) {
+            const recordWsId = String(record.data && (record.data.workspace_id || record.data.workspaceId) || '').trim();
+            if (!recordWsId && record.id) {
+                console.info('[DashboardProjects] Auto-repairing project with empty workspace_id', {
+                    projectId: record.id,
+                    workspaceId
+                });
+                await patchCollectionDocument('projects', record.id, {
+                    workspace_id: workspaceId,
+                    updated_at: new Date().toISOString()
+                }).catch(() => undefined);
+                record.data = { ...record.data, workspace_id: workspaceId };
+            }
+        }
+    }
+
+    return deduped;
 }
 
 function hasAllProjectsAccess(sessionUser = {}) {
@@ -426,9 +447,24 @@ module.exports = async function handler(req, res) {
             }
 
             const body = normalizeBody(req.body);
+            const builtDoc = buildDashboardDocument(body, sessionUser, true);
+
+            // Hard validation: projects MUST have a workspace_id
+            if (route.collectionId === 'projects' && !String(builtDoc.workspace_id || '').trim()) {
+                console.error('[DashboardAPI] BLOCKED project creation: workspace_id is empty', {
+                    userId: String(sessionUser.uid || '').trim(),
+                    email: normalizeEmail(sessionUser.email),
+                    role: sessionUser.role
+                });
+                res.status(400).json({
+                    error: 'Cannot create project: your workspace could not be resolved. Please log out and log back in.'
+                });
+                return;
+            }
+
             const record = await createCollectionDocument(
                 route.collectionId,
-                buildDashboardDocument(body, sessionUser, true),
+                builtDoc,
                 route.documentId || ''
             );
             let responseRecord = record;
