@@ -3409,8 +3409,18 @@ async function fetchProjects(clientId = null) {
         await ensureSessionHydration('fetch_projects_await', { forceRetry: false }).catch(() => {});
     }
 
-    const currentUser = getCurrentSessionUser();
-    const workspaceId = String(currentUser && currentUser.workspaceId || '').trim();
+    // If workspaceId is still empty after initial hydration check, wait for Firebase auth and force hydration
+    let currentUser = getCurrentSessionUser();
+    let workspaceId = String(currentUser && currentUser.workspaceId || '').trim();
+    if (!workspaceId) {
+        console.info('[SessionState] fetchProjects - workspaceId empty, waiting for Firebase auth + forced hydration');
+        await waitForFirebaseAuthSession(3000).catch(() => null);
+        if (isFirebaseUserAuthenticated()) {
+            await ensureSessionHydration('fetch_projects_workspace_resolve', { forceRetry: true }).catch(() => {});
+            currentUser = getCurrentSessionUser();
+            workspaceId = String(currentUser && currentUser.workspaceId || '').trim();
+        }
+    }
     const assignedProjectIdsForUser = getAssignedProjectIdsForCurrentUser();
     const applyClientFilter = records => (clientId ? records.filter(project => project.client_id === clientId) : records);
     const logProjectFetchDiagnostics = (source, rawRecords, filteredRecords) => {
@@ -3553,12 +3563,13 @@ async function addProject(d) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
 
     // Ensure workspace context exists before creating a project
-    const projectUser = getCurrentSessionUser();
+    let projectUser = getCurrentSessionUser();
     if (!projectUser || !String(projectUser.workspaceId || '').trim()) {
-        console.error('[addProject] BLOCKED: workspaceId is empty — forcing session refresh before project creation');
+        console.info('[addProject] workspaceId is empty — waiting for Firebase auth + forcing session refresh');
+        await waitForFirebaseAuthSession(3000).catch(() => null);
         await ensureSessionHydration('add_project_workspace_check', { forceRetry: true }).catch(() => {});
-        const refreshedUser = getCurrentSessionUser();
-        if (!refreshedUser || !String(refreshedUser.workspaceId || '').trim()) {
+        projectUser = getCurrentSessionUser();
+        if (!projectUser || !String(projectUser.workspaceId || '').trim()) {
             throw new Error('Cannot create project: your workspace could not be resolved. Please log out and log back in.');
         }
     }
