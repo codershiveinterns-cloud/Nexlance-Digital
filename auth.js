@@ -616,6 +616,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const { user, profile } = result;
+
+    // Sync compat SDK auth state so dashboard pages (which use compat SDK) have a valid session.
+    // The modular SDK (authService.js) did the actual login, but supabase-config.js uses
+    // firebase.auth().currentUser (compat SDK) for token fetching on dashboard/projects pages.
+    if (typeof firebase !== "undefined" && firebase.auth) {
+      try {
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+      } catch (compatError) {
+        console.warn("[AuthSync] Compat SDK sign-in failed — dashboard may need re-login", compatError.message);
+      }
+    }
+
     try {
       await hardRefreshServerSessionAfterLogin(user, profile, accessFields);
     } catch (error) {
