@@ -366,18 +366,22 @@ function applySessionUserUpdate({
 
     const currentUser = SESSION_RUNTIME.currentUser || null;
     const isAuthoritativeSource = source === SESSION_UPDATE_SOURCE.API_ME;
-    const scopeSource = isAuthoritativeSource ? candidate : (currentUser || {});
+    const isBootstrapFromCache = source === SESSION_UPDATE_SOURCE.BOOTSTRAP_CACHE;
+    // For API_ME and BOOTSTRAP_CACHE, trust scope from the incoming candidate.
+    // For other sources, trust the existing currentUser to prevent untrusted overwrites.
+    const scopeSource = (isAuthoritativeSource || isBootstrapFromCache) ? candidate : (currentUser || {});
     const trustedScope = normalizeSessionScope(scopeSource);
-    const trustedRole = isAuthoritativeSource
+    const trustCandidate = isAuthoritativeSource || isBootstrapFromCache;
+    const trustedRole = trustCandidate
         ? String(candidate.role || candidate.workspaceRole || candidate.dashboardRole || '').trim()
         : String(currentUser && (currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole) || '').trim();
-    const trustedPermissions = isAuthoritativeSource
+    const trustedPermissions = trustCandidate
         ? (candidate.permissions && typeof candidate.permissions === 'object' ? candidate.permissions : (currentUser && currentUser.permissions) || {})
         : ((currentUser && currentUser.permissions) || {});
-    const trustedPermissionKeys = isAuthoritativeSource
+    const trustedPermissionKeys = trustCandidate
         ? (Array.isArray(candidate.permissionKeys) ? candidate.permissionKeys : [])
         : (Array.isArray(currentUser && currentUser.permissionKeys) ? currentUser.permissionKeys : []);
-    const trustedPermissionMode = isAuthoritativeSource
+    const trustedPermissionMode = trustCandidate
         ? String(candidate.permissionMode || candidate.permission_mode || '').trim().toLowerCase() || 'default'
         : String(currentUser && currentUser.permissionMode || 'default').trim().toLowerCase();
     const projectedCandidate = {
@@ -385,7 +389,7 @@ function applySessionUserUpdate({
         ...candidate,
         role: trustedRole,
         workspaceRole: trustedRole || String(currentUser && currentUser.workspaceRole || '').trim(),
-        isWorkspaceOwner: isAuthoritativeSource
+        isWorkspaceOwner: trustCandidate
             ? Boolean(candidate.isWorkspaceOwner)
             : Boolean(currentUser && currentUser.isWorkspaceOwner),
         permissionKeys: trustedPermissionKeys,
