@@ -3401,12 +3401,12 @@ async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
     const hydrationPending = isSessionHydrationPendingForScopedData();
     if (hydrationPending) {
-        console.info('[SessionState] fetchProjects - hydration pending, running in background', {
+        console.info('[SessionState] fetchProjects - hydration pending, awaiting before fetch', {
             hydrated: SESSION_RUNTIME.isHydrated,
             hydrationCompleted: SESSION_RUNTIME.hydrationCompleted,
             timestamp: new Date().toISOString()
         });
-        ensureSessionHydration('fetch_projects_background', { forceRetry: false }).catch(() => {});
+        await ensureSessionHydration('fetch_projects_await', { forceRetry: false }).catch(() => {});
     }
 
     const currentUser = getCurrentSessionUser();

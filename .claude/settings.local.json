@@ -3,7 +3,8 @@
     "allow": [
       "Bash(grep -l 'href=\"\"#\"\">Sitemap' d:/claude/*.html)",
       "Bash(grep -c 'href=\"\"#\"\">Sitemap\\\\|href=\"\"#\"\">Status\\\\|href=\"\"#\"\">Security\\\\|href=\"\"#\"\">Templates' d:/claude/*.html)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(ls -la /d/Nexlance-main/*.js)"
     ]
   }
 }
