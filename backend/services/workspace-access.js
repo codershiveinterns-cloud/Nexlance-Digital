@@ -977,7 +977,20 @@ async function ensureWorkspaceAccessProfile(authUser) {
         }
     }
 
-    const pendingInviteBootstrap = hasPendingInviteState(existingProfile);
+    let pendingInviteBootstrap = hasPendingInviteState(existingProfile);
+
+    // If workspace is still empty and resolveWorkspaceFromTeamMembership found nothing,
+    // clear stale pending state so bootstrapRequired can trigger workspace auto-creation
+    if (pendingInviteBootstrap && !String(existingProfile.workspaceId || '').trim()) {
+        console.info('[WorkspaceResolution] Clearing stale pending invite state — no membership found, allowing workspace bootstrap', {
+            email: AccessControl.normalizeEmail(authUser.email),
+            membershipStatus: existingProfile.membershipStatus,
+            inviteType: existingProfile.inviteType
+        });
+        existingProfile.membershipStatus = 'active';
+        pendingInviteBootstrap = false;
+    }
+
     const ownerEmail = getWorkspaceOwnerEmail(existingProfile, authUser);
     const ownerUserId = getWorkspaceOwnerUserId(existingProfile, authUser);
     const bootstrapRequired = !existingProfile.workspaceId && !pendingInviteBootstrap;

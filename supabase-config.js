@@ -692,6 +692,16 @@ function initializeSessionRuntimeFromCache() {
 
 initializeSessionRuntimeFromCache();
 
+// Clear legacy stale cache keys on boot — prevents deleted records from reappearing
+try {
+    const legacyKey = 'nexlance_projects';
+    const legacyData = localStorage.getItem(legacyKey);
+    if (legacyData) {
+        console.info('[SessionState] Clearing legacy nexlance_projects cache on boot');
+        localStorage.removeItem(legacyKey);
+    }
+} catch (e) { /* no-op */ }
+
 function getCurrentSessionUser() {
     return SESSION_RUNTIME.currentUser;
 }
@@ -3198,30 +3208,16 @@ async function fetchClients() {
     if (!isFirebaseConfigured) return createAccessFilteredDataset('clients', sampleClients);
     try {
         if (isFirebaseUserAuthenticated()) {
-            try {
-                const records = await dashboardApiRequest('GET', 'clients');
-                const apiRecords = Array.isArray(records) ? records : [];
-                // API is source of truth — sync localStorage to prevent deleted records reappearing
-                setLocalEntityData('clients', apiRecords);
-                return apiRecords;
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
-            }
+            const records = await dashboardApiRequest('GET', 'clients');
+            const apiRecords = Array.isArray(records) ? records : [];
+            // API is source of truth — sync localStorage, no merging with stale data
+            setLocalEntityData('clients', apiRecords);
+            return apiRecords;
         }
-        if (shouldBypassDirectFirestoreForCollection('clients')) {
-            return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
-                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        }
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) return [];
-        const snap = await db.collection('clients').where('owner_key', '==', ownerKey).get();
-        return filterRecordsForCurrentUserScope('clients', mergeEntityCollections(
-            _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
-            getLocalEntityData('clients')
-        )).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        return [];
     } catch (e) {
         if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'));
+        return [];
     }
 }
 
@@ -3467,98 +3463,48 @@ async function fetchProjects(clientId = null) {
         return filtered;
     }
 
-    const scopedProjects = decorateProjectRecords(
-        filterRecordsForCurrentUserScope('projects', getLocalEntityData('projects')),
-        'database'
-    );
-    const templateProjects = decorateProjectRecords(
-        filterRecordsForCurrentUserScope('projects', getLegacyTemplateProjects()),
-        'local_fallback'
-    );
-
     if (!isFirebaseConfigured) {
         const records = enforceWorkspaceConsistencyForProjects(
             decorateProjectRecords(createAccessFilteredDataset('projects', sampleProjects), 'local_fallback'),
             'local_dataset'
         );
-        const combined = filterVisibleProjectSourcesForCurrentUser(
-            sortProjectsByRecent(mergeProjectCollections(records, scopedProjects, templateProjects))
-        );
-        const filtered = applyClientFilter(combined);
+        const filtered = applyClientFilter(filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(records)));
         logProjectFetchDiagnostics('local_dataset', records, filtered);
-        logMissingAssignedProjects(filtered);
         return filtered;
     }
+
+    // API is the single source of truth — no merging with stale localStorage
+    if (!workspaceId) {
+        console.error('[FetchProjects] BLOCKED: workspaceId is empty — cannot load projects without workspace context', {
+            email: currentUser ? currentUser.email : null,
+            role: currentUser ? currentUser.role : null
+        });
+        return [];
+    }
+
     try {
         if (isFirebaseUserAuthenticated()) {
-            try {
-                const records = enforceWorkspaceConsistencyForProjects(
-                    decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database'),
-                    'dashboard_api'
-                );
-                // API is source of truth — sync localStorage and clear legacy stale data
-                const apiRecords = Array.isArray(records) ? records : [];
-                setLocalEntityData('projects', sortProjectsByRecent(apiRecords));
-                setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id));
+            const records = enforceWorkspaceConsistencyForProjects(
+                decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database'),
+                'dashboard_api'
+            );
+            const apiRecords = Array.isArray(records) ? records : [];
+            // Sync localStorage with API response — API is source of truth
+            setLocalEntityData('projects', sortProjectsByRecent(apiRecords));
+            setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id));
 
-                const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(apiRecords));
-                const filtered = applyClientFilter(visibleRecords);
-                logProjectFetchDiagnostics('dashboard_api', records, filtered);
-                logMissingAssignedProjects(filtered);
-                return filtered;
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'projects', 'read');
-            }
-        }
-        if (shouldBypassDirectFirestoreForCollection('projects') || shouldSkipOwnerScopedFallbackForCurrentUser()) {
-            // No local_scope_bypass: if API path was not taken and workspaceId is empty, return empty
-            // This prevents stale localStorage data from masking real sync failures
-            const bypassUser = getCurrentSessionUser();
-            const bypassWorkspaceId = String(bypassUser && bypassUser.workspaceId || '').trim();
-            if (!bypassWorkspaceId) {
-                console.error('[FetchProjects] BLOCKED: workspaceId is empty — cannot load projects without workspace context', {
-                    email: bypassUser ? bypassUser.email : null,
-                    role: bypassUser ? bypassUser.role : null,
-                    source: 'local_scope_bypass_removed'
-                });
-                return [];
-            }
-            const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'workspace_scoped_fallback');
-            const combinedScoped = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
-            const filtered = applyClientFilter(combinedScoped);
-            logProjectFetchDiagnostics('workspace_scoped_fallback', consistentScopedProjects, filtered);
+            const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(apiRecords));
+            const filtered = applyClientFilter(visibleRecords);
+            logProjectFetchDiagnostics('dashboard_api', records, filtered);
             logMissingAssignedProjects(filtered);
             return filtered;
         }
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) {
-            const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'local_scope_no_owner');
-            const combinedWithoutOwner = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
-            const filtered = applyClientFilter(combinedWithoutOwner);
-            logProjectFetchDiagnostics('local_scope_no_owner', consistentScopedProjects, filtered);
-            logMissingAssignedProjects(filtered);
-            return filtered;
-        }
-        let q = db.collection('projects').where('owner_key', '==', ownerKey);
-        if (clientId) q = q.where('client_id', '==', clientId);
-        const snap = await q.get();
-        const firebaseProjects = enforceWorkspaceConsistencyForProjects(
-            decorateProjectRecords(_snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)), 'database'),
-            'direct_firestore'
-        );
-        const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(filterRecordsForCurrentUserScope('projects', mergeProjectCollections(firebaseProjects, scopedProjects, templateProjects))));
-        const filtered = applyClientFilter(combined);
-        logProjectFetchDiagnostics('direct_firestore', firebaseProjects, filtered);
-        logMissingAssignedProjects(filtered);
-        return filtered;
+        // Not authenticated — return empty, do not use stale cache
+        console.warn('[FetchProjects] Not authenticated — returning empty');
+        return [];
     } catch (e) {
-        if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        const consistentScopedProjects = enforceWorkspaceConsistencyForProjects(scopedProjects, 'error_fallback');
-        const combined = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(mergeProjectCollections(consistentScopedProjects, templateProjects)));
-        const filtered = applyClientFilter(combined);
-        logProjectFetchDiagnostics('error_fallback', consistentScopedProjects, filtered);
-        logMissingAssignedProjects(filtered);
-        return filtered;
+        console.error('[FetchProjects] API error — returning empty, not using stale cache', { error: e.message });
+        return [];
     }
 }
 
@@ -4580,33 +4526,17 @@ async function fetchTeamMembers() {
     if (!canAccessEntity('team')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('team_members', sampleTeamMembers);
     try {
-        if (isTeamUpdateCacheBypassActive() && isFirebaseUserAuthenticated()) {
+        if (isFirebaseUserAuthenticated()) {
             const records = await dashboardApiRequest('GET', 'team_members');
             const apiRecords = Array.isArray(records) ? records : [];
+            // API is source of truth — sync localStorage, no merging with stale data
             setLocalEntityData('team_members', apiRecords);
             return apiRecords;
         }
-        if (isFirebaseUserAuthenticated()) {
-            try {
-                const records = await dashboardApiRequest('GET', 'team_members');
-                const apiRecords = Array.isArray(records) ? records : [];
-                // API is source of truth — sync localStorage to prevent deleted records reappearing
-                setLocalEntityData('team_members', apiRecords);
-                return apiRecords;
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
-            }
-        }
-        if (shouldBypassDirectFirestoreForCollection('team_members')) {
-            return getLocalEntityData('team_members');
-        }
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) return [];
-        const snap = await db.collection('team_members').where('owner_key', '==', ownerKey).get();
-        return mergeEntityCollections(_snap(snap), getLocalEntityData('team_members'));
+        return [];
     } catch (e) {
         if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        return getLocalEntityData('team_members');
+        return [];
     }
 }
 
