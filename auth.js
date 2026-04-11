@@ -252,11 +252,13 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
       : null;
   if (sessionApi && typeof sessionApi.hardRefreshSessionFromServer === "function") {
     const hydrated = await sessionApi.hardRefreshSessionFromServer("login_hard_refresh");
-    if (hydrated && hydrated.workspaceId !== undefined) {
+    // Only accept if workspaceId is actually present (not empty string)
+    if (hydrated && String(hydrated.workspaceId || "").trim()) {
       return hydrated;
     }
   }
 
+  // Direct fallback: get token from the user object and call /api/me
   const token = await user.getIdToken(true);
   const response = await fetch("/api/me", {
     method: "GET",
@@ -268,6 +270,11 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload || !payload.user) {
     throw new Error("Could not refresh workspace session from server.");
+  }
+
+  // Validate that backend returned a workspaceId
+  if (!String(payload.user.workspaceId || "").trim()) {
+    throw new Error("Workspace could not be created. Please contact support.");
   }
 
   const mergedSession = {
