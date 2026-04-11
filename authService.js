@@ -13,6 +13,13 @@ import {
   updateProfile,
   verifyPasswordResetCode,
 } from "firebase/auth";
+
+// Bridge modular auth to global scope so supabase-config.js can access the token
+// This is necessary because supabase-config.js uses the compat SDK which may not
+// share auth state with the modular SDK on the login page.
+if (typeof window !== "undefined") {
+  window.__nexlance_modular_auth = auth;
+}
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 function normalizeEmail(email) {

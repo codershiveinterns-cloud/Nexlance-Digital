@@ -1402,11 +1402,35 @@ function createDashboardPermissionError(entity, action) {
 }
 
 function isFirebaseUserAuthenticated() {
-    return Boolean(typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser);
+    // Check compat SDK first, then modular SDK bridge (for login page)
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) return true;
+    if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) return true;
+    return false;
 }
 
 async function waitForFirebaseAuthSession(timeoutMs = 1800) {
+    // Check modular SDK bridge first (login page)
+    if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
+        return window.__nexlance_modular_auth.currentUser;
+    }
+
     if (!(typeof firebase !== 'undefined' && firebase.auth)) {
+        // No compat SDK — wait briefly for modular auth to become available
+        if (typeof window !== 'undefined') {
+            return new Promise(resolve => {
+                const deadline = Date.now() + Math.max(Number(timeoutMs) || 0, 0);
+                const check = () => {
+                    if (window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
+                        resolve(window.__nexlance_modular_auth.currentUser);
+                    } else if (Date.now() >= deadline) {
+                        resolve(null);
+                    } else {
+                        window.setTimeout(check, 50);
+                    }
+                };
+                check();
+            });
+        }
         return null;
     }
 
@@ -1432,7 +1456,13 @@ async function waitForFirebaseAuthSession(timeoutMs = 1800) {
             resolve(user || null);
         };
 
-        const timer = window.setTimeout(() => finish(authInstance.currentUser || null), Math.max(Number(timeoutMs) || 0, 0));
+        const timer = window.setTimeout(() => {
+            // Also check modular auth bridge before giving up
+            const modularUser = typeof window !== 'undefined' && window.__nexlance_modular_auth
+                ? window.__nexlance_modular_auth.currentUser
+                : null;
+            finish(authInstance.currentUser || modularUser || null);
+        }, Math.max(Number(timeoutMs) || 0, 0));
         unsubscribe = authInstance.onAuthStateChanged(
             user => {
                 window.clearTimeout(timer);
@@ -1459,7 +1489,14 @@ async function getDashboardBearerToken() {
         throw error;
     }
     clearAuthRedirectLock();
-    return firebase.auth().currentUser.getIdToken();
+    // Use compat SDK if available, otherwise use modular SDK bridge
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+        return firebase.auth().currentUser.getIdToken();
+    }
+    if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
+        return window.__nexlance_modular_auth.currentUser.getIdToken();
+    }
+    throw new Error('No authenticated Firebase user available.');
 }
 
 async function refreshCurrentSessionUserFromApi(options = {}) {

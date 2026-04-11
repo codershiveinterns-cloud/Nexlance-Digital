@@ -246,20 +246,10 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
 
   persistSession(provisionalSession);
 
-  const sessionApi =
-    typeof window !== "undefined" && window.NexlanceSessionState
-      ? window.NexlanceSessionState
-      : null;
-  if (sessionApi && typeof sessionApi.hardRefreshSessionFromServer === "function") {
-    const hydrated = await sessionApi.hardRefreshSessionFromServer("login_hard_refresh");
-    // Only accept if workspaceId is actually present (not empty string)
-    if (hydrated && String(hydrated.workspaceId || "").trim()) {
-      return hydrated;
-    }
-  }
-
-  // Direct fallback: get token from the user object and call /api/me
+  // ALWAYS use the modular SDK user object directly to get the token.
+  // Do NOT rely on supabase-config.js / compat SDK — they may not share auth state.
   const token = await user.getIdToken(true);
+
   const response = await fetch("/api/me", {
     method: "GET",
     headers: {
@@ -275,6 +265,15 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
   // Validate that backend returned a workspaceId
   if (!String(payload.user.workspaceId || "").trim()) {
     throw new Error("Workspace could not be created. Please contact support.");
+  }
+
+  // Also update NexlanceSessionState if available so supabase-config.js is in sync
+  const sessionApi =
+    typeof window !== "undefined" && window.NexlanceSessionState
+      ? window.NexlanceSessionState
+      : null;
+  if (sessionApi && typeof sessionApi.writeSessionFromAuthFlow === "function") {
+    sessionApi.writeSessionFromAuthFlow(payload.user, { persist: true });
   }
 
   const mergedSession = {
