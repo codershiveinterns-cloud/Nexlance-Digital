@@ -3200,7 +3200,10 @@ async function fetchClients() {
         if (isFirebaseUserAuthenticated()) {
             try {
                 const records = await dashboardApiRequest('GET', 'clients');
-                return Array.isArray(records) ? records : [];
+                const apiRecords = Array.isArray(records) ? records : [];
+                // API is source of truth — sync localStorage to prevent deleted records reappearing
+                setLocalEntityData('clients', apiRecords);
+                return apiRecords;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'clients', 'update');
             }
@@ -3493,12 +3496,12 @@ async function fetchProjects(clientId = null) {
                     decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database'),
                     'dashboard_api'
                 );
-                const combinedApiRecords = sortProjectsByRecent(mergeProjectCollections(
-                    Array.isArray(records) ? records : [],
-                    scopedProjects,
-                    templateProjects
-                ));
-                const visibleRecords = filterVisibleProjectSourcesForCurrentUser(combinedApiRecords);
+                // API is source of truth — sync localStorage and clear legacy stale data
+                const apiRecords = Array.isArray(records) ? records : [];
+                setLocalEntityData('projects', sortProjectsByRecent(apiRecords));
+                setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id));
+
+                const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(apiRecords));
                 const filtered = applyClientFilter(visibleRecords);
                 logProjectFetchDiagnostics('dashboard_api', records, filtered);
                 logMissingAssignedProjects(filtered);
@@ -4579,12 +4582,17 @@ async function fetchTeamMembers() {
     try {
         if (isTeamUpdateCacheBypassActive() && isFirebaseUserAuthenticated()) {
             const records = await dashboardApiRequest('GET', 'team_members');
-            return Array.isArray(records) ? records : [];
+            const apiRecords = Array.isArray(records) ? records : [];
+            setLocalEntityData('team_members', apiRecords);
+            return apiRecords;
         }
         if (isFirebaseUserAuthenticated()) {
             try {
                 const records = await dashboardApiRequest('GET', 'team_members');
-                return Array.isArray(records) ? records : [];
+                const apiRecords = Array.isArray(records) ? records : [];
+                // API is source of truth — sync localStorage to prevent deleted records reappearing
+                setLocalEntityData('team_members', apiRecords);
+                return apiRecords;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'update');
             }

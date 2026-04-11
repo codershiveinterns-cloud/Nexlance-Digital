@@ -72,15 +72,18 @@ function ensureOwnedDocument(record, sessionUser, collectionId = '') {
     const ownerEmail = getWorkspaceOwnerKey(sessionUser);
     const recordOwner = normalizeEmail(record && record.owner_key ? record.owner_key : record && record.owner_email ? record.owner_email : '');
     const recordWorkspaceId = String(record && record.workspace_id ? record.workspace_id : '').trim();
+    const sessionWorkspaceId = String(sessionUser.workspaceId || '').trim();
+
+    // For projects: match by workspace_id OR by owner_key (handles projects with empty workspace_id)
     if (String(collectionId || '').trim() === 'projects') {
         return Boolean(
-            recordWorkspaceId
-            && recordWorkspaceId === String(sessionUser.workspaceId || '').trim()
+            (recordWorkspaceId && sessionWorkspaceId && recordWorkspaceId === sessionWorkspaceId)
+            || (recordOwner && ownerEmail && recordOwner === normalizeEmail(ownerEmail))
         );
     }
     return Boolean(
         (recordOwner && recordOwner === normalizeEmail(ownerEmail))
-        || (recordWorkspaceId && recordWorkspaceId === String(sessionUser.workspaceId || '').trim())
+        || (recordWorkspaceId && sessionWorkspaceId && recordWorkspaceId === sessionWorkspaceId)
     );
 }
 
