@@ -423,13 +423,29 @@ function applySessionUserUpdate({
         ? incomingAssignmentUpdatedAtMsRaw
         : (incomingUpdatedAtMs > 0 ? incomingUpdatedAtMs : currentAssignmentUpdatedAtMs);
 
-    if (source === SESSION_UPDATE_SOURCE.API_ME && Number(requestId) > 0 && Number(requestId) < Number(SESSION_RUNTIME.lastAppliedRequestId || 0)) {
+    // CRITICAL: A valid workspaceId from backend ALWAYS overrides an empty cached workspaceId.
+    // This prevents timestamp/version guards from rejecting a real workspace in favor of a broken empty session.
+    const currentWorkspaceId = String(currentUser && (currentUser.workspaceId || currentUser.workspace_id) || '').trim();
+    const incomingWorkspaceId = String(candidate.workspaceId || candidate.workspace_id || '').trim();
+    const isWorkspaceRecovery = !currentWorkspaceId && Boolean(incomingWorkspaceId);
+    if (isWorkspaceRecovery) {
+        console.info('[SessionState] Workspace recovery — accepting update unconditionally', {
+            source,
+            requestId: Number(requestId) || 0,
+            incomingWorkspaceId,
+            currentWorkspaceId: '(empty)'
+        });
+        // Fall through to acceptance — skip all rejection guards below
+    }
+
+    if (!isWorkspaceRecovery && source === SESSION_UPDATE_SOURCE.API_ME && Number(requestId) > 0 && Number(requestId) < Number(SESSION_RUNTIME.lastAppliedRequestId || 0)) {
         console.info('[SessionState] Rejected session update', { source, reason: 'stale_request', requestId, latestRequestId: SESSION_RUNTIME.lastAppliedRequestId });
         return { accepted: false, reason: 'stale_request', changed: false, user: currentUser };
     }
 
     if (
-        source === SESSION_UPDATE_SOURCE.API_ME
+        !isWorkspaceRecovery
+        && source === SESSION_UPDATE_SOURCE.API_ME
         && Number(requestId) > 0
         && Number(SESSION_RUNTIME.latestRequestedRequestId || 0) > 0
         && Number(requestId) < Number(SESSION_RUNTIME.latestRequestedRequestId || 0)
@@ -444,7 +460,8 @@ function applySessionUserUpdate({
     }
 
     if (
-        source !== SESSION_UPDATE_SOURCE.API_ME
+        !isWorkspaceRecovery
+        && source !== SESSION_UPDATE_SOURCE.API_ME
         && SESSION_RUNTIME.isHydrated
         && scopeChanged
         && !force
@@ -500,7 +517,8 @@ function applySessionUserUpdate({
     }
 
     if (
-        incomingUpdatedAtMs > 0
+        !isWorkspaceRecovery
+        && incomingUpdatedAtMs > 0
         && currentUpdatedAtMs > 0
         && incomingUpdatedAtMs < currentUpdatedAtMs
         && !force
@@ -514,7 +532,7 @@ function applySessionUserUpdate({
         return { accepted: false, reason: 'older_timestamp', changed: false, user: currentUser };
     }
 
-    if (scopeChanged && !force) {
+    if (!isWorkspaceRecovery && scopeChanged && !force) {
         const newerByVersion = effectiveIncomingAssignmentVersion > currentAssignmentVersion;
         const sameVersion = effectiveIncomingAssignmentVersion === currentAssignmentVersion;
         const newerByTimestamp = effectiveIncomingAssignmentUpdatedAtMs > currentAssignmentUpdatedAtMs;
@@ -1480,65 +1498,88 @@ function isDashboardApiUnavailableError(error) {
     return Boolean(error && (error.code === 'api/unavailable' || error.code === 'api/not-configured'));
 }
 
+// Single-flight token fetch — prevents concurrent getIdToken() calls from racing
+let _inFlightTokenPromise = null;
+
 async function getDashboardBearerToken() {
-    await waitForFirebaseAuthSession();
-    if (!isFirebaseUserAuthenticated()) {
-        redirectToLoginForAuthMismatch('Your login session expired. Please sign in again to continue.');
-        const error = new Error('Please sign in again to continue.');
-        error.code = 'auth/not-authenticated';
-        throw error;
-    }
-    clearAuthRedirectLock();
-    // Use compat SDK if available, otherwise use modular SDK bridge
-    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
-        return firebase.auth().currentUser.getIdToken();
-    }
-    if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
-        return window.__nexlance_modular_auth.currentUser.getIdToken();
-    }
-    throw new Error('No authenticated Firebase user available.');
+    // If a token fetch is already in progress, reuse it
+    if (_inFlightTokenPromise) return _inFlightTokenPromise;
+
+    _inFlightTokenPromise = (async () => {
+        await waitForFirebaseAuthSession();
+        if (!isFirebaseUserAuthenticated()) {
+            redirectToLoginForAuthMismatch('Your login session expired. Please sign in again to continue.');
+            const error = new Error('Please sign in again to continue.');
+            error.code = 'auth/not-authenticated';
+            throw error;
+        }
+        clearAuthRedirectLock();
+        // Force-refresh token to avoid sending stale/expired tokens
+        if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+            return firebase.auth().currentUser.getIdToken(true);
+        }
+        if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
+            return window.__nexlance_modular_auth.currentUser.getIdToken(true);
+        }
+        throw new Error('No authenticated Firebase user available.');
+    })().finally(() => {
+        _inFlightTokenPromise = null;
+    });
+
+    return _inFlightTokenPromise;
 }
 
 async function refreshCurrentSessionUserFromApi(options = {}) {
     const reason = String(options.reason || 'manual_refresh').trim();
     if (!isFirebaseUserAuthenticated()) return null;
+
+    // Single-flight: if a request is already in-flight, reuse it instead of starting a new one.
+    // This prevents concurrent /api/me calls from aborting each other and discarding valid responses.
+    if (SESSION_RUNTIME.inFlightRefreshPromise) {
+        console.info('[AuthContext] /api/me request deduplicated — reusing in-flight request', { reason });
+        return SESSION_RUNTIME.inFlightRefreshPromise;
+    }
+
     const requestId = ++SESSION_RUNTIME.requestCounter;
     SESSION_RUNTIME.latestRequestedRequestId = requestId;
-    if (SESSION_RUNTIME.activeRefreshAbortController) {
-        try {
-            SESSION_RUNTIME.activeRefreshAbortController.abort();
-        } catch (error) {
-            // no-op
-        }
-    }
     const refreshAbortController = new AbortController();
     SESSION_RUNTIME.activeRefreshAbortController = refreshAbortController;
     const startedAt = Date.now();
     const refreshPromise = (async () => {
         try {
+            const makeApiMeRequest = async (attemptToken) => {
+                const response = await fetch('/api/me', {
+                    method: 'GET',
+                    headers: {
+                        Authorization: `Bearer ${attemptToken}`
+                    },
+                    credentials: 'same-origin',
+                    signal: refreshAbortController.signal
+                });
+                return response;
+            };
+
             const token = await getDashboardBearerToken();
             console.info('[AuthContext] /api/me request start', {
                 requestId,
                 reason,
                 hasBearerToken: Boolean(token),
-                hasCachedSession: localStorage.getItem('nexlance_auth') === '1',
-                latestRequestedRequestId: SESSION_RUNTIME.latestRequestedRequestId
+                hasCachedSession: localStorage.getItem('nexlance_auth') === '1'
             });
-            const response = await fetch('/api/me', {
-                method: 'GET',
-                headers: {
-                    Authorization: `Bearer ${token}`
-                },
-                credentials: 'same-origin',
-                signal: refreshAbortController.signal
-            });
-            if (requestId < Number(SESSION_RUNTIME.latestRequestedRequestId || 0)) {
-                console.info('[AuthContext] /api/me response ignored because a newer refresh is in-flight', {
-                    requestId,
-                    latestRequestedRequestId: SESSION_RUNTIME.latestRequestedRequestId
-                });
-                return getCurrentSessionUser();
+            let response = await makeApiMeRequest(token);
+
+            // Retry once on 401 with a force-refreshed token
+            if (response.status === 401) {
+                console.info('[AuthContext] /api/me got 401 — retrying with fresh token', { requestId });
+                const freshUser = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser)
+                    || (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser)
+                    || null;
+                if (freshUser) {
+                    const retryToken = await freshUser.getIdToken(true);
+                    response = await makeApiMeRequest(retryToken);
+                }
             }
+
             const payload = await response.json().catch(() => ({}));
             if (!response.ok || !payload || !payload.user) {
                 SESSION_RUNTIME.hydrationCompleted = true;
@@ -1567,21 +1608,10 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
             if (isMismatch) {
                 console.error('[ProjectAssignmentMismatch] FORCED_RESYNC_TRIGGERED', {
                     requestId,
-                    reason: 'backend_frontend_assignedProjectIds_mismatch',
                     workspaceId: nextScope.workspaceId,
                     email: currentUser.email,
                     frontendAssignedProjectIds: frontendSorted,
                     backendAssignedProjectIds: backendSorted,
-                    frontendCount: frontendSorted.length,
-                    backendCount: backendSorted.length,
-                    timestamp: new Date().toISOString()
-                });
-            } else {
-                console.info('[ProjectAssignmentMatch] Backend and frontend assignedProjectIds match', {
-                    requestId,
-                    workspaceId: nextScope.workspaceId,
-                    assignedProjectIds: backendSorted,
-                    count: backendSorted.length,
                     timestamp: new Date().toISOString()
                 });
             }
@@ -1620,17 +1650,12 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
                 changed: updateResult.changed,
                 reason: updateResult.reason,
                 durationMs: Date.now() - startedAt,
-                mismatchDetected: isMismatch,
-                forcedResync: isMismatch,
                 assignmentsValidatedByBackend: true
             });
             return updateResult.user || getCurrentSessionUser();
         } catch (error) {
             if (error && (error.name === 'AbortError' || error.code === 20)) {
-                console.info('[AuthContext] /api/me request aborted in favor of a newer request', {
-                    requestId,
-                    reason
-                });
+                console.info('[AuthContext] /api/me request aborted', { requestId, reason });
                 return getCurrentSessionUser();
             }
             SESSION_RUNTIME.hydrationCompleted = true;
@@ -1661,21 +1686,29 @@ async function ensureSessionHydration(reason = 'initial_hydration', options = {}
         SESSION_RUNTIME.hydrationCompleted = true;
         return getCurrentSessionUser();
     }
-    if (forceRetry) {
-        return refreshCurrentSessionUserFromApi({ reason: `${reason}_force_retry` });
-    }
-    if (SESSION_RUNTIME.isHydrated && !forceRetry) {
-        return getCurrentSessionUser();
+
+    // If a request is already in-flight, always reuse it — even for forceRetry.
+    // This prevents concurrent callers from aborting each other's valid requests.
+    if (SESSION_RUNTIME.inFlightRefreshPromise) {
+        console.info('[SessionState] ensureSessionHydration — reusing in-flight request', { reason, forceRetry });
+        return SESSION_RUNTIME.inFlightRefreshPromise;
     }
     if (SESSION_RUNTIME.hydrationPromise) {
         return SESSION_RUNTIME.hydrationPromise;
     }
-    if (SESSION_RUNTIME.hydrationCompleted && !forceRetry) {
+
+    // If already hydrated with a valid workspaceId, skip unless forced
+    if (!forceRetry && SESSION_RUNTIME.isHydrated) {
         return getCurrentSessionUser();
     }
+    if (!forceRetry && SESSION_RUNTIME.hydrationCompleted) {
+        return getCurrentSessionUser();
+    }
+
     SESSION_RUNTIME.hydrationCompleted = false;
     SESSION_RUNTIME.hydrationError = null;
-    SESSION_RUNTIME.hydrationPromise = refreshCurrentSessionUserFromApi({ reason }).finally(() => {
+    const effectiveReason = forceRetry ? `${reason}_force_retry` : reason;
+    SESSION_RUNTIME.hydrationPromise = refreshCurrentSessionUserFromApi({ reason: effectiveReason }).finally(() => {
         SESSION_RUNTIME.hydrationPromise = null;
     });
     return SESSION_RUNTIME.hydrationPromise;
