@@ -3556,6 +3556,10 @@ async function fetchProjects(clientId = null) {
         return [];
     }
 
+    // Always wait for Firebase auth before making API calls — cache loads synchronously
+    // but Firebase auth restores asynchronously from IndexedDB
+    await waitForFirebaseAuthSession(3000).catch(() => null);
+
     try {
         if (isFirebaseUserAuthenticated()) {
             const records = enforceWorkspaceConsistencyForProjects(
