@@ -1502,6 +1502,9 @@ function isDashboardApiUnavailableError(error) {
     return Boolean(error && (error.code === 'api/unavailable' || error.code === 'api/not-configured'));
 }
 
+// Track project IDs with in-flight deletes so the realtime listener doesn't re-add them
+const _pendingDeletes = new Set();
+
 // Single-flight token fetch — prevents concurrent getIdToken() calls from racing
 let _inFlightTokenPromise = null;
 
@@ -2623,6 +2626,12 @@ function applyRealtimeSnapshotToEntity(entity, snapshot) {
         if (!doc) return;
         const recordId = String(doc.id || '').trim();
         if (!recordId) return;
+
+        if (_pendingDeletes.has(recordId)) {
+            byId.delete(recordId);
+            changed = true;
+            return;
+        }
 
         const previousRecord = byId.get(recordId) || null;
         if (change.type === 'removed') {
@@ -3849,6 +3858,8 @@ async function deleteProject(id) {
     const projectId = String(id || '').trim();
     if (!projectId) return;
 
+    _pendingDeletes.add(projectId);
+
     const optimisticProjectsSnapshot = createEntityRecordsSnapshot('projects');
     const optimisticLegacySnapshot = getLegacyTemplateProjects().map(record => ({ ...(record || {}) }));
     const optimisticScopedRecords = optimisticProjectsSnapshot.filter(project => String(project && project.id || '') !== projectId);
@@ -3858,6 +3869,7 @@ async function deleteProject(id) {
 
     const rollbackOptimisticState = () => {
         if (!optimisticApplied) return;
+        _pendingDeletes.delete(projectId);
         restoreEntityRecordsSnapshot('projects', optimisticProjectsSnapshot);
         setLegacyTemplateProjects(optimisticLegacySnapshot);
     };
@@ -3875,6 +3887,7 @@ async function deleteProject(id) {
         if (isFirebaseUserAuthenticated()) {
             try {
                 await dashboardApiRequest('DELETE', 'projects', projectId);
+                _pendingDeletes.delete(projectId);
                 return;
             } catch (error) {
                 if (!isDashboardApiUnavailableError(error)) {
@@ -3891,6 +3904,7 @@ async function deleteProject(id) {
             const legacyRecords = getLegacyTemplateProjects().filter(project => String(project && project.id || '') !== projectId);
             setLegacyTemplateProjects(legacyRecords);
         }
+        _pendingDeletes.delete(projectId);
         return;
     }
     if (shouldBypassDirectFirestoreForCollection('projects')) {
@@ -3900,10 +3914,12 @@ async function deleteProject(id) {
             const legacyRecords = getLegacyTemplateProjects().filter(project => String(project && project.id || '') !== projectId);
             setLegacyTemplateProjects(legacyRecords);
         }
+        _pendingDeletes.delete(projectId);
         return;
     }
     try {
         await db.collection('projects').doc(projectId).delete();
+        _pendingDeletes.delete(projectId);
     } catch (error) {
         const message = String(error && error.message ? error.message : '');
         const code = String(error && error.code ? error.code : '');
@@ -3912,6 +3928,7 @@ async function deleteProject(id) {
             || code === 'not-found'
             || code === 5;
         if (shouldUseLocalEntityFallback(error) || isMissingDocumentError) {
+            _pendingDeletes.delete(projectId);
             return;
         }
         rollbackOptimisticState();
