@@ -1505,6 +1505,9 @@ function isDashboardApiUnavailableError(error) {
 // Track project IDs with in-flight deletes so the realtime listener doesn't re-add them
 const _pendingDeletes = new Set();
 
+// Single-flight guard for fetchProjects — prevents concurrent API calls
+let _inFlightFetchProjectsPromise = null;
+
 // Single-flight token fetch — prevents concurrent getIdToken() calls from racing
 let _inFlightTokenPromise = null;
 
@@ -3483,6 +3486,20 @@ async function deleteClient(id) {
 
 async function fetchProjects(clientId = null) {
     if (!canAccessEntity('projects')) return [];
+
+    // Single-flight: reuse in-flight request to prevent concurrent API calls
+    if (_inFlightFetchProjectsPromise) {
+        const cached = await _inFlightFetchProjectsPromise.catch(() => []);
+        return clientId ? cached.filter(project => project.client_id === clientId) : cached;
+    }
+
+    _inFlightFetchProjectsPromise = _fetchProjectsImpl(clientId).finally(() => {
+        _inFlightFetchProjectsPromise = null;
+    });
+    return _inFlightFetchProjectsPromise;
+}
+
+async function _fetchProjectsImpl(clientId = null) {
     const hydrationPending = isSessionHydrationPendingForScopedData();
     if (hydrationPending) {
         console.info('[SessionState] fetchProjects - hydration pending, awaiting before fetch', {
@@ -3579,8 +3596,8 @@ async function fetchProjects(clientId = null) {
             );
             const apiRecords = (Array.isArray(records) ? records : [])
                 .filter(record => !_pendingDeletes.has(String(record && record.id || '')));
-            // Sync localStorage with API response — API is source of truth
-            setLocalEntityData('projects', sortProjectsByRecent(apiRecords));
+            // Sync localStorage with API response — silent to avoid re-triggering init() → fetchProjects() loop
+            setLocalEntityData('projects', sortProjectsByRecent(apiRecords), { silent: true });
             setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id));
 
             const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(apiRecords));
@@ -3593,7 +3610,12 @@ async function fetchProjects(clientId = null) {
         console.warn('[FetchProjects] Not authenticated — returning empty');
         return [];
     } catch (e) {
-        console.error('[FetchProjects] API error — returning empty, not using stale cache', { error: e.message });
+        console.error('[FetchProjects] API error — falling back to cached data', { error: e.message });
+        const cachedRecords = getLocalEntityData('projects');
+        if (cachedRecords.length) {
+            const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(cachedRecords));
+            return applyClientFilter(visibleRecords);
+        }
         return [];
     }
 }
