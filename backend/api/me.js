@@ -70,6 +70,15 @@ module.exports = async function handler(req, res) {
             user: sessionUser
         });
     } catch (error) {
-        sendApiError(res, error, 'Authentication is required.', 401);
+        const statusCode = error.statusCode || error.status || 0;
+        if (statusCode === 401 || statusCode === 403) {
+            sendApiError(res, error, 'Authentication is required.', statusCode);
+        } else {
+            console.error('[API /me] Workspace setup error:', {
+                message: error.message,
+                stack: error.stack
+            });
+            sendApiError(res, error, 'Internal server error during session setup.', 500);
+        }
     }
 };

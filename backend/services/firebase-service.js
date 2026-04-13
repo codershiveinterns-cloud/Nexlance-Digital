@@ -1,135 +1,8 @@
-const crypto = require('crypto');
 const { DEFAULT_CURRENCY } = require('../../billing-catalog.js');
+const admin = require('./firebase-admin-init');
 
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nexlance-df59e';
-const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || '';
-const FIREBASE_PRIVATE_KEY = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
-const FIRESTORE_SCOPE = 'https://www.googleapis.com/auth/datastore';
-
-let accessTokenCache = null;
+const db = admin.firestore();
 const DEFAULT_CURRENCY_CODE = String(DEFAULT_CURRENCY || 'gbp').trim().toUpperCase() || 'GBP';
-
-function assertFirebaseServiceConfig() {
-    if (!FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY) {
-        throw new Error('Missing FIREBASE_CLIENT_EMAIL or FIREBASE_PRIVATE_KEY environment variables.');
-    }
-}
-
-function encodeBase64Url(input) {
-    return Buffer.from(input)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '');
-}
-
-function createServiceAccountJwt() {
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-        iss: FIREBASE_CLIENT_EMAIL,
-        scope: FIRESTORE_SCOPE,
-        aud: GOOGLE_TOKEN_URL,
-        exp: now + 3600,
-        iat: now
-    };
-
-    const encodedHeader = encodeBase64Url(JSON.stringify(header));
-    const encodedPayload = encodeBase64Url(JSON.stringify(payload));
-    const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-    const signature = crypto.createSign('RSA-SHA256').update(unsignedToken).sign(FIREBASE_PRIVATE_KEY, 'base64');
-    const encodedSignature = signature.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-
-    return `${unsignedToken}.${encodedSignature}`;
-}
-
-async function getGoogleAccessToken() {
-    assertFirebaseServiceConfig();
-
-    if (accessTokenCache && accessTokenCache.expiresAt > Date.now() + 60000) {
-        return accessTokenCache.token;
-    }
-
-    const assertion = createServiceAccountJwt();
-    const params = new URLSearchParams();
-    params.set('grant_type', 'urn:ietf:params:oauth:grant-type:jwt-bearer');
-    params.set('assertion', assertion);
-
-    const response = await fetch(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString()
-    });
-
-    const data = await response.json();
-    if (!response.ok || !data.access_token) {
-        throw new Error(data.error_description || data.error || 'Could not obtain Google access token.');
-    }
-
-    accessTokenCache = {
-        token: data.access_token,
-        expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000
-    };
-
-    return accessTokenCache.token;
-}
-
-function encodeFirestoreValue(value) {
-    if (value === null || value === undefined) return { nullValue: null };
-    if (typeof value === 'boolean') return { booleanValue: value };
-    if (typeof value === 'number') {
-        return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
-    }
-    if (Array.isArray(value)) {
-        return { arrayValue: { values: value.map(encodeFirestoreValue) } };
-    }
-    if (value instanceof Date) {
-        return { timestampValue: value.toISOString() };
-    }
-    if (typeof value === 'object') {
-        return {
-            mapValue: {
-                fields: Object.fromEntries(
-                    Object.entries(value).map(([key, nestedValue]) => [key, encodeFirestoreValue(nestedValue)])
-                )
-            }
-        };
-    }
-    return { stringValue: String(value) };
-}
-
-function decodeFirestoreValue(value) {
-    if (!value || typeof value !== 'object') return null;
-    if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
-    if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue;
-    if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue);
-    if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
-    if (Object.prototype.hasOwnProperty.call(value, 'timestampValue')) return value.timestampValue;
-    if (Object.prototype.hasOwnProperty.call(value, 'arrayValue')) {
-        return Array.isArray(value.arrayValue.values)
-            ? value.arrayValue.values.map(decodeFirestoreValue)
-            : [];
-    }
-    if (Object.prototype.hasOwnProperty.call(value, 'mapValue')) {
-        const fields = value.mapValue && value.mapValue.fields ? value.mapValue.fields : {};
-        return Object.fromEntries(
-            Object.entries(fields).map(([key, nestedValue]) => [key, decodeFirestoreValue(nestedValue)])
-        );
-    }
-    if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
-    return null;
-}
-
-function decodeFirestoreDocument(doc) {
-    const decoded = {};
-    const fields = doc && doc.fields ? doc.fields : {};
-    Object.keys(fields).forEach(key => {
-        decoded[key] = decodeFirestoreValue(fields[key]);
-    });
-    return decoded;
-}
 
 function sanitizeDocumentId(value) {
     return String(value || '')
@@ -140,96 +13,44 @@ function sanitizeDocumentId(value) {
         .slice(0, 140) || `doc_${Date.now()}`;
 }
 
-function getDocumentEndpoint(collectionId, docId) {
-    return `${FIRESTORE_BASE_URL}/${encodeURIComponent(collectionId)}/${encodeURIComponent(docId)}`;
-}
-
 async function listCollectionDocuments(collectionId, options = {}) {
-    const accessToken = await getGoogleAccessToken();
-    const pageSize = Number(options.pageSize || 500);
-    let pageToken = '';
+    const collectionRef = db.collection(collectionId);
+    const snapshot = await collectionRef.get();
     const results = [];
 
-    do {
-        const url = new URL(`${FIRESTORE_BASE_URL}/${encodeURIComponent(collectionId)}`);
-        url.searchParams.set('pageSize', String(pageSize));
-        if (pageToken) {
-            url.searchParams.set('pageToken', pageToken);
-        }
-
-        const response = await fetch(url.toString(), {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
+    snapshot.forEach(doc => {
+        results.push({
+            id: doc.id,
+            ...doc.data(),
+            __createTime: doc.createTime ? doc.createTime.toDate().toISOString() : '',
+            __updateTime: doc.updateTime ? doc.updateTime.toDate().toISOString() : ''
         });
-
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error((data.error && data.error.message) || `Could not list Firestore collection ${collectionId}.`);
-        }
-
-        const documents = Array.isArray(data.documents) ? data.documents : [];
-        documents.forEach(doc => {
-            results.push({
-                id: doc.name.split('/').pop(),
-                ...decodeFirestoreDocument(doc),
-                __documentName: doc.name,
-                __createTime: doc.createTime || '',
-                __updateTime: doc.updateTime || ''
-            });
-        });
-
-        pageToken = data.nextPageToken || '';
-    } while (pageToken);
+    });
 
     return results;
 }
 
 async function findUserDocumentByEmail(email) {
-    const accessToken = await getGoogleAccessToken();
-    const response = await fetch(`${FIRESTORE_BASE_URL}:runQuery`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            structuredQuery: {
-                from: [{ collectionId: 'users' }],
-                where: {
-                    fieldFilter: {
-                        field: { fieldPath: 'email' },
-                        op: 'EQUAL',
-                        value: { stringValue: String(email).trim().toLowerCase() }
-                    }
-                },
-                limit: 1
-            }
-        })
-    });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const snapshot = await db.collection('users')
+        .where('email', '==', normalizedEmail)
+        .limit(1)
+        .get();
 
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || 'Could not query Firestore user.');
-    }
-
-    const documentEntry = Array.isArray(data) ? data.find(entry => entry.document) : null;
-    if (!documentEntry || !documentEntry.document) {
+    if (snapshot.empty) {
         return null;
     }
 
+    const doc = snapshot.docs[0];
     return {
-        id: documentEntry.document.name.split('/').pop(),
-        name: documentEntry.document.name,
-        data: decodeFirestoreDocument(documentEntry.document)
+        id: doc.id,
+        name: doc.ref.path,
+        data: doc.data()
     };
 }
 
 async function queryCollectionDocuments(collectionId, options = {}) {
-    const accessToken = await getGoogleAccessToken();
     const fieldPath = String(options.fieldPath || '').trim();
-    const op = String(options.op || 'EQUAL').trim();
     const limit = Number(options.limit || 10);
     const value = options.value;
 
@@ -237,208 +58,97 @@ async function queryCollectionDocuments(collectionId, options = {}) {
         throw new Error('Collection and fieldPath are required to query Firestore.');
     }
 
-    const response = await fetch(`${FIRESTORE_BASE_URL}:runQuery`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            structuredQuery: {
-                from: [{ collectionId: String(collectionId) }],
-                where: {
-                    fieldFilter: {
-                        field: { fieldPath },
-                        op,
-                        value: encodeFirestoreValue(value)
-                    }
-                },
-                limit
-            }
-        })
-    });
+    const opMap = {
+        'EQUAL': '==',
+        'NOT_EQUAL': '!=',
+        'LESS_THAN': '<',
+        'LESS_THAN_OR_EQUAL': '<=',
+        'GREATER_THAN': '>',
+        'GREATER_THAN_OR_EQUAL': '>=',
+        'ARRAY_CONTAINS': 'array-contains',
+        'IN': 'in',
+        'ARRAY_CONTAINS_ANY': 'array-contains-any',
+        'NOT_IN': 'not-in'
+    };
 
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || `Could not query Firestore collection ${collectionId}.`);
-    }
+    const op = String(options.op || 'EQUAL').trim();
+    const firestoreOp = opMap[op] || '==';
 
-    return (Array.isArray(data) ? data : [])
-        .filter(entry => entry && entry.document)
-        .map(entry => ({
-            id: entry.document.name.split('/').pop(),
-            name: entry.document.name,
-            data: decodeFirestoreDocument(entry.document)
-        }));
+    const snapshot = await db.collection(collectionId)
+        .where(fieldPath, firestoreOp, value)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.ref.path,
+        data: doc.data()
+    }));
 }
 
 async function getCollectionDocument(collectionId, docId) {
-    const accessToken = await getGoogleAccessToken();
-    const response = await fetch(getDocumentEndpoint(collectionId, docId), {
-        method: 'GET',
-        headers: {
-            Authorization: `Bearer ${accessToken}`
-        }
-    });
+    const docRef = db.collection(collectionId).doc(docId);
+    const doc = await docRef.get();
 
-    if (response.status === 404) {
+    if (!doc.exists) {
         return null;
     }
 
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || `Could not fetch Firestore document ${collectionId}/${docId}.`);
-    }
-
     return {
-        id: data.name.split('/').pop(),
-        name: data.name,
-        data: decodeFirestoreDocument(data)
+        id: doc.id,
+        name: doc.ref.path,
+        data: doc.data()
     };
 }
 
-async function patchFirestoreDocument(documentName, fields) {
-    const accessToken = await getGoogleAccessToken();
-    const updateMask = Object.keys(fields)
-        .map(key => `updateMask.fieldPaths=${encodeURIComponent(key)}`)
-        .join('&');
-
-    const response = await fetch(`https://firestore.googleapis.com/v1/${documentName}?${updateMask}`, {
-        method: 'PATCH',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            fields: Object.fromEntries(
-                Object.entries(fields).map(([key, value]) => [key, encodeFirestoreValue(value)])
-            )
-        })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || 'Could not update Firestore user.');
-    }
-
-    return decodeFirestoreDocument(data);
-}
-
 async function upsertCollectionDocument(collectionId, docId, fields) {
-    const accessToken = await getGoogleAccessToken();
     const normalizedDocId = sanitizeDocumentId(docId);
-    const updateMask = Object.keys(fields)
-        .map(key => `updateMask.fieldPaths=${encodeURIComponent(key)}`)
-        .join('&');
-
-    const response = await fetch(`${getDocumentEndpoint(collectionId, normalizedDocId)}?${updateMask}`, {
-        method: 'PATCH',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            fields: Object.fromEntries(
-                Object.entries(fields).map(([key, value]) => [key, encodeFirestoreValue(value)])
-            )
-        })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || `Could not upsert Firestore document ${collectionId}/${normalizedDocId}.`);
-    }
+    const docRef = db.collection(collectionId).doc(normalizedDocId);
+    await docRef.set(fields, { merge: true });
 
     return {
         id: normalizedDocId,
-        ...decodeFirestoreDocument(data)
+        ...fields
     };
 }
 
 async function createCollectionDocument(collectionId, fields, docId = '') {
-    const accessToken = await getGoogleAccessToken();
-    const normalizedDocId = docId ? sanitizeDocumentId(docId) : '';
-    const url = normalizedDocId
-        ? `${FIRESTORE_BASE_URL}/${encodeURIComponent(collectionId)}?documentId=${encodeURIComponent(normalizedDocId)}`
-        : `${FIRESTORE_BASE_URL}/${encodeURIComponent(collectionId)}`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            fields: Object.fromEntries(
-                Object.entries(fields).map(([key, value]) => [key, encodeFirestoreValue(value)])
-            )
-        })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || `Could not create Firestore document in ${collectionId}.`);
+    if (docId) {
+        const normalizedDocId = sanitizeDocumentId(docId);
+        const docRef = db.collection(collectionId).doc(normalizedDocId);
+        await docRef.set(fields);
+        return {
+            id: normalizedDocId,
+            ...fields
+        };
     }
 
+    const docRef = await db.collection(collectionId).add(fields);
     return {
-        id: data.name.split('/').pop(),
-        ...decodeFirestoreDocument(data)
+        id: docRef.id,
+        ...fields
     };
 }
 
 async function patchCollectionDocument(collectionId, docId, fields) {
-    const accessToken = await getGoogleAccessToken();
-    const updateMask = Object.keys(fields)
-        .map(key => `updateMask.fieldPaths=${encodeURIComponent(key)}`)
-        .join('&');
-
-    const response = await fetch(`${getDocumentEndpoint(collectionId, docId)}?${updateMask}`, {
-        method: 'PATCH',
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            fields: Object.fromEntries(
-                Object.entries(fields).map(([key, value]) => [key, encodeFirestoreValue(value)])
-            )
-        })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error((data.error && data.error.message) || `Could not update Firestore document ${collectionId}/${docId}.`);
-    }
+    const docRef = db.collection(collectionId).doc(docId);
+    await docRef.update(fields);
 
     return {
         id: docId,
-        ...decodeFirestoreDocument(data)
+        ...fields
     };
 }
 
 async function deleteCollectionDocument(collectionId, docId) {
-    const accessToken = await getGoogleAccessToken();
-    const response = await fetch(getDocumentEndpoint(collectionId, docId), {
-        method: 'DELETE',
-        headers: {
-            Authorization: `Bearer ${accessToken}`
-        }
-    });
+    const docRef = db.collection(collectionId).doc(docId);
+    const doc = await docRef.get();
 
-    if (response.status === 404) {
+    if (!doc.exists) {
         return false;
     }
 
-    if (!response.ok) {
-        let data = null;
-        try {
-            data = await response.json();
-        } catch (error) {
-            data = null;
-        }
-        throw new Error((data && data.error && data.error.message) || `Could not delete Firestore document ${collectionId}/${docId}.`);
-    }
-
+    await docRef.delete();
     return true;
 }
 
@@ -455,14 +165,13 @@ async function updateUserByEmail(email, updatesOrResolver) {
         throw new Error('User updates must resolve to an object.');
     }
 
-    const updated = await patchFirestoreDocument(userDoc.name, {
-        ...nextFields
-    });
+    const docRef = db.collection('users').doc(userDoc.id);
+    await docRef.update(nextFields);
 
     return {
-        id: userDoc.name.split('/').pop(),
+        id: userDoc.id,
         ...userDoc.data,
-        ...updated
+        ...nextFields
     };
 }
 
@@ -596,8 +305,7 @@ module.exports = {
     recordTemplateEntitlement,
     sanitizeDocumentId,
     updateUserByEmail,
-    updateUserPlanByEmail
-    ,
+    updateUserPlanByEmail,
     upsertCollectionDocument,
     upsertPaymentAttempt,
     upsertPaymentRecord,

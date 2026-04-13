@@ -271,7 +271,10 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
       continue;
     }
 
-    throw new Error("Could not refresh workspace session from server.");
+    const errorMessage = response.status === 500
+      ? "Server error during workspace setup. Please try again in a moment."
+      : "Could not refresh workspace session from server.";
+    throw new Error(errorMessage);
   }
 
   // Validate that backend returned a workspaceId
@@ -638,7 +641,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       setMessage(
         "loginMessage",
-        "Login succeeded but workspace session sync failed. Please try signing in again.",
+        error.message || "Login succeeded but workspace session sync failed. Please try signing in again.",
         "error"
       );
       return;
