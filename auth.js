@@ -248,17 +248,29 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
 
   // ALWAYS use the modular SDK user object directly to get the token.
   // Do NOT rely on supabase-config.js / compat SDK — they may not share auth state.
-  const token = await user.getIdToken(true);
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 400;
+  let response;
+  let payload;
 
-  const response = await fetch("/api/me", {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    credentials: "same-origin",
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload || !payload.user) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const token = await user.getIdToken(attempt > 0);
+    response = await fetch("/api/me", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: "same-origin",
+    });
+    payload = await response.json().catch(() => ({}));
+
+    if (response.ok && payload && payload.user) break;
+
+    if (response.status === 401 && attempt < MAX_RETRIES) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      continue;
+    }
+
     throw new Error("Could not refresh workspace session from server.");
   }
 
@@ -616,17 +628,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const { user, profile } = result;
-
-    // Sync compat SDK auth state so dashboard pages (which use compat SDK) have a valid session.
-    // The modular SDK (authService.js) did the actual login, but supabase-config.js uses
-    // firebase.auth().currentUser (compat SDK) for token fetching on dashboard/projects pages.
-    if (typeof firebase !== "undefined" && firebase.auth) {
-      try {
-        await firebase.auth().signInWithEmailAndPassword(email, password);
-      } catch (compatError) {
-        console.warn("[AuthSync] Compat SDK sign-in failed — dashboard may need re-login", compatError.message);
-      }
-    }
 
     try {
       await hardRefreshServerSessionAfterLogin(user, profile, accessFields);

@@ -1,49 +1,49 @@
 const AccessControl = require('../../rbac.js');
 const { ensureWorkspaceAccessProfile, buildSessionUser } = require('./workspace-access');
+const admin = require('firebase-admin');
 
-const FIREBASE_WEB_API_KEY = String(
-    process.env.FIREBASE_WEB_API_KEY
-    || process.env.FIREBASE_API_KEY
-    || 'AIzaSyCv56CN--eQLTCxomNItL2FgLRoIbdsdoM'
-).trim();
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'nexlance-df59e';
+const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL || '';
+const FIREBASE_PRIVATE_KEY = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 
-async function verifyFirebaseIdToken(idToken) {
-    if (!FIREBASE_WEB_API_KEY) {
-        throw new Error('Missing FIREBASE_WEB_API_KEY or FIREBASE_API_KEY environment variable.');
-    }
-
-    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_WEB_API_KEY)}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            idToken: String(idToken || '').trim()
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: FIREBASE_PROJECT_ID,
+            clientEmail: FIREBASE_CLIENT_EMAIL,
+            privateKey: FIREBASE_PRIVATE_KEY
         })
     });
+}
 
-    const data = await response.json();
-    if (!response.ok) {
-        const message = data && data.error && data.error.message
-            ? data.error.message
-            : 'Invalid Firebase ID token.';
-        const error = new Error(message);
+async function verifyFirebaseIdToken(idToken) {
+    const token = String(idToken || '').trim();
+    if (!token) {
+        const error = new Error('Missing Firebase ID token.');
         error.statusCode = 401;
         throw error;
     }
 
-    const account = Array.isArray(data.users) ? data.users[0] : null;
-    if (!account || !account.localId || !account.email) {
-        const error = new Error('Firebase account lookup did not return a valid user.');
+    let decoded;
+    try {
+        decoded = await admin.auth().verifyIdToken(token);
+    } catch (err) {
+        const error = new Error(err.message || 'Invalid Firebase ID token.');
+        error.statusCode = 401;
+        throw error;
+    }
+
+    if (!decoded || !decoded.uid || !decoded.email) {
+        const error = new Error('Firebase token did not contain a valid user.');
         error.statusCode = 401;
         throw error;
     }
 
     return {
-        uid: String(account.localId),
-        email: AccessControl.normalizeEmail(account.email),
-        emailVerified: Boolean(account.emailVerified),
-        displayName: String(account.displayName || '').trim()
+        uid: String(decoded.uid),
+        email: AccessControl.normalizeEmail(decoded.email),
+        emailVerified: Boolean(decoded.email_verified),
+        displayName: String(decoded.name || '').trim()
     };
 }
 

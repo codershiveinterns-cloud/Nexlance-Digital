@@ -1424,9 +1424,9 @@ function createDashboardPermissionError(entity, action) {
 }
 
 function isFirebaseUserAuthenticated() {
-    // Check compat SDK first, then modular SDK bridge (for login page)
-    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) return true;
+    // Check modular SDK bridge first (preferred), then compat SDK as fallback
     if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) return true;
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) return true;
     return false;
 }
 
@@ -1518,12 +1518,12 @@ async function getDashboardBearerToken() {
             throw error;
         }
         clearAuthRedirectLock();
-        // Force-refresh token to avoid sending stale/expired tokens
-        if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
-            return firebase.auth().currentUser.getIdToken(true);
-        }
+        // Force-refresh token — prefer modular SDK (single auth state), compat SDK as fallback
         if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
             return window.__nexlance_modular_auth.currentUser.getIdToken(true);
+        }
+        if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+            return firebase.auth().currentUser.getIdToken(true);
         }
         throw new Error('No authenticated Firebase user available.');
     })().finally(() => {
@@ -1575,8 +1575,8 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
             // Retry once on 401 with a force-refreshed token
             if (response.status === 401) {
                 console.info('[AuthContext] /api/me got 401 — retrying with fresh token', { requestId });
-                const freshUser = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser)
-                    || (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser)
+                const freshUser = (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser)
+                    || (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser)
                     || null;
                 if (freshUser) {
                     const retryToken = await freshUser.getIdToken(true);
