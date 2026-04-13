@@ -48,6 +48,7 @@ const projectTemplateWorkspaceHandler = require('./api/project-template-workspac
 const projectTemplateWorkspaceSaveHandler = require('./api/project-template-workspace-save');
 const projectTemplateWorkspaceUnlockHandler = require('./api/project-template-workspace-unlock');
 const projectSyncHandler = require('./api/project-sync');
+const userPreferencesHandler = require('./api/user-preferences');
 const templateAccessCompleteHandler = require('./api/template-access-complete');
 const templateAccessStartHandler = require('./api/template-access-start');
 const templateDownloadHandler = require('./api/template-download');
@@ -871,6 +872,10 @@ const server = http.createServer(async (req, res) => {
             sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
         }
         return;
+    }
+
+    if ((req.method === 'GET' || req.method === 'PATCH') && url.pathname === '/api/user-preferences') {
+        return userPreferencesHandler(req, res);
     }
 
     if (req.method === 'GET' && url.pathname === '/api/invitations/resolve') {

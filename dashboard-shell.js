@@ -290,6 +290,46 @@
         return nextTheme;
     }
 
+    async function getAuthBearerToken() {
+        if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
+            return window.__nexlance_modular_auth.currentUser.getIdToken(false);
+        }
+        if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+            return firebase.auth().currentUser.getIdToken(false);
+        }
+        return null;
+    }
+
+    async function syncPreferencesToBackend(settings) {
+        try {
+            const token = await getAuthBearerToken();
+            if (!token) return;
+            await fetch('/api/user-preferences', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+                body: JSON.stringify({ preferences: settings })
+            });
+        } catch (error) {
+            console.warn('[DashboardShell] Could not sync preferences to backend:', error.message);
+        }
+    }
+
+    async function loadPreferencesFromBackend() {
+        try {
+            const token = await getAuthBearerToken();
+            if (!token) return null;
+            const response = await fetch('/api/user-preferences', {
+                method: 'GET',
+                headers: { Authorization: 'Bearer ' + token }
+            });
+            if (!response.ok) return null;
+            const payload = await response.json();
+            return payload && payload.preferences ? payload.preferences : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
     function saveDashboardSettings(nextSettings) {
         const mergedSettings = { ...getDefaultDashboardSettings(), ...nextSettings };
         const scopedSettingsKey = getScopedStorageKey(SETTINGS_STORAGE_KEY);
@@ -299,6 +339,9 @@
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(mergedSettings));
         localStorage.setItem(scopedThemeKey, mergedSettings.theme);
         localStorage.setItem(THEME_STORAGE_KEY, mergedSettings.theme);
+
+        // Sync to Firebase in the background
+        syncPreferencesToBackend(mergedSettings);
 
         window.dispatchEvent(new CustomEvent('nexlance-dashboard-settings-changed', {
             detail: { settings: mergedSettings }
@@ -321,6 +364,27 @@
         applyTheme(settings.theme);
         applyProfileVisibility(settings);
         return settings;
+    }
+
+    let _preferencesHydrated = false;
+    async function hydratePreferencesFromBackend() {
+        if (_preferencesHydrated) return;
+        _preferencesHydrated = true;
+        const remote = await loadPreferencesFromBackend();
+        if (!remote || !Object.keys(remote).length) return;
+        const local = getStoredDashboardSettings();
+        const remoteUpdatedAt = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
+        // Only apply remote if it has newer data
+        if (!remoteUpdatedAt) return;
+        const merged = { ...local, ...remote };
+        delete merged.updatedAt;
+        const scopedSettingsKey = getScopedStorageKey(SETTINGS_STORAGE_KEY);
+        const scopedThemeKey = getScopedStorageKey(THEME_STORAGE_KEY);
+        localStorage.setItem(scopedSettingsKey, JSON.stringify(merged));
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+        localStorage.setItem(scopedThemeKey, merged.theme);
+        localStorage.setItem(THEME_STORAGE_KEY, merged.theme);
+        applySettingsToPage();
     }
 
     function removeDashboardSearchBars() {
@@ -524,6 +588,7 @@
             ensureMobileSidebarToggle();
             ensureAuthProfileRefresh();
             refreshTopbarProfile({ force: true }).catch(() => undefined);
+            hydratePreferencesFromBackend().catch(() => undefined);
         });
     } else {
         if (!enforceVerifiedSession()) return;
@@ -533,6 +598,7 @@
         ensureMobileSidebarToggle();
         ensureAuthProfileRefresh();
         refreshTopbarProfile({ force: true }).catch(() => undefined);
+        hydratePreferencesFromBackend().catch(() => undefined);
     }
 
     window.addEventListener('storage', handleStorageSync);
