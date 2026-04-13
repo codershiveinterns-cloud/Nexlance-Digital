@@ -132,7 +132,7 @@ async function createCollectionDocument(collectionId, fields, docId = '') {
 
 async function patchCollectionDocument(collectionId, docId, fields) {
     const docRef = db.collection(collectionId).doc(docId);
-    await docRef.update(fields);
+    await docRef.set(fields, { merge: true });
 
     return {
         id: docId,
