@@ -291,6 +291,11 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
     sessionApi.writeSessionFromAuthFlow(payload.user, { persist: true });
   }
 
+  // Clear stale entity caches from previous session to prevent ghost project IDs
+  ["nexlance_projects", "nexlance_tasks", "nexlance_clients", "nexlance_invoices", "nexlance_services", "nexlance_team_members"].forEach((key) => {
+    localStorage.removeItem(key);
+  });
+
   const mergedSession = {
     ...provisionalSession,
     ...payload.user,

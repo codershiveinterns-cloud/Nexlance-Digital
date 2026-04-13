@@ -1806,6 +1806,12 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
             unavailable.code = 'api/unavailable';
             throw unavailable;
         }
+        if (response.status === 429) {
+            const quota = new Error((data && data.error) || 'Service temporarily unavailable. Please try again later.');
+            quota.code = 'api/quota_exceeded';
+            quota.status = 429;
+            throw quota;
+        }
         const wrapped = new Error((data && (data.error || data.message)) || (rawText ? rawText.trim() : '') || 'Dashboard request failed.');
         wrapped.status = response.status;
         wrapped.response = {

@@ -566,7 +566,8 @@ module.exports = async function handler(req, res) {
 
             const existing = await getCollectionDocument(route.collectionId, route.documentId);
             if (!existing) {
-                res.status(404).json({ error: 'Document not found.' });
+                // Document already gone — treat as success (idempotent delete)
+                res.status(200).json({ ok: true });
                 return;
             }
             if (!ensureOwnedDocument(existing.data, sessionUser, route.collectionId)) {
@@ -581,7 +582,16 @@ module.exports = async function handler(req, res) {
 
         res.status(405).json({ error: 'Method not allowed' });
     } catch (error) {
-        sendApiError(res, error, 'Dashboard request failed.', 500);
+        const statusCode = error.statusCode || error.status || 0;
+        const message = String(error.message || '').toLowerCase();
+        if (statusCode === 401 || statusCode === 403) {
+            sendApiError(res, error, 'Authentication or permission error.', statusCode);
+        } else if (message.includes('quota exceeded') || message.includes('resource_exhausted')) {
+            console.error('[DashboardAPI] Firestore quota exceeded', { method: req.method, url: req.url });
+            res.status(429).json({ error: 'Service temporarily unavailable. Please try again later.' });
+        } else {
+            sendApiError(res, error, 'Dashboard request failed.', 500);
+        }
     }
 };
 
