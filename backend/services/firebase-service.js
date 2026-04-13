@@ -2,6 +2,7 @@ const { DEFAULT_CURRENCY } = require('../../billing-catalog.js');
 const admin = require('./firebase-admin-init');
 
 const db = admin.firestore();
+db.settings({ preferRest: true });
 const DEFAULT_CURRENCY_CODE = String(DEFAULT_CURRENCY || 'gbp').trim().toUpperCase() || 'GBP';
 
 function sanitizeDocumentId(value) {
