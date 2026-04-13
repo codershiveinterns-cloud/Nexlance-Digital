@@ -2353,9 +2353,11 @@ function getLocalEntityData(entity) {
     }
 }
 
-function setLocalEntityData(entity, records) {
+function setLocalEntityData(entity, records, options) {
     localStorage.setItem(getEntityStorageKey(entity), JSON.stringify(records));
-    window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity } }));
+    if (!(options && options.silent)) {
+        window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity } }));
+    }
 }
 
 function upsertLocalEntityRecord(entity, record) {
@@ -3575,7 +3577,8 @@ async function fetchProjects(clientId = null) {
                 decorateProjectRecords(await dashboardApiRequest('GET', 'projects'), 'database'),
                 'dashboard_api'
             );
-            const apiRecords = Array.isArray(records) ? records : [];
+            const apiRecords = (Array.isArray(records) ? records : [])
+                .filter(record => !_pendingDeletes.has(String(record && record.id || '')));
             // Sync localStorage with API response — API is source of truth
             setLocalEntityData('projects', sortProjectsByRecent(apiRecords));
             setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id));
@@ -3875,7 +3878,7 @@ async function deleteProject(id) {
     };
 
     if (optimisticApplied) {
-        setLocalEntityData('projects', optimisticScopedRecords);
+        setLocalEntityData('projects', optimisticScopedRecords, { silent: true });
         setLegacyTemplateProjects(optimisticLegacyRecords);
     }
 
