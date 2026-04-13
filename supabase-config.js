@@ -2439,9 +2439,11 @@ function getLegacyTemplateProjects() {
     }
 }
 
-function setLegacyTemplateProjects(records) {
+function setLegacyTemplateProjects(records, options) {
     localStorage.setItem('nexlance_projects', JSON.stringify(Array.isArray(records) ? records : []));
-    window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'projects' } }));
+    if (!(options && options.silent)) {
+        window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'projects' } }));
+    }
 }
 
 const REALTIME_COLLECTION_CONFIG = Object.freeze([
@@ -3598,7 +3600,7 @@ async function _fetchProjectsImpl(clientId = null) {
                 .filter(record => !_pendingDeletes.has(String(record && record.id || '')));
             // Sync localStorage with API response — silent to avoid re-triggering init() → fetchProjects() loop
             setLocalEntityData('projects', sortProjectsByRecent(apiRecords), { silent: true });
-            setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id));
+            setLegacyTemplateProjects(apiRecords.filter(r => r && r.template_id), { silent: true });
 
             const visibleRecords = filterVisibleProjectSourcesForCurrentUser(sortProjectsByRecent(apiRecords));
             const filtered = applyClientFilter(visibleRecords);

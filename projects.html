@@ -550,7 +550,10 @@ window.setInterval(renderTrialBanner, 1000);
 // Listen for template project updates
 window.addEventListener('nexlance-project-updated', init);
 window.addEventListener('nexlance-project-completed', init);
-window.addEventListener('nexlance-data-changed', init);
+window.addEventListener('nexlance-data-changed', function(e) {
+  var entity = e && e.detail && e.detail.entity;
+  if (!entity || entity === 'projects') init();
+});
 </script>
 </body>
 </html>
