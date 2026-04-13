@@ -627,21 +627,32 @@ document.getElementById('clientModal').addEventListener('click', function (event
 document.getElementById('fAssignedProjects').addEventListener('change', normalizeProjectAccessSelection);
 document.getElementById('fProjectType').addEventListener('change', () => syncWebsiteTypeInput('fProjectType', 'fProjectTypeCustomGroup', 'fProjectTypeCustom'));
 
-window.addEventListener('focus', () => {
-  refreshClientsData().catch(() => undefined);
+var _clientsRefreshCooldownUntil = 0;
+var _clientsRefreshPendingTimer = null;
+function throttledClientsRefresh() {
+  var now = Date.now();
+  if (now < _clientsRefreshCooldownUntil) {
+    if (!_clientsRefreshPendingTimer) {
+      _clientsRefreshPendingTimer = setTimeout(function() {
+        _clientsRefreshPendingTimer = null;
+        throttledClientsRefresh();
+      }, _clientsRefreshCooldownUntil - now + 100);
+    }
+    return;
+  }
+  _clientsRefreshCooldownUntil = now + 30000;
+  refreshClientsData().catch(function() {});
+}
+
+window.addEventListener('focus', throttledClientsRefresh);
+
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) throttledClientsRefresh();
 });
 
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    refreshClientsData().catch(() => undefined);
-  }
-});
-
-window.addEventListener('nexlance-data-changed', event => {
-  const entity = event && event.detail ? event.detail.entity : '';
-  if (!entity || ['clients', 'projects'].includes(entity)) {
-    refreshClientsData().catch(() => undefined);
-  }
+window.addEventListener('nexlance-data-changed', function(event) {
+  var entity = event && event.detail ? event.detail.entity : '';
+  if (entity === 'clients') throttledClientsRefresh();
 });
 
 init();

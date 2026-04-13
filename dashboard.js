@@ -1266,13 +1266,31 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Dashboard bootstrap failed:', error);
     });
 
-    window.setInterval(renderTrialState, 1000);
-    window.addEventListener('focus', refreshDashboardData);
-    window.addEventListener('nexlance-data-changed', refreshDashboardData);
-    window.addEventListener('nexlance-project-updated', refreshDashboardData);
-    window.addEventListener('nexlance-project-completed', refreshDashboardData);
+    window.setInterval(renderTrialState, 60000);
+
+    // Throttle: prevent refreshDashboardData from firing more than once per 30s
+    let _dashboardRefreshCooldownUntil = 0;
+    let _dashboardRefreshPendingTimer = null;
+    function throttledDashboardRefresh() {
+        const now = Date.now();
+        if (now < _dashboardRefreshCooldownUntil) {
+            if (!_dashboardRefreshPendingTimer) {
+                _dashboardRefreshPendingTimer = setTimeout(function() {
+                    _dashboardRefreshPendingTimer = null;
+                    throttledDashboardRefresh();
+                }, _dashboardRefreshCooldownUntil - now + 100);
+            }
+            return;
+        }
+        _dashboardRefreshCooldownUntil = now + 30000;
+        refreshDashboardData();
+    }
+
+    window.addEventListener('focus', throttledDashboardRefresh);
+    window.addEventListener('nexlance-project-updated', throttledDashboardRefresh);
+    window.addEventListener('nexlance-project-completed', throttledDashboardRefresh);
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) refreshDashboardData();
+        if (!document.hidden) throttledDashboardRefresh();
     });
     window.addEventListener('hashchange', resolveHashRoute);
 });

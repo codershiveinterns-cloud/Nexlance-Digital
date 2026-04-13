@@ -1690,6 +1690,9 @@ async function refreshCurrentSessionUserFromApi(options = {}) {
     return refreshPromise;
 }
 
+let _lastHydrationTimestamp = 0;
+const _HYDRATION_COOLDOWN_MS = 60000;
+
 async function ensureSessionHydration(reason = 'initial_hydration', options = {}) {
     const forceRetry = options.forceRetry === true;
     if (!isFirebaseUserAuthenticated()) {
@@ -1715,6 +1718,15 @@ async function ensureSessionHydration(reason = 'initial_hydration', options = {}
         return getCurrentSessionUser();
     }
 
+    // Cooldown: prevent /api/me from being called more than once per 60s
+    // (skip cooldown for first hydration or forced retries from auth flow)
+    const now = Date.now();
+    const isInitialHydration = !SESSION_RUNTIME.hydrationCompleted && !SESSION_RUNTIME.isHydrated;
+    if (!isInitialHydration && !forceRetry && _lastHydrationTimestamp && (now - _lastHydrationTimestamp) < _HYDRATION_COOLDOWN_MS) {
+        return getCurrentSessionUser();
+    }
+
+    _lastHydrationTimestamp = now;
     SESSION_RUNTIME.hydrationCompleted = false;
     SESSION_RUNTIME.hydrationError = null;
     const effectiveReason = forceRetry ? `${reason}_force_retry` : reason;
@@ -2701,7 +2713,10 @@ function applyRealtimeSnapshotToEntity(entity, snapshot) {
     if (!changed) return;
 
     const nextRecords = sortEntityRecordsForStorage(safeEntity, Array.from(byId.values()));
-    setLocalEntityData(safeEntity, nextRecords);
+    // Silent: realtime listener updates localStorage without firing nexlance-data-changed.
+    // The page-level throttled refresh handlers already poll on focus/visibility.
+    // Firing the event here would cause cascading refetches on every Firestore document change.
+    setLocalEntityData(safeEntity, nextRecords, { silent: true });
 }
 
 function startRealtimeWorkspaceSync(reason = 'sync_access_ui_state') {

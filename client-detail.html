@@ -575,10 +575,14 @@ document.getElementById('editModal').addEventListener('click', function (event) 
 document.getElementById('eAssignedProjects').addEventListener('change', () => normalizeProjectAccessSelection('eAssignedProjects'));
 document.getElementById('eProjectType').addEventListener('change', () => syncWebsiteTypeInput('eProjectType', 'eProjectTypeCustomGroup', 'eProjectTypeCustom'));
 
-window.addEventListener('focus', () => {
+var _clientDetailRefreshCooldownUntil = 0;
+window.addEventListener('focus', function() {
   if (!clientId || !client) return;
+  var now = Date.now();
+  if (now < _clientDetailRefreshCooldownUntil) return;
+  _clientDetailRefreshCooldownUntil = now + 30000;
   fetchClientById(clientId)
-    .then(nextClient => {
+    .then(function(nextClient) {
       if (!nextClient) {
         client = null;
         showState('Client not found', 'This client record was removed or is no longer available in your workspace.');
@@ -588,7 +592,7 @@ window.addEventListener('focus', () => {
       populatePage();
       return Promise.all([loadProjects(), loadInvoices()]);
     })
-    .catch(() => undefined);
+    .catch(function() {});
 });
 
 init();

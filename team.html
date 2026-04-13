@@ -460,21 +460,32 @@ document.getElementById('fRole').addEventListener('change', function () {
   applyRolePermissions(this.value);
 });
 
-window.addEventListener('focus', () => {
-  refreshTeamData().catch(() => undefined);
+var _teamRefreshCooldownUntil = 0;
+var _teamRefreshPendingTimer = null;
+function throttledTeamRefresh() {
+  var now = Date.now();
+  if (now < _teamRefreshCooldownUntil) {
+    if (!_teamRefreshPendingTimer) {
+      _teamRefreshPendingTimer = setTimeout(function() {
+        _teamRefreshPendingTimer = null;
+        throttledTeamRefresh();
+      }, _teamRefreshCooldownUntil - now + 100);
+    }
+    return;
+  }
+  _teamRefreshCooldownUntil = now + 30000;
+  refreshTeamData().catch(function() {});
+}
+
+window.addEventListener('focus', throttledTeamRefresh);
+
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) throttledTeamRefresh();
 });
 
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    refreshTeamData().catch(() => undefined);
-  }
-});
-
-window.addEventListener('nexlance-data-changed', event => {
-  const entity = event && event.detail ? event.detail.entity : '';
-  if (!entity || ['team_members', 'projects'].includes(entity)) {
-    refreshTeamData().catch(() => undefined);
-  }
+window.addEventListener('nexlance-data-changed', function(event) {
+  var entity = event && event.detail ? event.detail.entity : '';
+  if (entity === 'team_members') throttledTeamRefresh();
 });
 
 init();
