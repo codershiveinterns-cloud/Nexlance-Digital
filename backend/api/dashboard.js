@@ -296,7 +296,20 @@ function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
 
     const assignedProjectIds = new Set(validProjectIds);
 
-    if (!shouldRestrictProjects || isOwner || isAdmin || allProjectsAccess) {
+    if (isOwner || isAdmin || allProjectsAccess) {
+        return records;
+    }
+
+    // Scoped roles with no valid assignments see nothing — not everything
+    if (roleRequiresProjectAssignments && assignedProjectIds.size === 0) {
+        console.info('[DashboardProjects] Scoped role with no valid assignments — returning empty', {
+            role,
+            workspaceId
+        });
+        return [];
+    }
+
+    if (!shouldRestrictProjects) {
         return records;
     }
 

@@ -3152,11 +3152,26 @@ function filterRecordsForCurrentUserScope(entity, records) {
     const roleRequiresProjectAssignments = role === accessControl.ROLES.CLIENT
         || role === accessControl.ROLES.DEVELOPER
         || role === accessControl.ROLES.DESIGNER;
+
+    // If assignments haven't been validated by backend yet and user has a scoped role,
+    // return empty to prevent showing unauthorized projects from stale cache
+    if (roleRequiresProjectAssignments && SESSION_RUNTIME.assignmentsValidatedByBackend !== true) {
+        debugProjectFilter([], 'awaiting_backend_validation');
+        return [];
+    }
+
     const shouldRestrictProjects = roleRequiresProjectAssignments || assignedProjectIds.size > 0;
     if (isAdmin) {
         debugProjectFilter(workspaceScopedRecords, 'admin_role');
         return workspaceScopedRecords;
     }
+
+    // Scoped roles with no valid assignments see nothing — not everything
+    if (roleRequiresProjectAssignments && assignedProjectIds.size === 0) {
+        debugProjectFilter([], 'scoped_role_no_assignments');
+        return [];
+    }
+
     if (!shouldRestrictProjects) {
         debugProjectFilter(workspaceScopedRecords, 'no_project_restriction');
         return workspaceScopedRecords;
