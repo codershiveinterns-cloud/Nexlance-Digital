@@ -15,9 +15,13 @@ module.exports = async function handler(req, res) {
         const session = await requireAuth(req);
         const sessionUser = session.sessionUser;
         const workspaceId = String((sessionUser && sessionUser.workspaceId) || '').trim();
+        // Ensure the sanitized workspaceId is written back to sessionUser
+        if (sessionUser) {
+            sessionUser.workspaceId = workspaceId;
+        }
         const isOwner = sessionUser && sessionUser.isWorkspaceOwner === true;
         const assignedIds = Array.isArray(sessionUser && sessionUser.assignedProjectIds)
-            ? sessionUser.assignedProjectIds
+            ? sessionUser.assignedProjectIds.filter(id => id && String(id).trim() !== '')
             : [];
 
         // Hard validation: non-owner users MUST have a workspaceId
@@ -36,7 +40,7 @@ module.exports = async function handler(req, res) {
         }
 
         // If workspaceId exists but assignedProjectIds is empty for scoped roles, force re-resolve
-        if (workspaceId && !assignedIds.length && !isOwner && !sessionUser.allProjectsAccess) {
+        if (workspaceId && workspaceId.length > 0 && !assignedIds.length && !isOwner && !sessionUser.allProjectsAccess) {
             const role = String(sessionUser.role || sessionUser.workspaceRole || '').trim().toLowerCase();
             if (role === 'client' || role === 'developer' || role === 'designer') {
                 console.info('[WorkspaceMappingTrace] Empty assignedProjectIds for scoped role — forcing re-resolve', {

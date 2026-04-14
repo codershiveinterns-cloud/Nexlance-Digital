@@ -1026,6 +1026,9 @@ async function ensureWorkspaceAccessProfile(authUser) {
         membershipStatus: String(existingProfile.membershipStatus || 'active').trim().toLowerCase()
     };
 
+    // Sanitize workspaceId — filter out empty/whitespace-only values
+    baseProfile.workspaceId = String(baseProfile.workspaceId || '').trim();
+
     console.info('[RoleResolution] Profile role lookup', {
         userId: authUser.uid,
         email: normalizedEmail,
@@ -1142,9 +1145,19 @@ async function ensureWorkspaceAccessProfile(authUser) {
         };
     }
 
-    if (nextProfile.workspaceId) {
+    const cleanWorkspaceId = String(nextProfile.workspaceId || '').trim();
+    if (cleanWorkspaceId) {
+        nextProfile.workspaceId = cleanWorkspaceId;
         await ensureWorkspaceDocument(nextProfile, authUser);
         await ensureWorkspaceMember(nextProfile, authUser);
+    } else {
+        console.warn('[WorkspaceResolution] Empty workspaceId after full resolution — skipping workspace document/member creation', {
+            userId: authUser.uid,
+            email: AccessControl.normalizeEmail(authUser.email),
+            isOwner: nextProfile.isWorkspaceOwner,
+            membershipStatus: nextProfile.membershipStatus
+        });
+        nextProfile.workspaceId = '';
     }
 
     await patchCollectionDocument('users', profileDocument.id || authUser.uid, {

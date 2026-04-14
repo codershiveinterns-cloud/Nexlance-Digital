@@ -54,7 +54,15 @@ async function authenticateDashboardRequest(req) {
 
     const authUser = await verifyFirebaseIdToken(idToken);
     const userProfile = await ensureWorkspaceAccessProfile(authUser);
+    // Sanitize workspaceId before building session — filter out empty/whitespace-only values
+    if (userProfile) {
+        userProfile.workspaceId = String(userProfile.workspaceId || '').trim();
+    }
     const sessionUser = buildSessionUser(userProfile, authUser);
+    // Ensure assignedProjectIds contains no empty strings
+    if (sessionUser && Array.isArray(sessionUser.assignedProjectIds)) {
+        sessionUser.assignedProjectIds = sessionUser.assignedProjectIds.filter(id => id && String(id).trim() !== '');
+    }
     console.info('[AuthContext] Dashboard session resolved', {
         uid: String(authUser.uid || '').trim(),
         email: AccessControl.normalizeEmail(authUser.email),
