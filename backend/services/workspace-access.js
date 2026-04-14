@@ -1,5 +1,6 @@
 const AccessControl = require('../../rbac.js');
 const {
+    commitBatchedWrites,
     findUserDocumentByEmail,
     getCollectionDocument,
     listCollectionDocuments,
@@ -9,6 +10,76 @@ const {
     upsertCollectionDocument
 } = require('./firebase-service');
 const { resolveAssignedProjectIdsForWorkspace } = require('./project-assignment-resolution');
+
+// ─── In-memory session cache (5-min TTL) with deduplication ───
+// Prevents repeated Firestore reads on every /api/me call for the same user.
+// Also deduplicates concurrent in-flight requests for the same uid.
+const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const SESSION_CACHE_MAX_SIZE = 500;
+const SESSION_CACHE_CLEANUP_INTERVAL_MS = 60 * 1000; // sweep expired entries every 60s
+const _sessionCache = new Map();
+const _inflight = new Map(); // uid -> Promise — deduplicates concurrent requests
+
+// Periodic cleanup: evict expired entries so they don't leak memory
+let _cleanupTimer = null;
+function _startCacheCleanup() {
+    if (_cleanupTimer) return;
+    _cleanupTimer = setInterval(() => {
+        const now = Date.now();
+        for (const [key, entry] of _sessionCache) {
+            if (now - entry.timestamp > SESSION_CACHE_TTL_MS) {
+                _sessionCache.delete(key);
+            }
+        }
+        // If cache is empty, stop the timer to avoid keeping the process alive
+        if (_sessionCache.size === 0) {
+            clearInterval(_cleanupTimer);
+            _cleanupTimer = null;
+        }
+    }, SESSION_CACHE_CLEANUP_INTERVAL_MS);
+    // Allow the Node process to exit even if the timer is running (serverless)
+    if (_cleanupTimer && typeof _cleanupTimer.unref === 'function') {
+        _cleanupTimer.unref();
+    }
+}
+
+function _getSessionCacheKey(authUser) {
+    return String(authUser && authUser.uid || '').trim();
+}
+
+function _getSessionCache(authUser) {
+    const key = _getSessionCacheKey(authUser);
+    if (!key) return null;
+    const entry = _sessionCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > SESSION_CACHE_TTL_MS) {
+        _sessionCache.delete(key);
+        return null;
+    }
+    return entry.profile;
+}
+
+function _setSessionCache(authUser, profile) {
+    const key = _getSessionCacheKey(authUser);
+    if (!key || !profile) return;
+    // LRU eviction: delete oldest entries when at capacity
+    if (_sessionCache.size >= SESSION_CACHE_MAX_SIZE) {
+        const firstKey = _sessionCache.keys().next().value;
+        _sessionCache.delete(firstKey);
+    }
+    // Stamp the profile with a cache version so consumers can detect staleness
+    profile._cacheVersion = Date.now();
+    _sessionCache.set(key, { profile, timestamp: Date.now() });
+    _startCacheCleanup();
+}
+
+function invalidateSessionCache(uid) {
+    const key = String(uid || '').trim();
+    if (key) {
+        _sessionCache.delete(key);
+        _inflight.delete(key);
+    }
+}
 
 function buildWorkspaceName(profile = {}, authUser = {}) {
     const businessName = String(profile.businessName || '').trim();
@@ -166,39 +237,42 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
         });
     };
 
+    // ─── OPTIMIZATION 4: Run email/legacy queries in parallel instead of sequentially ───
     if (normalizedEmail) {
-        const emailMatched = await queryCollectionDocuments('project_assignments', {
-            fieldPath: 'email',
-            op: 'EQUAL',
-            value: normalizedEmail,
-            limit: 500
-        }).catch(() => []);
+        const [emailMatched, legacyEmailMatched] = await Promise.all([
+            queryCollectionDocuments('project_assignments', {
+                fieldPath: 'email',
+                op: 'EQUAL',
+                value: normalizedEmail,
+                limit: 500
+            }).catch(() => []),
+            queryCollectionDocuments('project_assignments', {
+                fieldPath: 'user_email',
+                op: 'EQUAL',
+                value: normalizedEmail,
+                limit: 500
+            }).catch(() => [])
+        ]);
         pushRecords(emailMatched);
-
-        const legacyEmailMatched = await queryCollectionDocuments('project_assignments', {
-            fieldPath: 'user_email',
-            op: 'EQUAL',
-            value: normalizedEmail,
-            limit: 500
-        }).catch(() => []);
         pushRecords(legacyEmailMatched);
     }
 
     if (!useEmailIdentity && normalizedUserId) {
-        const userMatched = await queryCollectionDocuments('project_assignments', {
-            fieldPath: 'userId',
-            op: 'EQUAL',
-            value: normalizedUserId,
-            limit: 500
-        }).catch(() => []);
+        const [userMatched, legacyUserMatched] = await Promise.all([
+            queryCollectionDocuments('project_assignments', {
+                fieldPath: 'userId',
+                op: 'EQUAL',
+                value: normalizedUserId,
+                limit: 500
+            }).catch(() => []),
+            queryCollectionDocuments('project_assignments', {
+                fieldPath: 'user_id',
+                op: 'EQUAL',
+                value: normalizedUserId,
+                limit: 500
+            }).catch(() => [])
+        ]);
         pushRecords(userMatched);
-
-        const legacyUserMatched = await queryCollectionDocuments('project_assignments', {
-            fieldPath: 'user_id',
-            op: 'EQUAL',
-            value: normalizedUserId,
-            limit: 500
-        }).catch(() => []);
         pushRecords(legacyUserMatched);
     }
 
@@ -261,6 +335,14 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
     });
     const validProjectIds = new Set();
     const activeAssignmentsByProjectId = new Map();
+    // ─── Local project document cache: prevents duplicate reads for the same projectId ───
+    const _projectDocCache = new Map();
+    async function _getProjectDoc(projectId) {
+        if (_projectDocCache.has(projectId)) return _projectDocCache.get(projectId);
+        const doc = await getCollectionDocument('projects', projectId).catch(() => null);
+        _projectDocCache.set(projectId, doc);
+        return doc;
+    }
 
     const getAssignmentTimestamp = assignment => {
         const timestamps = [
@@ -298,7 +380,7 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
             continue;
         }
 
-        const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
+        const projectRecord = await _getProjectDoc(projectId);
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
         if (!projectRecord || !projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
             await markProjectAssignmentInactive(
@@ -356,7 +438,8 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
             }
         }
 
-        const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
+        // Reuse cached project document — already fetched in the first loop
+        const projectRecord = await _getProjectDoc(projectId);
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
         if (!projectRecord || !projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
             if (primaryAssignment) {
@@ -780,6 +863,9 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
         assignedProjectIds: access.assignedProjectIds
     });
 
+    // Invalidate cache — bootstrap just changed this user's workspace/role
+    invalidateSessionCache(authUser.uid);
+
     return autoProfile;
 }
 
@@ -924,6 +1010,33 @@ async function ensureWorkspaceMember(profile = {}, authUser = {}) {
 }
 
 async function ensureWorkspaceAccessProfile(authUser) {
+    // ─── OPTIMIZATION 1: Return cached profile if available (5-min TTL) ───
+    const cachedProfile = _getSessionCache(authUser);
+    if (cachedProfile) {
+        console.info('[SessionCache] Returning cached profile', {
+            userId: authUser.uid,
+            workspaceId: String(cachedProfile.workspaceId || '').trim()
+        });
+        return cachedProfile;
+    }
+
+    // ─── REQUEST DEDUPLICATION: If a resolution is already in-flight for this uid, reuse it ───
+    const dedupeKey = _getSessionCacheKey(authUser);
+    if (dedupeKey && _inflight.has(dedupeKey)) {
+        console.info('[SessionCache] Joining in-flight resolution', { userId: authUser.uid });
+        return _inflight.get(dedupeKey);
+    }
+
+    const resolutionPromise = _resolveWorkspaceAccessProfile(authUser);
+    if (dedupeKey) {
+        _inflight.set(dedupeKey, resolutionPromise);
+        resolutionPromise.finally(() => _inflight.delete(dedupeKey));
+    }
+    return resolutionPromise;
+}
+
+// The actual heavy resolution logic, extracted so deduplication wrapper stays clean
+async function _resolveWorkspaceAccessProfile(authUser) {
     const profileDocument = await loadUserProfileDocument(authUser);
     let existingProfile = profileDocument && profileDocument.data ? profileDocument.data : {};
     const autoBootstrappedClientProfile = await autoBootstrapClientAccessFromInvitation({
@@ -1108,11 +1221,12 @@ async function ensureWorkspaceAccessProfile(authUser) {
                     recoveredIds: targetAssignedIds,
                     count: targetAssignedIds.length
                 });
-                // Re-create project_assignments records so future lookups work
+                // ─── OPTIMIZATION 2: Batch write all project assignments (chunked for >500 safety) ───
                 const now = new Date().toISOString();
-                for (const projectId of targetAssignedIds) {
-                    const assignmentId = sanitizeDocumentId(`${nextProfile.workspaceId}_${projectId}_${nextProfile.email}`);
-                    await upsertCollectionDocument('project_assignments', assignmentId, {
+                const batchOps = targetAssignedIds.map(projectId => ({
+                    collectionId: 'project_assignments',
+                    docId: `${nextProfile.workspaceId}_${projectId}_${nextProfile.email}`,
+                    data: {
                         workspaceId: nextProfile.workspaceId,
                         workspace_id: nextProfile.workspaceId,
                         projectId: projectId,
@@ -1129,10 +1243,11 @@ async function ensureWorkspaceAccessProfile(authUser) {
                         created_at: now,
                         updatedAt: now,
                         updated_at: now
-                    }).catch(err => {
-                        console.warn('[ProjectAssignmentScope] Failed to re-create assignment', { assignmentId, error: err.message });
-                    });
-                }
+                    }
+                }));
+                await commitBatchedWrites(batchOps).catch(err => {
+                    console.warn('[ProjectAssignmentScope] Batch re-create assignments failed', { error: err.message });
+                });
                 resolvedIds = targetAssignedIds;
             }
         }
@@ -1160,7 +1275,8 @@ async function ensureWorkspaceAccessProfile(authUser) {
         nextProfile.workspaceId = '';
     }
 
-    await patchCollectionDocument('users', profileDocument.id || authUser.uid, {
+    // ─── OPTIMIZATION 3: Skip user doc patch if nothing changed (dirty check) ───
+    const userPatchFields = {
         workspaceId: nextProfile.workspaceId,
         workspaceOwnerEmail: nextProfile.workspaceOwnerEmail,
         workspaceOwnerUserId: nextProfile.workspaceOwnerUserId,
@@ -1176,14 +1292,37 @@ async function ensureWorkspaceAccessProfile(authUser) {
         assignedProjectIds: nextProfile.assignedProjectIds,
         allProjectsAccess: nextProfile.allProjectsAccess,
         projectAccessScope: nextProfile.projectAccessScope,
-        membershipStatus: nextProfile.membershipStatus,
-        updatedAt: nextProfile.updatedAt
+        membershipStatus: nextProfile.membershipStatus
+    };
+    const existingData = profileDocument && profileDocument.data ? profileDocument.data : {};
+    const hasChanges = Object.keys(userPatchFields).some(key => {
+        const newVal = userPatchFields[key];
+        const oldVal = existingData[key];
+        if (Array.isArray(newVal) && Array.isArray(oldVal)) {
+            return newVal.length !== oldVal.length || newVal.some((v, i) => v !== oldVal[i]);
+        }
+        if (newVal && typeof newVal === 'object' && oldVal && typeof oldVal === 'object') {
+            return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+        }
+        return newVal !== oldVal;
     });
 
-    return {
+    if (hasChanges) {
+        await patchCollectionDocument('users', profileDocument.id || authUser.uid, {
+            ...userPatchFields,
+            updatedAt: nextProfile.updatedAt
+        });
+    }
+
+    const result = {
         id: profileDocument.id || authUser.uid,
         ...nextProfile
     };
+
+    // Store in cache so subsequent /api/me calls skip all DB operations
+    _setSessionCache(authUser, result);
+
+    return result;
 }
 
 function buildSessionUser(profile = {}, authUser = {}) {
@@ -1230,6 +1369,7 @@ module.exports = {
     getWorkspaceMemberDocumentId,
     getWorkspaceOwnerEmail,
     getWorkspaceOwnerUserId,
+    invalidateSessionCache,
     loadUserProfileDocument,
     deactivateAllActiveAssignmentsForUser,
     resolveScopedAssignedProjectsForLogin

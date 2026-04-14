@@ -15,6 +15,7 @@ const {
 const {
     buildPermissionFields,
     getWorkspaceMemberDocumentId,
+    invalidateSessionCache,
     resolveScopedAssignedProjectsForLogin
 } = require('./workspace-access');
 
@@ -196,6 +197,8 @@ async function syncTeamMemberState(teamMemberInput) {
             projectAccessScope: access.projectAccessScope,
             updatedAt: new Date().toISOString()
         }).catch(() => undefined);
+        // Invalidate cached session — role/permissions just changed for this user
+        invalidateSessionCache(linkedUser.id);
     }
 
     await syncWorkspaceMemberRecord({

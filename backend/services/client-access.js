@@ -8,6 +8,7 @@ const {
 } = require('./firebase-service');
 const {
     getWorkspaceMemberDocumentId,
+    invalidateSessionCache,
     resolveScopedAssignedProjectsForLogin
 } = require('./workspace-access');
 
@@ -227,6 +228,8 @@ async function syncClientAccessState(clientRecordInput) {
             ...profileAccessFields,
             updatedAt: new Date().toISOString()
         }).catch(() => undefined);
+        // Invalidate cached session — project access/permissions just changed
+        invalidateSessionCache(userId);
     }
 
     const clientProfileId = sanitizeDocumentId(`${workspaceId}_${email}`);

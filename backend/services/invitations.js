@@ -23,7 +23,8 @@ const {
     buildPermissionFields,
     buildSessionUser,
     getNormalizedAssignedProjectIds,
-    getWorkspaceMemberDocumentId
+    getWorkspaceMemberDocumentId,
+    invalidateSessionCache
 } = require('./workspace-access');
 const { resolveAssignedProjectIdsForWorkspace } = require('./project-assignment-resolution');
 
@@ -911,6 +912,8 @@ async function acceptInvitation({ session, token }) {
     };
 
     await patchCollectionDocument('users', session.authUser.uid, nextUserProfile);
+    // Invalidate cached session — role, workspace, and permissions just changed
+    invalidateSessionCache(session.authUser.uid);
     const authoritativeScope = getAuthoritativeAssignmentScope(nextUserProfile);
     if (!authoritativeScope.workspaceId) {
         const scopeError = new Error('Authoritative workspace scope is missing after invitation acceptance.');

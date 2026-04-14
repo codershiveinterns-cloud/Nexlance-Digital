@@ -5,7 +5,13 @@
       "Bash(grep -c 'href=\"\"#\"\">Sitemap\\\\|href=\"\"#\"\">Status\\\\|href=\"\"#\"\">Security\\\\|href=\"\"#\"\">Templates' d:/claude/*.html)",
       "Bash(node -e \":*)",
       "Bash(ls -la /d/Nexlance-main/*.js)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(node --check backend/services/workspace-access.js)",
+      "Bash(node --check backend/services/firebase-service.js)",
+      "Bash(node --check backend/services/dashboard-auth.js)",
+      "Bash(node --check backend/services/invitations.js)",
+      "Bash(node --check backend/services/client-access.js)",
+      "Bash(node -e ':*)"
     ]
   }
 }

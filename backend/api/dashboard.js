@@ -3,6 +3,7 @@ const { authenticateDashboardRequest } = require('../services/dashboard-auth');
 const { canPerformCollectionAction, normalizeEmail } = require('../services/dashboard-rbac');
 const { syncClientAccessState } = require('../services/client-access');
 const { syncTeamMemberState } = require('../services/team-member-access');
+const { invalidateSessionCache } = require('../services/workspace-access');
 const {
     createCollectionDocument,
     deleteCollectionDocument,
@@ -489,12 +490,14 @@ module.exports = async function handler(req, res) {
                 if (syncedClientRecord && syncedClientRecord.data) {
                     responseRecord = { id: syncedClientRecord.id, ...syncedClientRecord.data };
                 }
+                invalidateSessionCache(record.invited_user_id || record.userId || '');
             }
             if (route.collectionId === 'team_members') {
                 const syncedTeamRecord = await syncTeamMemberState({ id: record.id, data: record }).catch(() => null);
                 if (syncedTeamRecord && syncedTeamRecord.data) {
                     responseRecord = { id: syncedTeamRecord.id, ...syncedTeamRecord.data };
                 }
+                invalidateSessionCache(record.invited_user_id || record.userId || '');
             }
             res.status(200).json({ ok: true, record: responseRecord });
             return;
@@ -538,12 +541,14 @@ module.exports = async function handler(req, res) {
                 if (syncedClientRecord && syncedClientRecord.data) {
                     responseRecord = { id: syncedClientRecord.id, ...syncedClientRecord.data };
                 }
+                invalidateSessionCache(record.invited_user_id || record.userId || '');
             }
             if (route.collectionId === 'team_members') {
                 const syncedTeamRecord = await syncTeamMemberState({ id: route.documentId, data: record }).catch(() => null);
                 if (syncedTeamRecord && syncedTeamRecord.data) {
                     responseRecord = { id: syncedTeamRecord.id, ...syncedTeamRecord.data };
                 }
+                invalidateSessionCache(record.invited_user_id || record.userId || '');
             }
             res.status(200).json({ ok: true, record: responseRecord });
             return;

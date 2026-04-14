@@ -295,11 +295,45 @@ async function recordTemplateEntitlement(record) {
     });
 }
 
+const FIRESTORE_BATCH_LIMIT = 500;
+
+function getFirestoreBatch() {
+    return db.batch();
+}
+
+function getFirestoreDocRef(collectionId, docId) {
+    return db.collection(collectionId).doc(docId);
+}
+
+/**
+ * Commits an array of batch operations in chunks of 500 (Firestore limit).
+ * Each item in `operations` is { collectionId, docId, data, merge }.
+ * Returns the total count of operations committed.
+ */
+async function commitBatchedWrites(operations = []) {
+    if (!operations.length) return 0;
+    let committed = 0;
+    for (let i = 0; i < operations.length; i += FIRESTORE_BATCH_LIMIT) {
+        const chunk = operations.slice(i, i + FIRESTORE_BATCH_LIMIT);
+        const batch = db.batch();
+        for (const op of chunk) {
+            const docRef = db.collection(op.collectionId).doc(sanitizeDocumentId(op.docId));
+            batch.set(docRef, op.data, { merge: op.merge !== false });
+        }
+        await batch.commit();
+        committed += chunk.length;
+    }
+    return committed;
+}
+
 module.exports = {
+    commitBatchedWrites,
     createCollectionDocument,
     deleteCollectionDocument,
     findUserDocumentByEmail,
     getCollectionDocument,
+    getFirestoreBatch,
+    getFirestoreDocRef,
     queryCollectionDocuments,
     listCollectionDocuments,
     patchCollectionDocument,

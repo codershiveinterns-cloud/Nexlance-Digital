@@ -1,6 +1,6 @@
 const { requireAuth } = require('../services/request-guards');
 const { handleOptions, sendApiError, setApiCors } = require('./_utils');
-const { resolveScopedAssignedProjectsForLogin } = require('../services/workspace-access');
+const { resolveScopedAssignedProjectsForLogin, invalidateSessionCache } = require('../services/workspace-access');
 
 module.exports = async function handler(req, res) {
     if (handleOptions(req, res, 'POST,OPTIONS')) return;
@@ -34,6 +34,9 @@ module.exports = async function handler(req, res) {
             assignedProjectIds: scope.assignedProjectIds,
             count: scope.assignedProjectIds ? scope.assignedProjectIds.length : 0
         });
+
+        // Invalidate cached session so next /api/me picks up new assignments
+        invalidateSessionCache(sessionUser.uid);
 
         res.status(200).json({
             ok: true,
