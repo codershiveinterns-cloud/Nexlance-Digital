@@ -1,6 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
     function signedIn() {
       return request.auth != null;
     }
@@ -13,25 +15,156 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email_verified == true;
     }
 
-    /*
-      Basic per-user profile rules.
-      Use this first if you want signup to create users/{uid} immediately,
-      even before the user has verified their email.
-    */
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userWorkspaceId() {
+      return userDoc().workspaceId;
+    }
+
+    function userRole() {
+      return userDoc().role;
+    }
+
+    function userIsWorkspaceOwner() {
+      return userDoc().isWorkspaceOwner == true;
+    }
+
+    function userIsActiveMember() {
+      return userDoc().membershipStatus == 'active';
+    }
+
+    function userAllProjectsAccess() {
+      return userDoc().allProjectsAccess == true;
+    }
+
+    function userAssignedProjectIds() {
+      return userDoc().assignedProjectIds;
+    }
+
+    function inSameWorkspace(resourceData) {
+      return signedIn()
+        && userIsActiveMember()
+        && userWorkspaceId() != null
+        && userWorkspaceId() != ''
+        && (resourceData.workspace_id == userWorkspaceId()
+            || resourceData.workspaceId == userWorkspaceId());
+    }
+
+    function isAssignedProject(projectId) {
+      return userAllProjectsAccess()
+        || (userAssignedProjectIds() is list && userAssignedProjectIds().hasAny([projectId]));
+    }
+
+    function isScopedRole() {
+      return userRole() == 'client'
+        || userRole() == 'developer'
+        || userRole() == 'designer';
+    }
+
+    // ─── Per-user profile ─────────────────────────────────────────────────
     match /users/{userId} {
       allow create: if isOwner(userId);
       allow read, update, delete: if isOwner(userId);
     }
 
-    /*
-      Optional stricter version for protected profile data.
-      If you enable this instead of the block above, make sure create is still
-      allowed before verification, or signup will fail when it writes users/{uid}.
+    // ─── Workspace metadata ───────────────────────────────────────────────
+    match /workspaces/{workspaceId} {
+      allow read: if signedIn() && userIsActiveMember() && workspaceId == userWorkspaceId();
+      allow write: if signedIn() && userIsWorkspaceOwner() && workspaceId == userWorkspaceId();
+    }
 
-      match /users/{userId} {
-        allow create: if isOwner(userId);
-        allow read, update, delete: if isOwner(userId) && isVerified();
-      }
-    */
+    match /workspace_members/{memberId} {
+      allow read: if signedIn() && userIsActiveMember()
+                     && resource.data.workspaceId == userWorkspaceId();
+      allow write: if false; // backend only
+    }
+
+    // ─── Invitations ──────────────────────────────────────────────────────
+    // Client-side reads are limited to the invitee's own pending invite
+    // (used only during signup/acceptance UI). All writes go through backend.
+    match /invitations/{invitationId} {
+      allow read: if signedIn()
+                     && resource.data.email == request.auth.token.email;
+      allow write: if false;
+    }
+
+    // ─── Project assignments ──────────────────────────────────────────────
+    match /project_assignments/{assignmentId} {
+      allow read: if signedIn() && userIsActiveMember()
+                     && (resource.data.userId == request.auth.uid
+                         || resource.data.email == request.auth.token.email
+                         || (resource.data.workspaceId == userWorkspaceId()
+                             && (userIsWorkspaceOwner() || userRole() == 'admin')));
+      allow write: if false; // backend only
+    }
+
+    // ─── Workspace-scoped data collections ────────────────────────────────
+    // Scoped roles (client/designer/developer) can only read rows tied to
+    // projects they are assigned to; owners/admins read everything in their
+    // workspace. Writes are routed through the backend API, which enforces
+    // role-based permissions.
+
+    match /projects/{projectId} {
+      allow read: if inSameWorkspace(resource.data)
+                     && (!isScopedRole() || isAssignedProject(projectId));
+      allow write: if false;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if inSameWorkspace(resource.data)
+                     && (!isScopedRole() || isAssignedProject(resource.data.project_id));
+      allow write: if false;
+    }
+
+    match /services/{serviceId} {
+      allow read: if inSameWorkspace(resource.data);
+      allow write: if false;
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if inSameWorkspace(resource.data)
+                     && (!isScopedRole() || isAssignedProject(resource.data.project_id));
+      allow write: if false;
+    }
+
+    match /clients/{clientId} {
+      allow read: if inSameWorkspace(resource.data)
+                     && (userIsWorkspaceOwner() || userRole() == 'admin' || userRole() == 'pm'
+                         || resource.data.email == request.auth.token.email);
+      allow write: if false;
+    }
+
+    match /client_profiles/{profileId} {
+      allow read: if signedIn() && userIsActiveMember()
+                     && (resource.data.userId == request.auth.uid
+                         || resource.data.email == request.auth.token.email
+                         || (resource.data.workspaceId == userWorkspaceId()
+                             && (userIsWorkspaceOwner() || userRole() == 'admin')));
+      allow write: if false;
+    }
+
+    match /team_members/{teamMemberId} {
+      allow read: if inSameWorkspace(resource.data);
+      allow write: if false;
+    }
+
+    match /reports/{reportId} {
+      allow read: if inSameWorkspace(resource.data);
+      allow write: if false;
+    }
+
+    // ─── Server-managed / backend-only collections ────────────────────────
+    match /deleted_accounts/{docId} { allow read, write: if false; }
+    match /audit_log/{docId}        { allow read, write: if false; }
+    match /webhook_events/{docId}   { allow read, write: if false; }
+    match /payment_attempts/{docId} { allow read, write: if false; }
+    match /payments/{docId}         { allow read, write: if false; }
+
+    // Default-deny for anything not explicitly listed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
