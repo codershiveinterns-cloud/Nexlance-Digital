@@ -3814,10 +3814,16 @@ async function addProject(d) {
         }
     }
     if (!isFirebaseConfigured) {
+        // Demo/unconfigured mode is the one place a local draft is acceptable.
         return createLocalDraftProject();
     }
-    // API unavailable → localStorage draft only (no direct Firestore).
-    return createLocalDraftProject();
+    // API unavailable in production mode: do NOT create a phantom
+    // storage_fallback record. Writing one creates ghost projects that
+    // never exist in Firestore and later 400/404 on delete. Surface the
+    // failure so the UI shows a "save failed, please retry" toast.
+    const err = new Error('Could not save project — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 function isTemplateWorkspaceProjectUpdate(payload) {
@@ -3965,17 +3971,52 @@ async function updateProject(id, d, options = {}) {
     if (!isFirebaseConfigured) {
         return applyProjectPatchToLocalScopes(doc, false);
     }
-    // API unavailable → localStorage patch only (no direct Firestore).
-    const fallbackRecord = applyProjectPatchToLocalScopes(doc, true);
-    if (fallbackRecord) return fallbackRecord;
+    // API unavailable in production: do NOT write a storage_fallback patch
+    // (it creates divergent client/server state that later fails to sync).
+    // Roll back the optimistic apply and surface the error for UI retry.
     rollbackOptimisticState();
-    return decorateProjectRecord(stripOptimisticMetadata({ id, ...doc }), 'local_fallback');
+    const err = new Error('Could not save project changes — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
+}
+
+// Ghost IDs: records that only ever lived in localStorage — they were
+// written by createLocalDraftProject ('p' + timestamp) or by the optimistic
+// draft path ('tmp_project_...'). The backend has no document for these, so
+// DELETE will 400/404. Detect them and prune cache without round-tripping.
+function _isGhostProjectId(projectId) {
+    const id = String(projectId || '').trim();
+    if (!id) return false;
+    return /^p\d{13}$/.test(id) || /^tmp_project_/.test(id) || /^tmp_/.test(id);
+}
+
+function _findLocalProjectRecord(projectId) {
+    const id = String(projectId || '').trim();
+    if (!id) return null;
+    return getLocalEntityData('projects').find(r => String(r && r.id || '') === id)
+        || getLegacyTemplateProjects().find(r => String(r && r.id || '') === id)
+        || null;
 }
 
 async function deleteProject(id) {
     if (!canAccessEntity('projects')) throw createRestrictedAccessError('projects');
     const projectId = String(id || '').trim();
     if (!projectId) return;
+
+    // ── Ghost-ID short-circuit ──
+    // If the record only exists in localStorage (storage_fallback draft or
+    // stranded optimistic ID), don't call the API — it will 400/404. Just
+    // prune the cache and return success.
+    const localRecord = _findLocalProjectRecord(projectId);
+    const isGhost = _isGhostProjectId(projectId)
+        || (localRecord && (localRecord.storage_fallback === true || localRecord.local_fallback === true));
+    if (isGhost) {
+        const scoped = getLocalEntityData('projects').filter(p => String(p && p.id || '') !== projectId);
+        setLocalEntityData('projects', scoped, { silent: true });
+        const legacy = getLegacyTemplateProjects().filter(p => String(p && p.id || '') !== projectId);
+        setLegacyTemplateProjects(legacy);
+        return;
+    }
 
     _pendingDeletes.add(projectId);
 
@@ -4009,6 +4050,14 @@ async function deleteProject(id) {
                 _pendingDeletes.delete(projectId);
                 return;
             } catch (error) {
+                // Idempotent delete: 404 (and occasionally 400 for IDs the
+                // backend refuses to parse) means the record doesn't exist
+                // server-side — treat as success and prune local state.
+                const status = Number(error && (error.status || (error.response && error.response.status)));
+                if (status === 404 || status === 400) {
+                    _pendingDeletes.delete(projectId);
+                    return;
+                }
                 if (!isDashboardApiUnavailableError(error)) {
                     rollbackOptimisticState();
                     throw normalizeDashboardApiError(error, 'projects', 'delete');
@@ -4026,14 +4075,13 @@ async function deleteProject(id) {
         _pendingDeletes.delete(projectId);
         return;
     }
-    // API unavailable → localStorage cleanup only (no direct Firestore).
-    if (!optimisticApplied) {
-        const records = getLocalEntityData('projects').filter(project => String(project && project.id || '') !== projectId);
-        setLocalEntityData('projects', records);
-        const legacyRecords = getLegacyTemplateProjects().filter(project => String(project && project.id || '') !== projectId);
-        setLegacyTemplateProjects(legacyRecords);
-    }
+    // API unavailable in production: surface the failure so the UI can
+    // retry rather than silently pretending the delete succeeded.
+    rollbackOptimisticState();
     _pendingDeletes.delete(projectId);
+    const err = new Error('Could not delete project — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 function buildProjectSyncPayload(project) {
