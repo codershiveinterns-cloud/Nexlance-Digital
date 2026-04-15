@@ -3512,17 +3512,16 @@ async function addClient(d) {
         setLocalEntityData('clients', records);
         return r;
     }
-    const records = getLocalEntityData('clients');
-    const r = { ...doc, id: 'c' + Date.now(), storage_fallback: true };
-    records.unshift(r);
-    setLocalEntityData('clients', records);
-    return r;
+    // API unavailable in production: do NOT create a storage_fallback row
+    // (it becomes a ghost record that later 400/404s on delete).
+    const err = new Error('Could not save client — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function updateClient(id, d) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
     const doc = withOwnerFields(d);
-    const existingLocalRecord = getLocalEntityData('clients').find(client => String(client && client.id) === String(id)) || null;
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('clients', 'update')) throw createDashboardPermissionError('clients', 'update');
         if (isFirebaseUserAuthenticated()) {
@@ -3545,20 +3544,23 @@ async function updateClient(id, d) {
         }
         return null;
     }
-    const records = getLocalEntityData('clients');
-    const i = records.findIndex(c => c.id === id);
-    if (i > -1) {
-        records[i] = { ...records[i], ...doc };
-        setLocalEntityData('clients', records);
-        return records[i];
-    }
-    return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
+    // API unavailable in production: surface error instead of writing a
+    // storage_fallback patch that would later fail to sync.
+    const err = new Error('Could not save client changes — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function deleteClient(id) {
     if (!canAccessEntity('clients')) throw createRestrictedAccessError('clients');
     const clientId = String(id || '').trim();
     if (!clientId) return;
+
+    // Ghost-record short-circuit — skip API for records that only exist in localStorage.
+    if (_isGhostEntityRecord('clients', clientId)) {
+        removeLocalEntityRecord('clients', clientId);
+        return;
+    }
 
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('clients', 'delete')) throw createDashboardPermissionError('clients', 'delete');
@@ -3569,8 +3571,10 @@ async function deleteClient(id) {
                 return;
             } catch (error) {
                 const status = Number(error && (error.status || (error.response && error.response.status)));
-                if (status === 404) {
-                    // Idempotent delete: if record is already gone on backend, keep local state aligned.
+                // Idempotent delete: 404/400 mean the record isn't on the
+                // server (ghost, already deleted, or unparseable ID). Prune
+                // local state and return success instead of surfacing an error.
+                if (status === 404 || status === 400) {
                     removeLocalEntityRecord('clients', clientId);
                     return;
                 }
@@ -3583,8 +3587,11 @@ async function deleteClient(id) {
         setLocalEntityData('clients', records);
         return;
     }
-    const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
-    setLocalEntityData('clients', records);
+    // API unavailable in production: surface error instead of silently
+    // pruning — pretending success would desync from the server.
+    const err = new Error('Could not delete client — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function fetchProjects(clientId = null, options) {
@@ -3984,6 +3991,23 @@ async function updateProject(id, d, options = {}) {
 // written by createLocalDraftProject ('p' + timestamp) or by the optimistic
 // draft path ('tmp_project_...'). The backend has no document for these, so
 // DELETE will 400/404. Detect them and prune cache without round-tripping.
+// Generic ghost-record detector for any entity. A record is "ghost" when:
+//   (a) its ID matches a local-draft pattern (single-letter + 13-digit timestamp,
+//       or the 'tmp_*' optimistic-draft prefix), OR
+//   (b) the record in localStorage carries a storage_fallback / local_fallback flag.
+// Ghost records were only ever written locally and do not exist server-side,
+// so sending a DELETE for them will 400/404. This helper lets the delete
+// path short-circuit to a pure cache prune.
+function _isGhostEntityRecord(entity, recordId) {
+    const id = String(recordId || '').trim();
+    if (!id) return false;
+    // Local-draft ID patterns created by addX() on API-unavailable + optimistic drafts.
+    const localIdPatterns = /^(c|p|t|i|s|m)\d{13}$/i;
+    if (localIdPatterns.test(id) || /^tmp_/.test(id)) return true;
+    const record = getLocalEntityData(entity).find(r => String(r && r.id || '') === id);
+    return Boolean(record && (record.storage_fallback === true || record.local_fallback === true));
+}
+
 function _isGhostProjectId(projectId) {
     const id = String(projectId || '').trim();
     if (!id) return false;
@@ -4523,12 +4547,11 @@ async function addInvoice(d) {
         setLocalEntityData('invoices', records);
         return r;
     }
-    // API unavailable → localStorage draft only (no direct Firestore).
-    const records = getLocalEntityData('invoices');
-    const r = { ...doc, id: 'i' + Date.now(), storage_fallback: true };
-    records.unshift(r);
-    setLocalEntityData('invoices', records);
-    return r;
+    // API unavailable in production: surface error instead of writing a
+    // storage_fallback invoice that later 400/404s on delete.
+    const err = new Error('Could not save invoice — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function updateInvoiceStatus(id, status, paidDate = null) {
@@ -4554,36 +4577,50 @@ async function updateInvoiceStatus(id, status, paidDate = null) {
         }
         return;
     }
-    // API unavailable → localStorage patch only (no direct Firestore).
-    const records = getLocalEntityData('invoices');
-    const i = records.findIndex(inv => inv.id === id);
-    if (i > -1) {
-        records[i] = { ...records[i], ...upd, storage_fallback: true };
-        setLocalEntityData('invoices', records);
-    }
+    // API unavailable in production: surface error instead of writing a
+    // storage_fallback patch that would later fail to sync.
+    const err = new Error('Could not update invoice — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function deleteInvoice(id) {
     if (!canAccessEntity('invoices')) throw createRestrictedAccessError('invoices');
+    const invoiceId = String(id || '').trim();
+    if (!invoiceId) return;
+
+    // Ghost-record short-circuit — skip API for local-only records.
+    if (_isGhostEntityRecord('invoices', invoiceId)) {
+        removeLocalEntityRecord('invoices', invoiceId);
+        return;
+    }
+
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('invoices', 'delete')) throw createDashboardPermissionError('invoices', 'delete');
         if (isFirebaseUserAuthenticated()) {
             try {
-                await dashboardApiRequest('DELETE', 'invoices', id);
+                await dashboardApiRequest('DELETE', 'invoices', invoiceId);
+                removeLocalEntityRecord('invoices', invoiceId);
                 return;
             } catch (error) {
+                const status = Number(error && (error.status || (error.response && error.response.status)));
+                // Idempotent delete: 404/400 → record not on server; prune local state.
+                if (status === 404 || status === 400) {
+                    removeLocalEntityRecord('invoices', invoiceId);
+                    return;
+                }
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'delete');
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
-        setLocalEntityData('invoices', records);
+        removeLocalEntityRecord('invoices', invoiceId);
         return;
     }
-    // API unavailable → localStorage cleanup only (no direct Firestore).
-    const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
-    setLocalEntityData('invoices', records);
+    // API unavailable in production: surface error for UI retry.
+    const err = new Error('Could not delete invoice — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 // API-first: backend is sole source of truth.
@@ -4779,12 +4816,11 @@ async function addTeamMember(d) {
         setLocalEntityData('team_members', records);
         return r;
     }
-    // API unavailable → localStorage fallback only (no direct Firestore).
-    const records = getLocalEntityData('team_members');
-    const r = { ...doc, id: 'm' + Date.now(), storage_fallback: true };
-    records.push(r);
-    setLocalEntityData('team_members', records);
-    return r;
+    // API unavailable in production: surface error instead of writing a
+    // storage_fallback row that later 400/404s on delete.
+    const err = new Error('Could not add team member — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function forceFullSessionRefreshAfterTeamMemberUpdate(teamMemberId = '') {
@@ -4818,7 +4854,6 @@ async function updateTeamMember(id, d) {
     await beginTeamUpdateCacheBypass(id);
     try {
         const doc = withOwnerFields(d);
-        const existingLocalRecord = getLocalEntityData('team_members').find(member => String(member && member.id) === String(id)) || null;
         if (isFirebaseConfigured) {
             if (!hasDashboardPermission('team', 'update')) throw createDashboardPermissionError('team', 'update');
             if (isFirebaseUserAuthenticated()) {
@@ -4838,15 +4873,11 @@ async function updateTeamMember(id, d) {
             }
             return null;
         }
-        // API unavailable → localStorage fallback only (no direct Firestore).
-        const records = getLocalEntityData('team_members');
-        const i = records.findIndex(m => m.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc, storage_fallback: true };
-            setLocalEntityData('team_members', records);
-            return records[i];
-        }
-        return upsertLocalEntityRecord('team_members', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
+        // API unavailable in production: surface error instead of writing a
+        // storage_fallback patch that would later fail to sync.
+        const err = new Error('Could not update team member — the server is unreachable. Please retry.');
+        err.code = 'api/unavailable';
+        throw err;
     } finally {
         endTeamUpdateCacheBypass(`team_member_update_${String(id || '').trim()}_complete`);
     }
@@ -4854,27 +4885,41 @@ async function updateTeamMember(id, d) {
 
 async function deleteTeamMember(id) {
     if (!canAccessEntity('team')) throw createRestrictedAccessError('team');
+    const memberId = String(id || '').trim();
+    if (!memberId) return;
+
+    // Ghost-record short-circuit — skip API for local-only records.
+    if (_isGhostEntityRecord('team_members', memberId)) {
+        removeLocalEntityRecord('team_members', memberId);
+        return;
+    }
+
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('team', 'delete')) throw createDashboardPermissionError('team', 'delete');
         if (isFirebaseUserAuthenticated()) {
             try {
-                await dashboardApiRequest('DELETE', 'team_members', id);
-                const remainingRecords = getLocalEntityData('team_members').filter(member => String(member && member.id) !== String(id));
-                setLocalEntityData('team_members', remainingRecords);
+                await dashboardApiRequest('DELETE', 'team_members', memberId);
+                removeLocalEntityRecord('team_members', memberId);
                 return;
             } catch (error) {
+                const status = Number(error && (error.status || (error.response && error.response.status)));
+                // Idempotent delete: 404/400 → record not on server; prune local state.
+                if (status === 404 || status === 400) {
+                    removeLocalEntityRecord('team_members', memberId);
+                    return;
+                }
                 if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'team', 'delete');
             }
         }
     }
     if (!isFirebaseConfigured) {
-        const records = getLocalEntityData('team_members').filter(m => m.id !== id);
-        setLocalEntityData('team_members', records);
+        removeLocalEntityRecord('team_members', memberId);
         return;
     }
-    // API unavailable → localStorage cleanup only (no direct Firestore).
-    const records = getLocalEntityData('team_members').filter(m => m.id !== id);
-    setLocalEntityData('team_members', records);
+    // API unavailable in production: surface error for UI retry.
+    const err = new Error('Could not remove team member — the server is unreachable. Please retry.');
+    err.code = 'api/unavailable';
+    throw err;
 }
 
 async function logActivity(description, userName = 'Admin') {
