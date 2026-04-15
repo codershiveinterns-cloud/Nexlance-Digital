@@ -3374,22 +3374,6 @@ async function fetchClientById(id) {
             }
         }
 
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey || shouldBypassDirectFirestoreForCollection('clients')) {
-            return filterRecordsForCurrentUserScope('clients', getLocalEntityData('clients'))
-                .find(client => String(client.id) === clientId) || null;
-        }
-
-        const snapshot = await db.collection('clients').doc(clientId).get();
-        if (snapshot.exists) {
-            const record = { id: snapshot.id, ...snapshot.data() };
-            const isOwnedRecord = String(record.owner_key || '').trim().toLowerCase() === String(ownerKey || '').trim().toLowerCase();
-            const filteredRecords = filterRecordsForCurrentUserScope('clients', isOwnedRecord ? [record] : []);
-            if (filteredRecords.length) {
-                upsertLocalEntityRecord('clients', filteredRecords[0]);
-                return filteredRecords[0];
-            }
-        }
     } catch (error) {
         if (!shouldUseLocalEntityFallback(error)) console.error(error);
     }
@@ -3418,26 +3402,11 @@ async function addClient(d) {
         setLocalEntityData('clients', records);
         return r;
     }
-    if (shouldBypassDirectFirestoreForCollection('clients')) {
-        const records = getLocalEntityData('clients');
-        const r = { ...doc, id: 'c' + Date.now(), storage_fallback: true };
-        records.unshift(r);
-        setLocalEntityData('clients', records);
-        return r;
-    }
-    try {
-        const ref = await db.collection('clients').add(doc);
-        return { id: ref.id, ...doc };
-    } catch (error) {
-        if (shouldUseLocalEntityFallback(error)) {
-            const records = getLocalEntityData('clients');
-            const r = { ...doc, id: 'c' + Date.now(), storage_fallback: true };
-            records.unshift(r);
-            setLocalEntityData('clients', records);
-            return r;
-        }
-        throw error;
-    }
+    const records = getLocalEntityData('clients');
+    const r = { ...doc, id: 'c' + Date.now(), storage_fallback: true };
+    records.unshift(r);
+    setLocalEntityData('clients', records);
+    return r;
 }
 
 async function updateClient(id, d) {
@@ -3466,18 +3435,14 @@ async function updateClient(id, d) {
         }
         return null;
     }
-    if (shouldBypassDirectFirestoreForCollection('clients')) {
-        const records = getLocalEntityData('clients');
-        const i = records.findIndex(c => c.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc };
-            setLocalEntityData('clients', records);
-            return records[i];
-        }
-        return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
+    const records = getLocalEntityData('clients');
+    const i = records.findIndex(c => c.id === id);
+    if (i > -1) {
+        records[i] = { ...records[i], ...doc };
+        setLocalEntityData('clients', records);
+        return records[i];
     }
-    await db.collection('clients').doc(id).update(doc);
-    return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc });
+    return upsertLocalEntityRecord('clients', { ...(existingLocalRecord || {}), id, ...doc, storage_fallback: true });
 }
 
 async function deleteClient(id) {
@@ -3507,16 +3472,6 @@ async function deleteClient(id) {
         const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
         setLocalEntityData('clients', records);
         return;
-    }
-    if (shouldBypassDirectFirestoreForCollection('clients')) {
-        const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
-        setLocalEntityData('clients', records);
-        return;
-    }
-    try {
-        await db.collection('clients').doc(clientId).delete();
-    } catch (error) {
-        if (!shouldUseLocalEntityFallback(error)) throw error;
     }
     const records = getLocalEntityData('clients').filter(c => c.id !== clientId);
     setLocalEntityData('clients', records);

@@ -3,9 +3,9 @@ const {
     commitBatchedWrites,
     findUserDocumentByEmail,
     getCollectionDocument,
-    listCollectionDocuments,
     patchCollectionDocument,
     queryCollectionDocuments,
+    queryCollectionDocumentsMulti,
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
@@ -519,18 +519,13 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
 
     const normalizedPreferredWorkspaceId = String(preferredWorkspaceId || '').trim();
     const normalizedPreferredInvitationId = String(preferredInvitationId || '').trim();
-    let invitations = await queryCollectionDocuments('invitations', {
+    // Indexed email lookup only — no fallback full scan
+    const invitations = await queryCollectionDocuments('invitations', {
         fieldPath: 'email',
         op: 'EQUAL',
         value: safeEmail,
         limit: 200
     }).catch(() => []);
-
-    if (!Array.isArray(invitations) || !invitations.length) {
-        invitations = (await listCollectionDocuments('invitations', { pageSize: 500 }).catch(() => []))
-            .filter(record => AccessControl.normalizeEmail(record.email) === safeEmail)
-            .map(record => ({ id: record.id, data: record }));
-    }
 
     let candidates = (Array.isArray(invitations) ? invitations : [])
         .map(record => ({
@@ -576,68 +571,105 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
     if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) return;
 
     const now = new Date().toISOString();
-    const records = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
-    const currentAssignments = records.filter(record => {
-        const recordWorkspaceId = String(record.workspaceId || record.workspace_id || '').trim();
-        const recordUserId = String(record.userId || record.user_id || '').trim();
-        const recordEmail = AccessControl.normalizeEmail(record.email || record.user_email);
-        const matchesIdentity = normalizedEmail
-            ? recordEmail === normalizedEmail
-            : (normalizedUserId && recordUserId === normalizedUserId);
-        return recordWorkspaceId === normalizedWorkspaceId && matchesIdentity;
-    });
+    // Indexed composite query: workspace_id + email (or user_id) — no full scan
+    const assignmentQueries = [];
+    if (normalizedEmail) {
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail }
+        ], 500).catch(() => []));
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'user_email', op: 'EQUAL', value: normalizedEmail }
+        ], 500).catch(() => []));
+    } else if (normalizedUserId) {
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'user_id', op: 'EQUAL', value: normalizedUserId }
+        ], 500).catch(() => []));
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'userId', op: 'EQUAL', value: normalizedUserId }
+        ], 500).catch(() => []));
+    }
+    const assignmentResults = await Promise.all(assignmentQueries);
+    const seenAssignmentIds = new Set();
+    const currentAssignments = [];
+    for (const batch of assignmentResults) {
+        for (const record of (Array.isArray(batch) ? batch : [])) {
+            if (!record || !record.id || seenAssignmentIds.has(record.id)) continue;
+            seenAssignmentIds.add(record.id);
+            currentAssignments.push(record);
+        }
+    }
 
-    for (const assignment of currentAssignments) {
-        await patchCollectionDocument('project_assignments', assignment.id, {
-            status: 'inactive',
-            active: false,
-            updatedAt: now,
-            updated_at: now
-        }).catch(() => undefined);
+    // Batch deactivate — 1 chunked op instead of N sequential writes
+    if (currentAssignments.length) {
+        const deactivateOps = currentAssignments.map(assignment => ({
+            collectionId: 'project_assignments',
+            docId: assignment.id,
+            data: {
+                status: 'inactive',
+                active: false,
+                updatedAt: now,
+                updated_at: now
+            }
+        }));
+        await commitBatchedWrites(deactivateOps).catch(() => undefined);
     }
 
     if (access.allProjectsAccess) {
         return;
     }
 
+    // Validate project workspace membership in parallel
+    const projectIdList = (access.assignedProjectIds || [])
+        .map(p => String(p || '').trim())
+        .filter(Boolean);
+    const projectDocs = await Promise.all(projectIdList.map(id =>
+        getCollectionDocument('projects', id).catch(() => null)
+    ));
     const validProjectIds = [];
-    for (const rawProjectId of access.assignedProjectIds) {
-        const projectId = String(rawProjectId || '').trim();
-        if (!projectId) continue;
-        const projectRecord = await getCollectionDocument('projects', projectId).catch(() => null);
+    projectIdList.forEach((projectId, idx) => {
+        const projectRecord = projectDocs[idx];
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
-
         if (!projectRecord || !projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
             console.error('[WorkspaceConsistency] Auto-bootstrap assignment rejected due to workspace mismatch', {
                 workspaceId: normalizedWorkspaceId,
                 projectId,
                 projectWorkspaceId
             });
-            continue;
+            return;
         }
         validProjectIds.push(projectId);
-    }
+    });
 
-    for (const projectId of AccessControl.sanitizeAssignedProjectIds(validProjectIds)) {
-        const assignmentId = sanitizeDocumentId(`${normalizedWorkspaceId}_${projectId}_${identityToken}`);
-        await upsertCollectionDocument('project_assignments', assignmentId, {
-            workspaceId: normalizedWorkspaceId,
-            workspace_id: normalizedWorkspaceId,
-            projectId,
-            project_id: projectId,
-            userId: normalizedUserId,
-            user_id: normalizedUserId,
-            email: normalizedEmail,
-            user_email: normalizedEmail,
-            role: AccessControl.ROLES.CLIENT,
-            inviteType: 'client',
-            status: 'active',
-            createdAt: now,
-            created_at: now,
-            updatedAt: now,
-            updated_at: now,
-            active: true
-        }).catch(() => undefined);
+    // Batch upsert — 1 chunked op instead of N sequential writes
+    const sanitizedIds = AccessControl.sanitizeAssignedProjectIds(validProjectIds);
+    if (sanitizedIds.length) {
+        const upsertOps = sanitizedIds.map(projectId => ({
+            collectionId: 'project_assignments',
+            docId: `${normalizedWorkspaceId}_${projectId}_${identityToken}`,
+            data: {
+                workspaceId: normalizedWorkspaceId,
+                workspace_id: normalizedWorkspaceId,
+                projectId,
+                project_id: projectId,
+                userId: normalizedUserId,
+                user_id: normalizedUserId,
+                email: normalizedEmail,
+                user_email: normalizedEmail,
+                role: AccessControl.ROLES.CLIENT,
+                inviteType: 'client',
+                status: 'active',
+                createdAt: now,
+                created_at: now,
+                updatedAt: now,
+                updated_at: now,
+                active: true
+            }
+        }));
+        await commitBatchedWrites(upsertOps).catch(() => undefined);
     }
 }
 

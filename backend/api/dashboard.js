@@ -8,11 +8,48 @@ const {
     createCollectionDocument,
     deleteCollectionDocument,
     getCollectionDocument,
-    listCollectionDocuments,
     patchCollectionDocument,
     queryCollectionDocuments
 } = require('../services/firebase-service');
 const { handleOptions, normalizeBody, sendApiError, setApiCors } = require('./_utils');
+
+// ─── 30-second TTL cache for dashboard list queries ───
+// Invalidated on any create/patch/delete to same (workspace, collection) pair.
+const DASHBOARD_LIST_CACHE_TTL_MS = 30 * 1000;
+const DASHBOARD_LIST_CACHE_MAX = 200;
+const _dashboardListCache = new Map();
+
+function _dashboardListCacheKey(collectionId, sessionUser) {
+    const ws = String(sessionUser && sessionUser.workspaceId || '').trim();
+    const owner = normalizeEmail(sessionUser && (sessionUser.workspaceOwnerEmail || sessionUser.ownerEmail || sessionUser.email));
+    return `${collectionId}::${ws}::${owner}`;
+}
+
+function _getDashboardListCache(key) {
+    const entry = _dashboardListCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > DASHBOARD_LIST_CACHE_TTL_MS) {
+        _dashboardListCache.delete(key);
+        return null;
+    }
+    return entry.records;
+}
+
+function _setDashboardListCache(key, records) {
+    if (_dashboardListCache.size >= DASHBOARD_LIST_CACHE_MAX) {
+        const firstKey = _dashboardListCache.keys().next().value;
+        _dashboardListCache.delete(firstKey);
+    }
+    _dashboardListCache.set(key, { records, timestamp: Date.now() });
+}
+
+function _invalidateDashboardListCache(collectionId, sessionUser) {
+    const ws = String(sessionUser && sessionUser.workspaceId || '').trim();
+    const prefix = `${collectionId}::${ws}::`;
+    for (const key of _dashboardListCache.keys()) {
+        if (key.startsWith(prefix)) _dashboardListCache.delete(key);
+    }
+}
 
 const DASHBOARD_COLLECTIONS = new Set([
     'clients',
@@ -112,41 +149,31 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
     const workspaceId = String(sessionUser.workspaceId || '').trim();
     if (!ownerKey && !workspaceId) return [];
 
-    const queryResults = [];
+    // 30s TTL cache — skip Firestore entirely on cache hit
+    const cacheKey = _dashboardListCacheKey(collectionId, sessionUser);
+    const cached = _getDashboardListCache(cacheKey);
+    if (cached) return cached;
 
-    // Always query by owner_key (catches projects with empty workspace_id)
+    // Run owner_key + workspace_id queries in parallel (no fallback full scan)
+    const queries = [];
     if (ownerKey) {
-        const ownerMatched = await queryCollectionDocuments(collectionId, {
+        queries.push(queryCollectionDocuments(collectionId, {
             fieldPath: 'owner_key',
             op: 'EQUAL',
             value: ownerKey,
             limit: 500
-        }).catch(() => []);
-        queryResults.push(...(Array.isArray(ownerMatched) ? ownerMatched : []));
+        }).catch(() => []));
     }
-
     if (workspaceId) {
-        const workspaceMatched = await queryCollectionDocuments(collectionId, {
+        queries.push(queryCollectionDocuments(collectionId, {
             fieldPath: 'workspace_id',
             op: 'EQUAL',
             value: workspaceId,
             limit: 500
-        }).catch(() => []);
-        queryResults.push(...(Array.isArray(workspaceMatched) ? workspaceMatched : []));
+        }).catch(() => []));
     }
-
-    if (!queryResults.length) {
-        const all = await listCollectionDocuments(collectionId, { pageSize: 500 }).catch(() => []);
-        return all
-            .filter(record => (
-                (ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
-                || (workspaceId && String(record.workspace_id || '').trim() === workspaceId)
-            ))
-            .map(record => ({
-                id: record.id,
-                data: record
-            }));
-    }
+    const results = await Promise.all(queries);
+    const queryResults = results.flat();
 
     const seen = new Set();
     const deduped = queryResults
@@ -178,6 +205,7 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
         }
     }
 
+    _setDashboardListCache(cacheKey, deduped);
     return deduped;
 }
 
@@ -484,6 +512,7 @@ module.exports = async function handler(req, res) {
                 builtDoc,
                 route.documentId || ''
             );
+            _invalidateDashboardListCache(route.collectionId, sessionUser);
             let responseRecord = record;
             if (route.collectionId === 'clients') {
                 const syncedClientRecord = await syncClientAccessState({ id: record.id, data: record }).catch(() => null);
@@ -535,6 +564,7 @@ module.exports = async function handler(req, res) {
                 route.documentId,
                 buildDashboardDocument(body, sessionUser, false)
             );
+            _invalidateDashboardListCache(route.collectionId, sessionUser);
             let responseRecord = record;
             if (route.collectionId === 'clients') {
                 const syncedClientRecord = await syncClientAccessState({ id: route.documentId, data: record }).catch(() => null);
@@ -581,6 +611,7 @@ module.exports = async function handler(req, res) {
             }
 
             await deleteCollectionDocument(route.collectionId, route.documentId);
+            _invalidateDashboardListCache(route.collectionId, sessionUser);
             res.status(200).json({ ok: true });
             return;
         }

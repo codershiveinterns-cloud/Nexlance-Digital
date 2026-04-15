@@ -1,0 +1,61 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "project_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspace_id", "order": "ASCENDING" },
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "project_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspace_id", "order": "ASCENDING" },
+        { "fieldPath": "user_email", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "project_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspace_id", "order": "ASCENDING" },
+        { "fieldPath": "user_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "project_assignments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspace_id", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "clients",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspace_id", "order": "ASCENDING" },
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "team_members",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspace_id", "order": "ASCENDING" },
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

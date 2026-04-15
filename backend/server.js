@@ -85,7 +85,6 @@ const {
     createCollectionDocument,
     deleteCollectionDocument,
     getCollectionDocument,
-    listCollectionDocuments,
     patchCollectionDocument,
     queryCollectionDocuments
 } = require('./services/firebase-service');
@@ -526,40 +525,26 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
     const workspaceId = String(sessionUser.workspaceId || '').trim();
     if (!ownerKey && !workspaceId) return [];
 
-    const queryResults = [];
+    // Run both indexed queries in parallel (no fallback full scan)
+    const queries = [];
     if (ownerKey && (!workspaceId || collectionId !== 'projects')) {
-        const ownerMatched = await queryCollectionDocuments(collectionId, {
+        queries.push(queryCollectionDocuments(collectionId, {
             fieldPath: 'owner_key',
             op: 'EQUAL',
             value: ownerKey,
             limit: 500
-        }).catch(() => []);
-        queryResults.push(...(Array.isArray(ownerMatched) ? ownerMatched : []));
+        }).catch(() => []));
     }
-
     if (workspaceId) {
-        const workspaceMatched = await queryCollectionDocuments(collectionId, {
+        queries.push(queryCollectionDocuments(collectionId, {
             fieldPath: 'workspace_id',
             op: 'EQUAL',
             value: workspaceId,
             limit: 500
-        }).catch(() => []);
-        queryResults.push(...(Array.isArray(workspaceMatched) ? workspaceMatched : []));
+        }).catch(() => []));
     }
-
-    if (!queryResults.length) {
-        const all = await listCollectionDocuments(collectionId, { pageSize: 500 }).catch(() => []);
-        const requireWorkspaceMatch = collectionId === 'projects' && Boolean(workspaceId);
-        return all
-            .filter(record => (
-                (!requireWorkspaceMatch && ownerKey && normalizeEmail(record.owner_key || record.owner_email) === ownerKey)
-                || (workspaceId && String(record.workspace_id || '').trim() === workspaceId)
-            ))
-            .map(record => ({
-                id: record.id,
-                data: record
-            }));
-    }
+    const results = await Promise.all(queries);
+    const queryResults = results.flat();
 
     const seen = new Set();
     return queryResults

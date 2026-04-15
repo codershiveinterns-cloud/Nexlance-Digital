@@ -2,7 +2,6 @@ const AccessControl = require('../../rbac.js');
 const {
     findUserDocumentByEmail,
     getCollectionDocument,
-    listCollectionDocuments,
     patchCollectionDocument,
     sanitizeDocumentId,
     upsertCollectionDocument

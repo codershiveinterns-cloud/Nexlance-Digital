@@ -11,11 +11,12 @@ const {
 } = require('./client-access');
 const { buildTeamPermissionFields } = require('./team-member-access');
 const {
+    commitBatchedWrites,
     createCollectionDocument,
     getCollectionDocument,
-    listCollectionDocuments,
     patchCollectionDocument,
     queryCollectionDocuments,
+    queryCollectionDocumentsMulti,
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
@@ -58,25 +59,52 @@ async function deactivateExistingProjectAssignments({
     }
 
     const now = new Date().toISOString();
-    const existingAssignments = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
-    const matchingAssignments = (Array.isArray(existingAssignments) ? existingAssignments : []).filter(record => {
-        const recordWorkspaceId = String(record.workspaceId || record.workspace_id || '').trim();
-        const recordUserId = String(record.userId || record.user_id || '').trim();
-        const recordEmail = AccessControl.normalizeEmail(record.email || record.user_email);
-        const matchesIdentity = normalizedEmail
-            ? recordEmail === normalizedEmail
-            : (normalizedUserId && recordUserId === normalizedUserId);
-        return recordWorkspaceId === normalizedWorkspaceId && matchesIdentity;
-    });
+    // Indexed composite query — no full scan
+    const assignmentQueries = [];
+    if (normalizedEmail) {
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail }
+        ], 500).catch(() => []));
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'user_email', op: 'EQUAL', value: normalizedEmail }
+        ], 500).catch(() => []));
+    } else if (normalizedUserId) {
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'user_id', op: 'EQUAL', value: normalizedUserId }
+        ], 500).catch(() => []));
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'userId', op: 'EQUAL', value: normalizedUserId }
+        ], 500).catch(() => []));
+    }
+    const assignmentResults = await Promise.all(assignmentQueries);
+    const seenAssignmentIds = new Set();
+    const matchingAssignments = [];
+    for (const batch of assignmentResults) {
+        for (const record of (Array.isArray(batch) ? batch : [])) {
+            if (!record || !record.id || seenAssignmentIds.has(record.id)) continue;
+            seenAssignmentIds.add(record.id);
+            matchingAssignments.push(record);
+        }
+    }
 
-    for (const assignment of matchingAssignments) {
-        await patchCollectionDocument('project_assignments', assignment.id, {
-            status: 'inactive',
-            active: false,
-            deactivatedReason: String(reason || '').trim() || 'assignment_resync',
-            updatedAt: now,
-            updated_at: now
-        }).catch(() => undefined);
+    // Batch deactivate — chunked single op
+    if (matchingAssignments.length) {
+        const ops = matchingAssignments.map(assignment => ({
+            collectionId: 'project_assignments',
+            docId: assignment.id,
+            data: {
+                status: 'inactive',
+                active: false,
+                deactivatedReason: String(reason || '').trim() || 'assignment_resync',
+                updatedAt: now,
+                updated_at: now
+            }
+        }));
+        await commitBatchedWrites(ops).catch(() => undefined);
     }
 
     return matchingAssignments.map(assignment => String(assignment && assignment.id || '').trim()).filter(Boolean);
@@ -283,18 +311,11 @@ async function findWorkspaceClientRecordsByEmail({ workspaceId = '', email = '' 
         return [];
     }
 
-    let workspaceClients = await queryCollectionDocuments('clients', {
-        fieldPath: 'workspace_id',
-        op: 'EQUAL',
-        value: normalizedWorkspaceId,
-        limit: 500
-    }).catch(() => []);
-
-    if (!Array.isArray(workspaceClients) || !workspaceClients.length) {
-        workspaceClients = (await listCollectionDocuments('clients', { pageSize: 500 }).catch(() => []))
-            .filter(record => String(record.workspace_id || '').trim() === normalizedWorkspaceId)
-            .map(record => ({ id: record.id, data: record }));
-    }
+    // Indexed composite query: workspace_id + email — no full-scan fallback
+    const workspaceClients = await queryCollectionDocumentsMulti('clients', [
+        { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+        { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail }
+    ], 500).catch(() => []);
 
     return (Array.isArray(workspaceClients) ? workspaceClients : [])
         .map(record => ({
@@ -319,18 +340,11 @@ async function findWorkspaceTeamMemberRecordsByEmail({ workspaceId = '', email =
         return [];
     }
 
-    let workspaceMembers = await queryCollectionDocuments('team_members', {
-        fieldPath: 'workspace_id',
-        op: 'EQUAL',
-        value: normalizedWorkspaceId,
-        limit: 500
-    }).catch(() => []);
-
-    if (!Array.isArray(workspaceMembers) || !workspaceMembers.length) {
-        workspaceMembers = (await listCollectionDocuments('team_members', { pageSize: 500 }).catch(() => []))
-            .filter(record => String(record.workspace_id || '').trim() === normalizedWorkspaceId)
-            .map(record => ({ id: record.id, data: record }));
-    }
+    // Indexed composite query: workspace_id + email — no full-scan fallback
+    const workspaceMembers = await queryCollectionDocumentsMulti('team_members', [
+        { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+        { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail }
+    ], 500).catch(() => []);
 
     return (Array.isArray(workspaceMembers) ? workspaceMembers : [])
         .map(record => ({
@@ -391,18 +405,11 @@ async function markWorkspaceClientInvitationsSuperseded({ workspaceId = '', emai
         return;
     }
 
-    let invitations = await queryCollectionDocuments('invitations', {
-        fieldPath: 'email',
-        op: 'EQUAL',
-        value: normalizedEmail,
-        limit: 200
-    }).catch(() => []);
-
-    if (!Array.isArray(invitations) || !invitations.length) {
-        invitations = (await listCollectionDocuments('invitations', { pageSize: 500 }).catch(() => []))
-            .filter(record => AccessControl.normalizeEmail(record.email) === normalizedEmail)
-            .map(record => ({ id: record.id, data: record }));
-    }
+    // Indexed composite query: workspaceId + email — no full-scan fallback
+    const invitations = await queryCollectionDocumentsMulti('invitations', [
+        { fieldPath: 'workspaceId', op: 'EQUAL', value: normalizedWorkspaceId },
+        { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail }
+    ], 200).catch(() => []);
 
     const supersedableStatuses = new Set(['pending', 'delivery_failed']);
     const now = new Date().toISOString();

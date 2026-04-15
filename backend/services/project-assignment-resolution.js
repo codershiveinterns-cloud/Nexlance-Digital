@@ -1,5 +1,5 @@
 const AccessControl = require('../../rbac.js');
-const { listCollectionDocuments, queryCollectionDocuments } = require('./firebase-service');
+const { queryCollectionDocuments } = require('./firebase-service');
 
 const AMBIGUOUS_PROJECT_TOKEN = '__ambiguous_project_token__';
 
@@ -94,32 +94,28 @@ async function listWorkspaceProjects({ workspaceId = '', workspaceOwnerEmail = '
         });
     };
 
+    // Run both indexed queries in parallel (no fallback full scan)
+    const queries = [];
     if (normalizedWorkspaceId) {
-        const workspaceMatches = await queryCollectionDocuments('projects', {
+        queries.push(queryCollectionDocuments('projects', {
             fieldPath: 'workspace_id',
             op: 'EQUAL',
             value: normalizedWorkspaceId,
             limit: 500
-        }).catch(() => []);
-        pushRecords(workspaceMatches);
+        }).catch(() => []));
     }
-
     if (normalizedOwnerEmail) {
-        const ownerMatches = await queryCollectionDocuments('projects', {
+        queries.push(queryCollectionDocuments('projects', {
             fieldPath: 'owner_key',
             op: 'EQUAL',
             value: normalizedOwnerEmail,
             limit: 500
-        }).catch(() => []);
-        pushRecords(ownerMatches);
+        }).catch(() => []));
     }
-
-    if (records.length) {
-        return records;
+    const results = await Promise.all(queries);
+    for (const batch of results) {
+        pushRecords(batch);
     }
-
-    const fallbackRecords = await listCollectionDocuments('projects', { pageSize: 500 }).catch(() => []);
-    pushRecords(fallbackRecords);
     return records;
 }
 

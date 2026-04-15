@@ -50,6 +50,19 @@ async function findUserDocumentByEmail(email) {
     };
 }
 
+const FIRESTORE_OP_MAP = {
+    'EQUAL': '==',
+    'NOT_EQUAL': '!=',
+    'LESS_THAN': '<',
+    'LESS_THAN_OR_EQUAL': '<=',
+    'GREATER_THAN': '>',
+    'GREATER_THAN_OR_EQUAL': '>=',
+    'ARRAY_CONTAINS': 'array-contains',
+    'IN': 'in',
+    'ARRAY_CONTAINS_ANY': 'array-contains-any',
+    'NOT_IN': 'not-in'
+};
+
 async function queryCollectionDocuments(collectionId, options = {}) {
     const fieldPath = String(options.fieldPath || '').trim();
     const limit = Number(options.limit || 10);
@@ -59,27 +72,38 @@ async function queryCollectionDocuments(collectionId, options = {}) {
         throw new Error('Collection and fieldPath are required to query Firestore.');
     }
 
-    const opMap = {
-        'EQUAL': '==',
-        'NOT_EQUAL': '!=',
-        'LESS_THAN': '<',
-        'LESS_THAN_OR_EQUAL': '<=',
-        'GREATER_THAN': '>',
-        'GREATER_THAN_OR_EQUAL': '>=',
-        'ARRAY_CONTAINS': 'array-contains',
-        'IN': 'in',
-        'ARRAY_CONTAINS_ANY': 'array-contains-any',
-        'NOT_IN': 'not-in'
-    };
-
     const op = String(options.op || 'EQUAL').trim();
-    const firestoreOp = opMap[op] || '==';
+    const firestoreOp = FIRESTORE_OP_MAP[op] || '==';
 
     const snapshot = await db.collection(collectionId)
         .where(fieldPath, firestoreOp, value)
         .limit(limit)
         .get();
 
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.ref.path,
+        data: doc.data()
+    }));
+}
+
+/**
+ * Multi-filter indexed query (composite index required).
+ * filters: [{ fieldPath, op, value }, ...]
+ * Use when single-field query + client-side filtering is wasteful.
+ */
+async function queryCollectionDocumentsMulti(collectionId, filters = [], limit = 500) {
+    if (!collectionId || !Array.isArray(filters) || !filters.length) {
+        throw new Error('Collection and at least one filter required.');
+    }
+    let ref = db.collection(collectionId);
+    for (const filter of filters) {
+        const fieldPath = String(filter.fieldPath || '').trim();
+        if (!fieldPath) continue;
+        const firestoreOp = FIRESTORE_OP_MAP[String(filter.op || 'EQUAL').trim()] || '==';
+        ref = ref.where(fieldPath, firestoreOp, filter.value);
+    }
+    const snapshot = await ref.limit(Number(limit) || 500).get();
     return snapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.ref.path,
@@ -335,6 +359,7 @@ module.exports = {
     getFirestoreBatch,
     getFirestoreDocRef,
     queryCollectionDocuments,
+    queryCollectionDocumentsMulti,
     listCollectionDocuments,
     patchCollectionDocument,
     recordTemplateEntitlement,

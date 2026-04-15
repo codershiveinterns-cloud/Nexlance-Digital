@@ -1,8 +1,9 @@
 const AccessControl = require('../../rbac.js');
 const {
+    commitBatchedWrites,
     getCollectionDocument,
-    listCollectionDocuments,
     patchCollectionDocument,
+    queryCollectionDocumentsMulti,
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
@@ -108,18 +109,43 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
     }
     const validProjectIdSet = new Set(AccessControl.sanitizeAssignedProjectIds(validRequestedProjectIds));
 
-    const existingAssignments = await listCollectionDocuments('project_assignments', { pageSize: 500 }).catch(() => []);
-    const matchingAssignments = existingAssignments.filter(record => {
-        const recordWorkspaceId = String(record.workspaceId || record.workspace_id || '').trim();
-        const recordUserId = String(record.userId || record.user_id || '').trim();
-        const recordEmail = AccessControl.normalizeEmail(record.email || record.user_email);
-        const matchesIdentity = normalizedEmail
-            ? recordEmail === normalizedEmail
-            : (normalizedUserId && recordUserId === normalizedUserId);
-        return recordWorkspaceId === normalizedWorkspaceId && matchesIdentity;
-    });
+    // Indexed composite queries (workspace_id + email/user_id) — no full scan
+    const assignmentQueries = [];
+    if (normalizedEmail) {
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail }
+        ], 500).catch(() => []));
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'user_email', op: 'EQUAL', value: normalizedEmail }
+        ], 500).catch(() => []));
+    } else if (normalizedUserId) {
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'user_id', op: 'EQUAL', value: normalizedUserId }
+        ], 500).catch(() => []));
+        assignmentQueries.push(queryCollectionDocumentsMulti('project_assignments', [
+            { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+            { fieldPath: 'userId', op: 'EQUAL', value: normalizedUserId }
+        ], 500).catch(() => []));
+    }
+    const assignmentResults = await Promise.all(assignmentQueries);
+    const seenAssignmentIds = new Set();
+    const matchingAssignments = [];
+    for (const batch of assignmentResults) {
+        for (const record of (Array.isArray(batch) ? batch : [])) {
+            if (!record || !record.id || seenAssignmentIds.has(record.id)) continue;
+            seenAssignmentIds.add(record.id);
+            matchingAssignments.push({
+                id: record.id,
+                ...(record.data || {})
+            });
+        }
+    }
 
-    // 2) Deactivate only invalid or out-of-scope existing assignments.
+    // 2) Deactivate only invalid or out-of-scope existing assignments (batched).
+    const deactivateOps = [];
     for (const assignment of matchingAssignments) {
         const assignmentProjectId = String(assignment.projectId || assignment.project_id || '').trim();
         const assignmentProjectWorkspaceId = await resolveProjectWorkspaceId(assignmentProjectId);
@@ -132,13 +158,20 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
             ? false
             : (assignmentIsWorkspaceValid && validProjectIdSet.has(assignmentProjectId));
         if (assignmentShouldRemainActive) continue;
-        await patchCollectionDocument('project_assignments', assignment.id, {
-            status: 'inactive',
-            active: false,
-            mismatchReason: assignmentIsWorkspaceValid ? 'not_in_requested_scope' : 'project_workspace_mismatch',
-            updatedAt: now,
-            updated_at: now
-        }).catch(() => undefined);
+        deactivateOps.push({
+            collectionId: 'project_assignments',
+            docId: assignment.id,
+            data: {
+                status: 'inactive',
+                active: false,
+                mismatchReason: assignmentIsWorkspaceValid ? 'not_in_requested_scope' : 'project_workspace_mismatch',
+                updatedAt: now,
+                updated_at: now
+            }
+        });
+    }
+    if (deactivateOps.length) {
+        await commitBatchedWrites(deactivateOps).catch(() => undefined);
     }
 
     if (invalidRequestedProjectIds.length) {
@@ -150,27 +183,34 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
         });
     }
 
-    // 3) Insert/update only validated project assignments.
+    // 3) Insert/update only validated project assignments (batched).
+    const upsertOps = [];
     for (const projectId of validProjectIdSet) {
-        const assignmentId = sanitizeDocumentId(`${normalizedWorkspaceId}_${projectId}_${identityToken}`);
-        await upsertCollectionDocument('project_assignments', assignmentId, {
-            workspaceId: normalizedWorkspaceId,
-            workspace_id: normalizedWorkspaceId,
-            projectId,
-            project_id: projectId,
-            userId: normalizedUserId,
-            user_id: normalizedUserId,
-            email: normalizedEmail,
-            user_email: normalizedEmail,
-            role: normalizedRole,
-            inviteType: String(inviteType || 'client').trim().toLowerCase(),
-            status: 'active',
-            createdAt: now,
-            created_at: now,
-            updatedAt: now,
-            updated_at: now,
-            active: true
-        }).catch(() => undefined);
+        upsertOps.push({
+            collectionId: 'project_assignments',
+            docId: `${normalizedWorkspaceId}_${projectId}_${identityToken}`,
+            data: {
+                workspaceId: normalizedWorkspaceId,
+                workspace_id: normalizedWorkspaceId,
+                projectId,
+                project_id: projectId,
+                userId: normalizedUserId,
+                user_id: normalizedUserId,
+                email: normalizedEmail,
+                user_email: normalizedEmail,
+                role: normalizedRole,
+                inviteType: String(inviteType || 'client').trim().toLowerCase(),
+                status: 'active',
+                createdAt: now,
+                created_at: now,
+                updatedAt: now,
+                updated_at: now,
+                active: true
+            }
+        });
+    }
+    if (upsertOps.length) {
+        await commitBatchedWrites(upsertOps).catch(() => undefined);
     }
 
     // 4) Canonical post-sync resolution for consistent assignment scope.
