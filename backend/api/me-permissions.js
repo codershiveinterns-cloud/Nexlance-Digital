@@ -13,6 +13,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        res.setHeader('Cache-Control', 'private, max-age=30');
         res.status(200).json({
             ok: true,
             role: session.sessionUser.role,

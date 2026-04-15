@@ -4,37 +4,43 @@ import {
   createInvitedAccountSession,
   loginWithEmail,
   persistSession,
-  resendVerificationEmailForCredentials,
 } from "./authService.js";
 
+const STATES = ["loadingState", "signupState", "loginState", "successState", "errorState"];
+
 function showState(stateId) {
-  document.querySelectorAll(".invite-state").forEach((element) => {
-    element.classList.toggle("active", element.id === stateId);
+  STATES.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("active", id === stateId);
   });
 }
 
-function setMessage(message = "", type = "") {
-  const element = document.getElementById("inviteMessage");
-  if (!element) return;
-  element.textContent = message;
-  element.className = `invite-message${type ? ` ${type}` : ""}`;
+function setMessage(target, message = "", type = "") {
+  const el = document.getElementById(target);
+  if (!el) return;
+  el.textContent = message;
+  el.className = `invite-message${type ? ` ${type}` : ""}`;
 }
 
-function showForm(formId) {
-  document.querySelectorAll(".invite-form").forEach((element) => {
-    element.classList.toggle("active", element.id === formId);
+function renderInvitationSummary(invitation) {
+  const roleLabel = window.NexlanceAccessControl
+    ? window.NexlanceAccessControl.getRoleDisplayLabel(invitation.role)
+    : invitation.role;
+  const selectedCount = Array.isArray(invitation.assignedProjectIds) ? invitation.assignedProjectIds.length : 0;
+  const accessLabel = invitation.allProjectsAccess
+    ? "All projects in the workspace"
+    : selectedCount
+      ? `${selectedCount} assigned project${selectedCount === 1 ? "" : "s"}`
+      : "Projects assigned to you";
+  const html = `
+    <div class="line"><span class="label">Email</span><span class="value">${invitation.email || ""}</span></div>
+    <div class="line"><span class="label">Role</span><span class="value">${roleLabel || ""}</span></div>
+    <div class="line"><span class="label">Access</span><span class="value">${accessLabel}</span></div>
+  `;
+  ["inviteSummarySignup", "inviteSummaryLogin"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
   });
-}
-
-let pendingVerificationCredentials = null;
-
-function setResendVerificationState(visible, credentials = null) {
-  pendingVerificationCredentials = visible ? credentials : null;
-  const button = document.getElementById("resendInviteVerificationBtn");
-  if (!button) return;
-  button.style.display = visible ? "block" : "none";
-  button.disabled = false;
-  button.textContent = "Resend verification email";
 }
 
 async function resolveInvitation(token) {
@@ -49,19 +55,13 @@ async function resolveInvitation(token) {
   return payload.invitation;
 }
 
-async function acceptInvitationWithSession(token) {
+async function callAcceptInvitation(token) {
   const currentUser = auth.currentUser;
-  if (!currentUser) {
-    throw new Error("Please sign in first to accept this invitation.");
-  }
-
+  if (!currentUser) throw new Error("Please sign in first to accept this invitation.");
   const idToken = await currentUser.getIdToken();
   const response = await fetch("/api/invitations/accept", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ token }),
   });
@@ -72,96 +72,67 @@ async function acceptInvitationWithSession(token) {
   return payload.sessionUser;
 }
 
-async function forceSessionRebuildAfterAccept(initialSessionUser) {
+async function rebuildSessionAfterAccept(initialSessionUser) {
   const currentUser = auth.currentUser;
   if (!currentUser) return initialSessionUser;
-
   const idToken = await currentUser.getIdToken(true);
   const headers = { Authorization: `Bearer ${idToken}` };
 
-  // Step 1: Fetch authoritative session from /api/me (forces backend to rebuild from Firestore)
-  let serverSession = null;
+  let finalSession = initialSessionUser;
   try {
-    const meResponse = await fetch("/api/me", {
-      method: "GET",
-      headers,
-      credentials: "same-origin",
-    });
-    const mePayload = await meResponse.json().catch(() => ({}));
-    if (meResponse.ok && mePayload.user) {
-      serverSession = mePayload.user;
-    }
+    const meResponse = await fetch("/api/me", { method: "GET", headers, credentials: "same-origin" });
+    const payload = await meResponse.json().catch(() => ({}));
+    if (meResponse.ok && payload.user) finalSession = payload.user;
   } catch (err) {
-    console.warn("[InviteAccept] /api/me fetch failed, using accept response", err);
+    console.warn("[InviteAccept] /api/me rebuild failed", err);
   }
 
-  let finalSession = serverSession || initialSessionUser;
   const assignedIds = Array.isArray(finalSession.assignedProjectIds) ? finalSession.assignedProjectIds : [];
-
-  // Step 2: If assignments are still empty, force a sync then re-fetch
   if (!assignedIds.length && !finalSession.allProjectsAccess) {
-    console.info("[InviteAccept] assignedProjectIds empty — triggering forced sync");
     try {
       await fetch("/api/sync-project-assignments", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
         credentials: "same-origin",
       });
-      // Re-fetch /api/me after sync to get updated session
-      const retryResponse = await fetch("/api/me", {
-        method: "GET",
-        headers,
-        credentials: "same-origin",
-      });
-      const retryPayload = await retryResponse.json().catch(() => ({}));
-      if (retryResponse.ok && retryPayload.user) {
-        finalSession = retryPayload.user;
-      }
+      const retry = await fetch("/api/me", { method: "GET", headers, credentials: "same-origin" });
+      const retryPayload = await retry.json().catch(() => ({}));
+      if (retry.ok && retryPayload.user) finalSession = retryPayload.user;
     } catch (err) {
-      console.warn("[InviteAccept] Forced sync fallback failed", err);
+      console.warn("[InviteAccept] sync fallback failed", err);
     }
   }
 
-  console.info("[InviteAccept] Session rebuild complete", {
-    workspaceId: finalSession.workspaceId || "",
-    assignedProjectIds: finalSession.assignedProjectIds || [],
-    allProjectsAccess: Boolean(finalSession.allProjectsAccess),
-  });
-
-  // Persist the authoritative server session
-  persistSession({
-    ...finalSession,
-    emailVerified: Boolean(currentUser.emailVerified),
-  });
-
+  persistSession({ ...finalSession, emailVerified: Boolean(currentUser.emailVerified) });
   return finalSession;
 }
 
 function getPostAcceptRedirect(sessionUser) {
-  const accessControl = window.NexlanceAccessControl;
-  if (accessControl && accessControl.canViewDashboard(sessionUser)) {
-    return "dashboard.html";
-  }
+  const ac = window.NexlanceAccessControl;
+  if (ac && ac.canViewDashboard(sessionUser)) return "dashboard.html";
   return "projects.html";
 }
 
-function renderInvitationSummary(invitation) {
-  const summary = document.getElementById("inviteSummary");
-  if (!summary) return;
-  const roleLabel = window.NexlanceAccessControl
-    ? window.NexlanceAccessControl.getRoleDisplayLabel(invitation.role)
-    : invitation.role;
-  const selectedProjectCount = Array.isArray(invitation.assignedProjectIds)
-    ? invitation.assignedProjectIds.length
-    : 0;
-  const accessLabel = invitation.allProjectsAccess
-    ? "All projects"
-    : `${selectedProjectCount} selected project(s)`;
-  summary.innerHTML = `
-    <strong>Email:</strong> ${invitation.email}<br>
-    <strong>Role:</strong> ${roleLabel}<br>
-    <strong>Access:</strong> ${accessLabel}
-  `;
+async function acceptFlow(token, messageTarget) {
+  setMessage(messageTarget, "Accepting invitation…", "success");
+  const sessionUser = await callAcceptInvitation(token);
+  setMessage(messageTarget, "Finalizing your access…", "success");
+  const finalSession = await rebuildSessionAfterAccept(sessionUser);
+  showState("successState");
+  window.setTimeout(() => {
+    window.location.href = getPostAcceptRedirect(finalSession);
+  }, 900);
+}
+
+async function emailAlreadyRegistered(email) {
+  try {
+    const methods = await import("https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js")
+      .then((mod) => mod.fetchSignInMethodsForEmail(auth, email))
+      .catch(() => []);
+    return Array.isArray(methods) && methods.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -185,85 +156,57 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   renderInvitationSummary(invitation);
-  document.getElementById("existingEmail").value = invitation.email;
-  document.getElementById("inviteName").value = invitation.inviteeName || "";
-  showForm("signupFormWrap");
-  showState("acceptState");
+  document.getElementById("signupEmail").value = invitation.email;
+  document.getElementById("loginEmail").value = invitation.email;
+  document.getElementById("signupName").value = invitation.inviteeName || "";
 
-  if (auth.currentUser && String(auth.currentUser.email || "").toLowerCase() === String(invitation.email || "").toLowerCase()) {
-    if (auth.currentUser.emailVerified) {
-      document.getElementById("acceptCurrentSessionBtn").style.display = "block";
-    } else {
-      setMessage("Verify your email address before accepting this invitation.", "error");
-    }
-  }
-
-  document.getElementById("showSignupBtn").addEventListener("click", () => {
-    showForm("signupFormWrap");
-    setMessage("");
-    setResendVerificationState(false);
-  });
-
-  document.getElementById("showLoginBtn").addEventListener("click", () => {
-    showForm("loginFormWrap");
-    setMessage("");
-    setResendVerificationState(false);
-  });
-
-  const resendInviteVerificationBtn = document.getElementById("resendInviteVerificationBtn");
-  if (resendInviteVerificationBtn) {
-    resendInviteVerificationBtn.addEventListener("click", async () => {
-      if (!pendingVerificationCredentials) {
-        setMessage(
-          "Enter your invite email and password, then try signing in again to resend verification.",
-          "error"
-        );
-        return;
-      }
-
-      resendInviteVerificationBtn.disabled = true;
-      resendInviteVerificationBtn.textContent = "Sending...";
-
-      const result = await resendVerificationEmailForCredentials(
-        pendingVerificationCredentials.email,
-        pendingVerificationCredentials.password
-      );
-
-      resendInviteVerificationBtn.disabled = false;
-      resendInviteVerificationBtn.textContent = "Resend verification email";
-      setMessage(result.success ? result.message : result.error, result.success ? "success" : "error");
-    });
-  }
-
-  document.getElementById("acceptCurrentSessionBtn").addEventListener("click", async () => {
+  // If the same user is already logged in and verified, silently accept.
+  if (
+    auth.currentUser
+    && String(auth.currentUser.email || "").toLowerCase() === String(invitation.email || "").toLowerCase()
+    && auth.currentUser.emailVerified
+  ) {
+    showState("loadingState");
     try {
-      setMessage("Accepting invitation...", "success");
-      const sessionUser = await acceptInvitationWithSession(token);
-      console.info("[InviteAccept] Applied invitation scope", {
-        workspaceId: String(sessionUser.workspaceId || "").trim(),
-        assignedProjectIds: Array.isArray(sessionUser.assignedProjectIds) ? sessionUser.assignedProjectIds : [],
-      });
-      setMessage("Syncing your project access...", "success");
-      const finalSession = await forceSessionRebuildAfterAccept(sessionUser);
-      showState("successState");
-      window.setTimeout(() => {
-        window.location.href = getPostAcceptRedirect(finalSession);
-      }, 900);
-    } catch (error) {
-      setMessage(error.message || "Invitation could not be accepted.", "error");
+      await acceptFlow(token, "signupMessage");
+      return;
+    } catch (err) {
+      console.warn("[InviteAccept] silent accept failed, falling back to modal", err);
     }
+  }
+
+  // Choose initial state based on whether the email is already registered.
+  const alreadyRegistered = await emailAlreadyRegistered(invitation.email);
+  showState(alreadyRegistered ? "loginState" : "signupState");
+
+  // Toggle wiring
+  document.getElementById("switchToLogin").addEventListener("click", () => {
+    setMessage("signupMessage", "");
+    setMessage("loginMessage", "");
+    showState("loginState");
+  });
+  document.getElementById("switchToSignup").addEventListener("click", () => {
+    setMessage("signupMessage", "");
+    setMessage("loginMessage", "");
+    showState("signupState");
   });
 
+  // Signup handler — creates Firebase user inline and attempts immediate acceptance
   document.getElementById("createAccountBtn").addEventListener("click", async () => {
-    const name = document.getElementById("inviteName").value.trim() || invitation.inviteeName || invitation.email;
-    const password = document.getElementById("invitePassword").value;
+    const btn = document.getElementById("createAccountBtn");
+    const name = document.getElementById("signupName").value.trim() || invitation.inviteeName || invitation.email;
+    const password = document.getElementById("signupPassword").value;
+
+    if (!name) { setMessage("signupMessage", "Name is required.", "error"); return; }
     if (!password || password.length < 8) {
-      setMessage("Password must be at least 8 characters.", "error");
+      setMessage("signupMessage", "Password must be at least 8 characters.", "error");
       return;
     }
 
+    btn.disabled = true;
+    setMessage("signupMessage", "Creating your account…", "success");
+
     try {
-      setMessage("Creating your account...", "success");
       const result = await createInvitedAccountSession({
         email: invitation.email,
         password,
@@ -277,56 +220,53 @@ document.addEventListener("DOMContentLoaded", async () => {
           workspaceRole: invitation.role,
         },
       });
+      if (!result.success) throw new Error(result.error || "Account could not be created.");
 
-      if (!result.success) {
-        throw new Error(result.error || "Account could not be created.");
+      // If Firebase requires email verification, we cannot accept yet.
+      if (auth.currentUser && !auth.currentUser.emailVerified) {
+        clearPersistedSession();
+        await auth.signOut().catch(() => undefined);
+        setMessage(
+          "signupMessage",
+          "Account created. Please check your inbox, verify your email, then sign in here to finish accepting.",
+          "success"
+        );
+        setTimeout(() => showState("loginState"), 1500);
+        return;
       }
 
-      setResendVerificationState(true, { email: invitation.email, password });
-      showForm("loginFormWrap");
-      document.getElementById("existingPassword").value = "";
-      clearPersistedSession();
-      await auth.signOut().catch(() => undefined);
-      setMessage(
-        "Account created. We sent a verification email to your inbox. Verify your email, then sign in here to accept the invitation.",
-        "success"
-      );
+      // Accept immediately
+      await acceptFlow(token, "signupMessage");
     } catch (error) {
-      setMessage(error.message || "Account setup failed.", "error");
+      const msg = String(error && error.message || "Account setup failed.");
+      if (/email.*(already|in use|exists)/i.test(msg)) {
+        setMessage("signupMessage", "An account already exists for this email. Please sign in.", "error");
+        setTimeout(() => showState("loginState"), 900);
+      } else {
+        setMessage("signupMessage", msg, "error");
+      }
+    } finally {
+      btn.disabled = false;
     }
   });
 
+  // Login handler
   document.getElementById("signInAcceptBtn").addEventListener("click", async () => {
-    const password = document.getElementById("existingPassword").value;
-    if (!password) {
-      setMessage("Password is required.", "error");
-      return;
-    }
+    const btn = document.getElementById("signInAcceptBtn");
+    const password = document.getElementById("loginPassword").value;
+    if (!password) { setMessage("loginMessage", "Password is required.", "error"); return; }
+
+    btn.disabled = true;
+    setMessage("loginMessage", "Signing you in…", "success");
 
     try {
-      setMessage("Signing you in...", "success");
       const result = await loginWithEmail(invitation.email, password, {});
-      if (!result.success) {
-        if (result.requiresEmailVerification) {
-          setResendVerificationState(true, { email: invitation.email, password });
-        }
-        throw new Error(result.error || "Sign in failed.");
-      }
-
-      setResendVerificationState(false);
-      const sessionUser = await acceptInvitationWithSession(token);
-      console.info("[InviteAccept] Applied invitation scope", {
-        workspaceId: String(sessionUser.workspaceId || "").trim(),
-        assignedProjectIds: Array.isArray(sessionUser.assignedProjectIds) ? sessionUser.assignedProjectIds : [],
-      });
-      setMessage("Syncing your project access...", "success");
-      const finalSession = await forceSessionRebuildAfterAccept(sessionUser);
-      showState("successState");
-      window.setTimeout(() => {
-        window.location.href = getPostAcceptRedirect(finalSession);
-      }, 900);
+      if (!result.success) throw new Error(result.error || "Sign in failed.");
+      await acceptFlow(token, "loginMessage");
     } catch (error) {
-      setMessage(error.message || "Sign in failed.", "error");
+      setMessage("loginMessage", error.message || "Sign in failed.", "error");
+    } finally {
+      btn.disabled = false;
     }
   });
 });

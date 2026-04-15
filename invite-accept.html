@@ -6,111 +6,282 @@
   <title>Accept Invitation - Nexlance</title>
   <link rel="stylesheet" href="login.css">
   <style>
+    :root {
+      --invite-accent: #6c5ce7;
+      --invite-accent-dark: #4b3fbf;
+      --invite-bg: #f5f4ff;
+      --invite-border: rgba(108, 92, 231, 0.15);
+      --invite-muted: #6b7280;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1f2937;
+    }
     .invite-page {
       min-height: 100vh;
       display: grid;
       place-items: center;
       padding: 24px;
       background:
-        radial-gradient(circle at top, rgba(99, 102, 241, 0.14), transparent 28%),
+        radial-gradient(circle at 20% 0%, rgba(108, 92, 231, 0.18), transparent 40%),
+        radial-gradient(circle at 80% 100%, rgba(129, 140, 248, 0.14), transparent 45%),
         linear-gradient(135deg, #f6f5ff 0%, #ffffff 100%);
     }
-    .invite-card {
-      width: min(100%, 520px);
-      background: #fff;
+    .invite-shell {
+      width: min(100%, 480px);
+      background: #ffffff;
       border-radius: 24px;
-      padding: 36px 32px;
-      box-shadow: 0 18px 60px rgba(76, 29, 149, 0.12);
-      border: 1px solid rgba(167, 139, 250, 0.2);
+      padding: 40px 36px 32px;
+      box-shadow: 0 30px 80px rgba(76, 29, 149, 0.14);
+      border: 1px solid var(--invite-border);
+      position: relative;
+      overflow: hidden;
+    }
+    .invite-shell::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, #6c5ce7 0%, #a78bfa 60%, #c4b5fd 100%);
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--invite-accent);
+      margin-bottom: 24px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: linear-gradient(135deg, #6c5ce7, #a78bfa);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #1e1b4b;
+    }
+    .subtitle {
+      margin: 0 0 28px;
+      font-size: 15px;
+      color: var(--invite-muted);
+      line-height: 1.5;
     }
     .invite-state { display: none; }
     .invite-state.active { display: block; }
     .invite-summary {
-      margin: 16px 0 24px;
-      padding: 16px 18px;
-      border-radius: 16px;
-      background: #f8f5ff;
-      color: #4b3fbf;
-      font-size: 0.95rem;
+      margin: 0 0 24px;
+      padding: 18px 20px;
+      border-radius: 14px;
+      background: var(--invite-bg);
+      border: 1px solid var(--invite-border);
+      font-size: 14px;
       line-height: 1.7;
+      color: #3b3763;
     }
-    .invite-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-    }
-    .invite-actions button {
-      flex: 1 1 160px;
-    }
-    .invite-form { display: none; }
-    .invite-form.active { display: block; }
-    .invite-message {
-      min-height: 22px;
-      margin-top: 14px;
-      font-size: 0.92rem;
+    .invite-summary .line { display: flex; justify-content: space-between; gap: 12px; }
+    .invite-summary .line + .line { margin-top: 4px; }
+    .invite-summary .label { color: var(--invite-muted); }
+    .invite-summary .value { font-weight: 600; color: #1e1b4b; text-align: right; word-break: break-word; }
+
+    .field-group { margin-bottom: 18px; }
+    .field-group label {
+      display: block;
+      font-size: 13px;
       font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    .field-group input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      background: #ffffff;
+      color: #1f2937;
+    }
+    .field-group input:focus {
+      outline: none;
+      border-color: var(--invite-accent);
+      box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
+    }
+    .field-group input:disabled,
+    .field-group input[readonly] {
+      background: #f9fafb;
+      color: #6b7280;
+      cursor: not-allowed;
+    }
+    .field-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--invite-muted);
+    }
+    .invite-btn {
+      display: block;
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+      border: none;
+    }
+    .invite-btn:disabled { opacity: 0.6; cursor: wait; }
+    .invite-btn-primary {
+      background: linear-gradient(135deg, #6c5ce7 0%, #8b7cff 100%);
+      color: #ffffff;
+      box-shadow: 0 8px 20px rgba(108, 92, 231, 0.28);
+    }
+    .invite-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(108, 92, 231, 0.35); }
+    .invite-btn-secondary {
+      background: #ffffff;
+      color: var(--invite-accent);
+      border: 1.5px solid #e5e7eb;
+      margin-top: 10px;
+    }
+    .invite-btn-secondary:hover:not(:disabled) { border-color: var(--invite-accent); background: #fafaff; }
+
+    .toggle-row {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid #f3f4f6;
+      font-size: 13px;
+      color: var(--invite-muted);
+      text-align: center;
+    }
+    .toggle-row a {
+      color: var(--invite-accent);
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toggle-row a:hover { text-decoration: underline; }
+
+    .invite-message {
+      min-height: 20px;
+      margin-top: 14px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
     }
     .invite-message.error { color: #dc2626; }
     .invite-message.success { color: #047857; }
+
+    .invite-spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(108, 92, 231, 0.25);
+      border-top-color: var(--invite-accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .success-icon, .error-icon {
+      width: 58px; height: 58px; border-radius: 50%;
+      display: grid; place-items: center;
+      margin: 0 auto 16px;
+      font-size: 28px;
+    }
+    .success-icon { background: #d1fae5; color: #047857; }
+    .error-icon { background: #fee2e2; color: #b91c1c; }
+    .state-center { text-align: center; }
   </style>
 </head>
 <body>
   <div class="invite-page">
-    <div class="invite-card">
+    <div class="invite-shell">
+
+      <!-- Loading -->
       <div class="invite-state active" id="loadingState">
-        <h1>Checking invitation...</h1>
-        <p>Please wait while we validate your secure invite link.</p>
+        <div class="brand-row"><span class="brand-dot"></span><span>Nexlance</span></div>
+        <h1><span class="invite-spinner"></span>Checking invitation…</h1>
+        <p class="subtitle">Validating your secure invite link.</p>
       </div>
 
-      <div class="invite-state" id="acceptState">
-        <h1>Join Workspace</h1>
-        <p>Accept your invitation to continue with your allowed workspace access.</p>
-        <div class="invite-summary" id="inviteSummary"></div>
-        <div class="invite-actions">
-          <button type="button" class="btn-secondary btn-block" id="showSignupBtn">Create password</button>
-          <button type="button" class="btn-primary btn-block" id="showLoginBtn">I already have an account</button>
+      <!-- Sign up / Create account (new user) -->
+      <div class="invite-state" id="signupState">
+        <div class="brand-row"><span class="brand-dot"></span><span>Nexlance</span></div>
+        <h1>Create your account</h1>
+        <p class="subtitle">Finish setting up your profile to join the workspace.</p>
+
+        <div class="invite-summary" id="inviteSummarySignup"></div>
+
+        <div class="field-group">
+          <label for="signupName">Full name</label>
+          <input id="signupName" type="text" autocomplete="name" placeholder="Your full name">
+        </div>
+        <div class="field-group">
+          <label for="signupEmail">Email</label>
+          <input id="signupEmail" type="email" readonly>
+          <div class="field-hint">This invitation is bound to this email address.</div>
+        </div>
+        <div class="field-group">
+          <label for="signupPassword">Create a password</label>
+          <input id="signupPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+          <div class="field-hint">Use at least 8 characters. You'll use this to sign in next time.</div>
         </div>
 
-        <div class="invite-form" id="signupFormWrap">
-          <label>
-            Full Name
-            <input id="inviteName" type="text" placeholder="Your name">
-          </label>
-          <label>
-            Password
-            <input id="invitePassword" type="password" placeholder="Create a password">
-          </label>
-          <button class="btn-primary btn-block" type="button" id="createAccountBtn">Create account</button>
+        <button type="button" class="invite-btn invite-btn-primary" id="createAccountBtn">Create account and accept</button>
+        <div class="toggle-row">
+          Already have an account? <a id="switchToLogin">Sign in instead</a>
         </div>
-
-        <div class="invite-form" id="loginFormWrap">
-          <label>
-            Email
-            <input id="existingEmail" type="email" readonly>
-          </label>
-          <label>
-            Password
-            <input id="existingPassword" type="password" placeholder="Enter your password">
-          </label>
-          <button class="btn-primary btn-block" type="button" id="signInAcceptBtn">Sign in and accept</button>
-        </div>
-
-        <button class="btn-primary btn-block" type="button" id="acceptCurrentSessionBtn" style="display:none;">Accept with current session</button>
-        <button class="btn-secondary btn-block" type="button" id="resendInviteVerificationBtn" style="display:none;">Resend verification email</button>
-        <div class="invite-message" id="inviteMessage"></div>
+        <div class="invite-message" id="signupMessage"></div>
       </div>
 
-      <div class="invite-state" id="successState">
+      <!-- Sign in (existing user) -->
+      <div class="invite-state" id="loginState">
+        <div class="brand-row"><span class="brand-dot"></span><span>Nexlance</span></div>
+        <h1>Sign in to accept</h1>
+        <p class="subtitle">Enter your password to attach this workspace to your account.</p>
+
+        <div class="invite-summary" id="inviteSummaryLogin"></div>
+
+        <div class="field-group">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" readonly>
+        </div>
+        <div class="field-group">
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Your password">
+        </div>
+
+        <button type="button" class="invite-btn invite-btn-primary" id="signInAcceptBtn">Sign in and accept</button>
+        <div class="toggle-row">
+          New here? <a id="switchToSignup">Create an account instead</a>
+        </div>
+        <div class="invite-message" id="loginMessage"></div>
+      </div>
+
+      <!-- Success -->
+      <div class="invite-state state-center" id="successState">
+        <div class="success-icon">✓</div>
         <h1>Invitation accepted</h1>
-        <p>Your workspace access is ready. Redirecting you now.</p>
+        <p class="subtitle">Your workspace access is ready. Redirecting you to your dashboard…</p>
       </div>
 
-      <div class="invite-state" id="errorState">
+      <!-- Error -->
+      <div class="invite-state state-center" id="errorState">
+        <div class="error-icon">!</div>
         <h1>Invitation unavailable</h1>
-        <p id="errorDescription">This invitation is invalid, expired, or has already been used.</p>
-        <a class="btn-primary btn-block" href="login.html">Go to Login</a>
+        <p class="subtitle" id="errorDescription">This invitation is invalid, expired, or has already been used.</p>
+        <a class="invite-btn invite-btn-primary" href="login.html" style="text-decoration:none; text-align:center; display:block;">Go to Login</a>
       </div>
+
     </div>
   </div>
 

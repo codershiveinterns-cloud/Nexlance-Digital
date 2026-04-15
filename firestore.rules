@@ -81,6 +81,14 @@ service cloud.firestore {
       allow write: if false; // backend only
     }
 
+    // New multi-workspace membership collection — user reads their own memberships.
+    match /workspace_memberships/{membershipId} {
+      allow read: if signedIn()
+                     && (resource.data.userId == request.auth.uid
+                         || resource.data.email == request.auth.token.email);
+      allow write: if false; // backend only
+    }
+
     // ─── Invitations ──────────────────────────────────────────────────────
     // Client-side reads are limited to the invitee's own pending invite
     // (used only during signup/acceptance UI). All writes go through backend.

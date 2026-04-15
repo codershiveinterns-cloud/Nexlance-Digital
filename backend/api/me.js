@@ -1,3 +1,4 @@
+const AccessControl = require('../../rbac.js');
 const { requireAuth } = require('../services/request-guards');
 const { handleOptions, sendApiError, setApiCors } = require('./_utils');
 const { resolveScopedAssignedProjectsForLogin } = require('../services/workspace-access');
@@ -69,9 +70,17 @@ module.exports = async function handler(req, res) {
                 ? sessionUser.assignedProjectIds
                 : []
         });
+        res.setHeader('Cache-Control', 'private, max-age=30');
         res.status(200).json({
             ok: true,
-            user: sessionUser
+            user: sessionUser,
+            permissions: {
+                role: sessionUser.role,
+                isWorkspaceOwner: sessionUser.isWorkspaceOwner,
+                permissionKeys: sessionUser.permissionKeys,
+                permissions: sessionUser.permissions,
+                allowedPages: AccessControl.getAllowedPages(sessionUser)
+            }
         });
     } catch (error) {
         const statusCode = error.statusCode || error.status || 0;

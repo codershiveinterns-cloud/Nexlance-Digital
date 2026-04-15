@@ -26,6 +26,123 @@ function getStoredSessionUser() {
   }
 }
 
+async function fetchUserMemberships(user) {
+  const idToken = await user.getIdToken();
+  const response = await fetch("/api/me/workspaces", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${idToken}` },
+    credentials: "same-origin",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) return { memberships: [], activeWorkspaceId: "" };
+  return {
+    memberships: Array.isArray(payload.memberships) ? payload.memberships : [],
+    activeWorkspaceId: String(payload.activeWorkspaceId || "").trim(),
+  };
+}
+
+async function switchActiveWorkspace(user, workspaceId) {
+  const idToken = await user.getIdToken();
+  const response = await fetch("/api/me/workspaces", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ workspaceId }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Could not switch workspace.");
+  return payload;
+}
+
+function roleDisplayLabel(role) {
+  if (window.NexlanceAccessControl && typeof window.NexlanceAccessControl.getRoleDisplayLabel === "function") {
+    return window.NexlanceAccessControl.getRoleDisplayLabel(role);
+  }
+  return String(role || "member").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function firstInitial(value) {
+  const source = String(value || "").trim();
+  if (!source) return "W";
+  return source[0].toUpperCase();
+}
+
+async function maybeShowWorkspacePicker(user) {
+  const { memberships } = await fetchUserMemberships(user);
+  const container = document.getElementById("workspacePicker");
+  const list = document.getElementById("workspacePickerList");
+  if (!container || !list) return false;
+
+  // Show the picker if the user has 2+ memberships.
+  // Single-membership users proceed normally (preserves existing UX).
+  if (memberships.length < 2) return false;
+
+  // Build tiles
+  list.innerHTML = "";
+  memberships.forEach((m) => {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "ws-picker-item";
+    const name = m.workspaceName || m.workspaceOwnerEmail || m.workspaceId;
+    const roleLabel = m.isWorkspaceOwner ? "Admin · Owner" : roleDisplayLabel(m.role);
+    tile.innerHTML = `
+      <div class="ws-picker-item-avatar">${firstInitial(name)}</div>
+      <div class="ws-picker-item-body">
+        <div class="ws-picker-item-name">${name}</div>
+        <div class="ws-picker-item-role">${roleLabel}</div>
+      </div>
+      <div class="ws-picker-item-badge">${m.isWorkspaceOwner ? "Owner" : "Member"}</div>
+    `;
+    tile.addEventListener("click", async () => {
+      const messageEl = document.getElementById("workspacePickerMessage");
+      if (messageEl) { messageEl.textContent = "Preparing your workspace…"; messageEl.className = "ws-picker-message success"; }
+      try {
+        await switchActiveWorkspace(user, m.workspaceId);
+        // Refresh persisted session
+        const idToken = await user.getIdToken(true);
+        const me = await fetch("/api/me", { headers: { Authorization: `Bearer ${idToken}` }, credentials: "same-origin" });
+        const payload = await me.json().catch(() => ({}));
+        if (me.ok && payload.user) {
+          persistSession({ ...payload.user, emailVerified: user.emailVerified });
+        }
+        window.location.href = getPostLoginRedirect();
+      } catch (err) {
+        if (messageEl) { messageEl.textContent = err.message || "Could not open workspace."; messageEl.className = "ws-picker-message error"; }
+      }
+    });
+    list.appendChild(tile);
+  });
+
+  const createBtn = document.getElementById("workspacePickerCreate");
+  if (createBtn) {
+    createBtn.onclick = async () => {
+      const messageEl = document.getElementById("workspacePickerMessage");
+      if (messageEl) { messageEl.textContent = "Opening admin workspace…"; messageEl.className = "ws-picker-message success"; }
+      try {
+        // If an admin (owner) membership already exists, switch to it; otherwise
+        // fall through to the current auto-bootstrap path on /api/me which
+        // creates a workspace for the user when they have none.
+        const adminMembership = memberships.find((m) => m.isWorkspaceOwner === true);
+        if (adminMembership) {
+          await switchActiveWorkspace(user, adminMembership.workspaceId);
+        }
+        const idToken = await user.getIdToken(true);
+        const me = await fetch("/api/me", { headers: { Authorization: `Bearer ${idToken}` }, credentials: "same-origin" });
+        const payload = await me.json().catch(() => ({}));
+        if (me.ok && payload.user) {
+          persistSession({ ...payload.user, emailVerified: user.emailVerified });
+        }
+        window.location.href = "dashboard.html";
+      } catch (err) {
+        if (messageEl) { messageEl.textContent = err.message || "Could not open admin workspace."; messageEl.className = "ws-picker-message error"; }
+      }
+    };
+  }
+
+  container.style.display = "grid";
+  return true;
+}
+
 function getPostLoginRedirect() {
   const params = new URLSearchParams(window.location.search);
   const urlRedirect = params.get("redirect");
@@ -671,6 +788,17 @@ document.addEventListener("DOMContentLoaded", () => {
         source: "login_form",
       },
     });
+
+    // Multi-workspace membership check before redirect
+    try {
+      const shouldShowPicker = await maybeShowWorkspacePicker(user);
+      if (shouldShowPicker) {
+        // Picker handles its own redirect.
+        return;
+      }
+    } catch (pickerError) {
+      console.warn("[Login] workspace picker check failed", pickerError);
+    }
 
     setMessage("loginMessage", "Login successful! Redirecting...", "success");
     setTimeout(() => {

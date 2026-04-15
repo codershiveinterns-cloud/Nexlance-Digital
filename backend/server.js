@@ -49,6 +49,7 @@ const projectTemplateWorkspaceSaveHandler = require('./api/project-template-work
 const projectTemplateWorkspaceUnlockHandler = require('./api/project-template-workspace-unlock');
 const projectSyncHandler = require('./api/project-sync');
 const userPreferencesHandler = require('./api/user-preferences');
+const meWorkspacesHandler = require('./api/me-workspaces');
 const templateAccessCompleteHandler = require('./api/template-access-complete');
 const templateAccessStartHandler = require('./api/template-access-start');
 const templateDownloadHandler = require('./api/template-download');
@@ -832,9 +833,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/me') {
         try {
             const session = await requireAuth(req);
+            const sessionUser = session.sessionUser;
+            res.setHeader('Cache-Control', 'private, max-age=30');
             sendJson(res, 200, {
                 ok: true,
-                user: session.sessionUser
+                user: sessionUser,
+                permissions: {
+                    role: sessionUser.role,
+                    isWorkspaceOwner: sessionUser.isWorkspaceOwner,
+                    permissionKeys: sessionUser.permissionKeys,
+                    permissions: sessionUser.permissions,
+                    allowedPages: AccessControl.getAllowedPages(sessionUser)
+                }
             });
         } catch (error) {
             sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
@@ -845,6 +855,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/me/permissions') {
         try {
             const session = await requireAuth(req);
+            res.setHeader('Cache-Control', 'private, max-age=30');
             sendJson(res, 200, {
                 ok: true,
                 role: session.sessionUser.role,
@@ -857,6 +868,13 @@ const server = http.createServer(async (req, res) => {
             sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
         }
         return;
+    }
+
+    if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/me/workspaces') {
+        if (req.method === 'POST') {
+            req.body = await readBody(req);
+        }
+        return meWorkspacesHandler(req, res);
     }
 
     if ((req.method === 'GET' || req.method === 'PATCH') && url.pathname === '/api/user-preferences') {

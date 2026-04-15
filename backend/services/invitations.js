@@ -1040,6 +1040,29 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
         assignedProjectIds: authoritativeScope.assignedProjectIds
     });
 
+    // Multi-workspace membership (new model) — additive; keeps users/{uid} intact
+    try {
+        const { upsertMembership } = require('./memberships');
+        await upsertMembership({
+            userId: session.authUser.uid,
+            email: safeSessionEmail,
+            workspaceId: authoritativeScope.workspaceId,
+            workspaceName: record.workspaceName || '',
+            workspaceOwnerEmail: record.workspaceOwnerEmail,
+            workspaceOwnerUserId: record.workspaceOwnerUserId,
+            role,
+            assignedProjectIds: authoritativeScope.assignedProjectIds,
+            allProjectsAccess: authoritativeScope.allProjectsAccess,
+            isWorkspaceOwner: false
+        });
+    } catch (membershipError) {
+        console.warn('[InviteAccept] workspace_memberships upsert failed', {
+            userId: session.authUser.uid,
+            workspaceId: authoritativeScope.workspaceId,
+            error: membershipError && membershipError.message
+        });
+    }
+
     const memberDocId = getWorkspaceMemberDocumentId(authoritativeScope.workspaceId, session.authUser.uid, safeSessionEmail);
     await upsertCollectionDocument('workspace_members', memberDocId, {
         workspaceId: authoritativeScope.workspaceId,

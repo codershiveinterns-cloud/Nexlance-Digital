@@ -10,7 +10,9 @@ const {
     deleteCollectionDocument,
     getCollectionDocument,
     patchCollectionDocument,
-    queryCollectionDocuments
+    queryCollectionDocuments,
+    sanitizeDocumentId,
+    upsertCollectionDocument
 } = require('../services/firebase-service');
 const { handleOptions, normalizeBody, sendApiError, setApiCors } = require('./_utils');
 
@@ -279,16 +281,14 @@ async function rehydrateAssignedProjectIdsFromAssignments(sessionUser) {
     const email = normalizeEmail(sessionUser.email);
     if (!workspaceId || (!userId && !email)) return [];
 
-    const filterField = userId ? 'userId' : 'email';
-    const filterValue = userId || email;
+    // 1) project_assignments (primary source written at invite-accept time)
+    const ids = new Set();
     const assignmentRecords = await queryCollectionDocuments('project_assignments', {
-        fieldPath: filterField,
+        fieldPath: userId ? 'userId' : 'email',
         op: 'EQUAL',
-        value: filterValue,
+        value: userId || email,
         limit: 500
     }).catch(() => []);
-
-    const ids = new Set();
     for (const entry of (Array.isArray(assignmentRecords) ? assignmentRecords : [])) {
         const data = entry.data || entry;
         const recordWs = String(data.workspaceId || data.workspace_id || '').trim();
@@ -298,7 +298,64 @@ async function rehydrateAssignedProjectIdsFromAssignments(sessionUser) {
         const projectId = String(data.projectId || data.project_id || '').trim();
         if (projectId) ids.add(projectId);
     }
-    return Array.from(ids);
+    if (ids.size) return Array.from(ids);
+
+    // 2) Fallback — source-of-truth collections the owner edits from the UI
+    if (!email) return [];
+    const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
+    const fallbackCollection = role === AccessControl.ROLES.CLIENT ? 'clients' : 'team_members';
+    const fallbackDocId = sanitizeDocumentId(`${workspaceId}_${email}`);
+    const fallbackDoc = await getCollectionDocument(fallbackCollection, fallbackDocId).catch(() => null);
+    const fallbackData = fallbackDoc && fallbackDoc.data ? fallbackDoc.data : null;
+
+    const fallbackIds = fallbackData
+        ? AccessControl.sanitizeAssignedProjectIds(
+            fallbackData.assigned_project_ids
+            || fallbackData.assignedProjectIds
+            || (fallbackData.project_id ? [fallbackData.project_id] : [])
+        )
+        : [];
+
+    if (!fallbackIds.length) return [];
+
+    console.info('[DashboardProjects] assignment filter', {
+        workspaceId,
+        source: `rehydrated_from_${fallbackCollection}`,
+        count: fallbackIds.length
+    });
+
+    // Opportunistic backfill: repair users/{uid} and project_assignments so
+    // subsequent requests are fast and consistent.
+    const now = new Date().toISOString();
+    if (userId) {
+        await patchCollectionDocument('users', userId, {
+            assignedProjectIds: fallbackIds,
+            allProjectsAccess: fallbackData.all_projects_access === true || fallbackData.allProjectsAccess === true,
+            updatedAt: now
+        }).catch(() => undefined);
+    }
+    for (const projectId of fallbackIds) {
+        const assignmentId = sanitizeDocumentId(`${workspaceId}_${projectId}_${email}`);
+        await upsertCollectionDocument('project_assignments', assignmentId, {
+            workspaceId,
+            workspace_id: workspaceId,
+            projectId,
+            project_id: projectId,
+            userId: userId || '',
+            user_id: userId || '',
+            email,
+            user_email: email,
+            role,
+            status: 'active',
+            active: true,
+            createdAt: now,
+            created_at: now,
+            updatedAt: now,
+            updated_at: now
+        }).catch(() => undefined);
+    }
+
+    return fallbackIds;
 }
 
 async function listDashboardCollectionRecords(collectionId, sessionUser) {

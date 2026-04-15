@@ -107,7 +107,7 @@
             <span class="field-error" id="regBusinessEmailError"></span>
           </label>
 
-          <label>
+          <!-- <label>
             Business/Company Name
             <input id="regBusinessName" type="text" placeholder="Nexlance Digital" autocomplete="organization">
             <span class="field-error" id="regBusinessNameError"></span>
@@ -117,7 +117,7 @@
             Business/Company Address
             <textarea id="regBusinessAddress" rows="3" placeholder="Business/Company Address"></textarea>
             <span class="field-error" id="regBusinessAddressError"></span>
-          </label>
+          </label> -->
         </div>
 
         <div class="form-row">
@@ -156,6 +156,138 @@
       </div>
 
     </div>
+
+    <!-- Workspace picker (multi-membership) — hidden by default -->
+    <div id="workspacePicker" class="ws-picker-overlay" style="display:none;">
+      <div class="ws-picker-card">
+        <div class="ws-picker-brand">
+          <span class="ws-picker-dot"></span>
+          <span>Nexlance</span>
+        </div>
+        <h2 class="ws-picker-title">Choose how to continue</h2>
+        <p class="ws-picker-subtitle">You have access to more than one workspace. Pick one to continue, or create a new one.</p>
+        <div class="ws-picker-list" id="workspacePickerList"></div>
+        <button type="button" class="ws-picker-create" id="workspacePickerCreate">
+          <div class="ws-picker-create-icon">＋</div>
+          <div class="ws-picker-create-text">
+            <div class="ws-picker-create-title">Create your own workspace</div>
+            <div class="ws-picker-create-sub">Continue as an Admin in a new workspace</div>
+          </div>
+        </button>
+        <div class="ws-picker-message" id="workspacePickerMessage" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <style>
+      .ws-picker-overlay {
+        position: fixed; inset: 0;
+        background: rgba(30, 27, 75, 0.55);
+        backdrop-filter: blur(6px);
+        display: grid; place-items: center;
+        z-index: 9999;
+        padding: 24px;
+        animation: wsFade 0.2s ease-out;
+      }
+      @keyframes wsFade { from { opacity: 0; } to { opacity: 1; } }
+      .ws-picker-card {
+        width: min(100%, 460px);
+        background: #ffffff;
+        border-radius: 22px;
+        padding: 32px 28px;
+        box-shadow: 0 40px 90px rgba(30, 27, 75, 0.35);
+        border: 1px solid rgba(108, 92, 231, 0.15);
+        font-family: 'Inter', -apple-system, sans-serif;
+        max-height: 85vh;
+        overflow-y: auto;
+      }
+      .ws-picker-brand {
+        display: flex; align-items: center; gap: 10px;
+        font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: #6c5ce7; margin-bottom: 18px;
+      }
+      .ws-picker-dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: linear-gradient(135deg, #6c5ce7, #a78bfa);
+      }
+      .ws-picker-title {
+        margin: 0 0 6px; font-size: 22px; font-weight: 700;
+        color: #1e1b4b; letter-spacing: -0.02em;
+      }
+      .ws-picker-subtitle {
+        margin: 0 0 22px; font-size: 14px; color: #6b7280; line-height: 1.5;
+      }
+      .ws-picker-list {
+        display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
+      }
+      .ws-picker-item {
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 16px;
+        background: #ffffff;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+        font-family: inherit;
+        text-align: left;
+        width: 100%;
+      }
+      .ws-picker-item:hover {
+        border-color: #6c5ce7;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(108, 92, 231, 0.12);
+      }
+      .ws-picker-item-avatar {
+        width: 42px; height: 42px; border-radius: 12px;
+        display: grid; place-items: center;
+        font-weight: 700; font-size: 16px; color: #ffffff;
+        background: linear-gradient(135deg, #6c5ce7, #a78bfa);
+        flex-shrink: 0;
+      }
+      .ws-picker-item-body { flex: 1; min-width: 0; }
+      .ws-picker-item-name {
+        font-size: 14px; font-weight: 600; color: #1e1b4b;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .ws-picker-item-role {
+        font-size: 12px; color: #6b7280; margin-top: 2px;
+      }
+      .ws-picker-item-badge {
+        font-size: 11px; font-weight: 600; padding: 4px 10px;
+        border-radius: 999px; background: #f5f4ff; color: #6c5ce7;
+        text-transform: uppercase; letter-spacing: 0.04em;
+      }
+      .ws-picker-create {
+        display: flex; align-items: center; gap: 14px;
+        width: 100%; padding: 14px 16px;
+        background: linear-gradient(135deg, #6c5ce7 0%, #8b7cff 100%);
+        border: none; border-radius: 14px;
+        cursor: pointer; color: #ffffff;
+        font-family: inherit; text-align: left;
+        transition: transform 0.1s, box-shadow 0.15s;
+      }
+      .ws-picker-create:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 28px rgba(108, 92, 231, 0.35);
+      }
+      .ws-picker-create-icon {
+        width: 42px; height: 42px; border-radius: 12px;
+        display: grid; place-items: center;
+        font-weight: 700; font-size: 22px; color: #6c5ce7;
+        background: #ffffff; flex-shrink: 0;
+      }
+      .ws-picker-create-title {
+        font-size: 14px; font-weight: 600;
+      }
+      .ws-picker-create-sub {
+        font-size: 12px; opacity: 0.85; margin-top: 2px;
+      }
+      .ws-picker-message {
+        margin-top: 14px; min-height: 18px;
+        font-size: 13px; font-weight: 600; text-align: center;
+      }
+      .ws-picker-message.error { color: #dc2626; }
+      .ws-picker-message.success { color: #047857; }
+    </style>
 
     <aside class="auth-art">
       <img src="images/dashboard.png" alt="Dashboard preview" loading="lazy">
