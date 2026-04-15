@@ -399,7 +399,6 @@ function renderTable(data) {
       <td data-label="Actions">
         <div class="table-actions">
           <a href="client-detail.html?id=${encodeURIComponent(clientId)}" class="action-btn action-view" title="View Client">👁</a>
-          <button type="button" class="action-btn action-edit" onclick="openEditModal('${escapeHtml(clientId)}')" title="Edit">✏️</button>
           <button type="button" class="action-btn action-delete" onclick="handleDelete('${escapeHtml(clientId)}')" title="Delete">🗑</button>
         </div>
       </td>

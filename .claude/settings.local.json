@@ -18,7 +18,10 @@
       "Bash(node --check backend/api/dashboard.js)",
       "Bash(node --check backend/server.js)",
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('firestore.indexes.json', 'utf8'\\)\\); console.log\\('firestore.indexes.json: valid'\\);\")",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('firebase.json', 'utf8'\\)\\); console.log\\('firebase.json: valid'\\);\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('firebase.json', 'utf8'\\)\\); console.log\\('firebase.json: valid'\\);\")",
+      "Bash(ls api/invitations/ backend/api/invitations* backend/services/email-service.js backend/services/invitation-emails.js)",
+      "Bash(ls .env*)",
+      "Bash(grep -l \"sendInvitationEmail\\\\|sendEmail\\\\|RESEND\" backend/services/*.js backend/api/*.js)"
     ]
   }
 }

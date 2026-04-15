@@ -79,7 +79,6 @@
       <div class="form-group"><label>Email Address *</label><input type="email" id="fEmail" placeholder="arjun@nexlance.com"></div>
       <div class="form-group"><label>Role</label>
         <select id="fRole">
-          <option>Admin</option>
           <option>Developer</option>
           <option>Designer</option>
           <option>Client</option>
@@ -318,7 +317,6 @@ function renderGrid(data) {
       <span class="badge ${roleColors[role] || 'badge-gray'}">${role}</span>
       ${permissionTags.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${permissionTags.map(permission => `<span style="background:#f9f7ff;color:#6c5ce7;border-radius:6px;padding:2px 7px;font-size:0.7rem;font-weight:600;">${permission}</span>`).join('')}</div>` : ''}
       <div class="team-card-actions">
-        <button class="action-btn action-edit" type="button" onclick="openEditModal('${member.id}')" title="Edit">Edit</button>
         <button class="action-btn action-delete" type="button" onclick="handleDelete('${member.id}')" title="Remove">Delete</button>
       </div>
     </div>`;
