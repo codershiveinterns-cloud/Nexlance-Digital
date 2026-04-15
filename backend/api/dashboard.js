@@ -72,6 +72,134 @@ const PROJECT_TEMPLATE_WORKSPACE_MUTATION_FIELDS = new Set([
     'template_download_amount_gbp'
 ]);
 
+// ─── Team member role/permission validation ──────────────────────
+// Runs on POST/PATCH for 'team_members'. Rejects unknown roles and
+// malformed permission fields before any Firestore write.
+const ALLOWED_TEAM_ROLES = new Set([
+    AccessControl.ROLES.ADMIN,
+    AccessControl.ROLES.DEVELOPER,
+    AccessControl.ROLES.DESIGNER,
+    AccessControl.ROLES.TEAM_MEMBER,
+    AccessControl.ROLES.CLIENT
+]);
+
+function validateTeamMemberPayload(payload, { isCreate }) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        const err = new Error('Team member payload must be an object.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const hasRole = Object.prototype.hasOwnProperty.call(payload, 'role')
+        || Object.prototype.hasOwnProperty.call(payload, 'canonical_role');
+    if (hasRole) {
+        const rawRole = payload.canonical_role || payload.role;
+        const normalized = AccessControl.normalizeRole(rawRole);
+        if (!normalized || !ALLOWED_TEAM_ROLES.has(normalized)) {
+            const err = new Error(`Team member "role" must resolve to one of: ${Array.from(ALLOWED_TEAM_ROLES).join(', ')}.`);
+            err.statusCode = 400;
+            throw err;
+        }
+    } else if (isCreate) {
+        const err = new Error('Team member "role" is required on create.');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'email')) {
+        const email = String(payload.email || '').trim();
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            const err = new Error('Team member "email" must be a valid email address.');
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'assigned_project_ids')) {
+        if (!Array.isArray(payload.assigned_project_ids)) {
+            const err = new Error('Team member "assigned_project_ids" must be an array.');
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+
+    const booleanPermissionFields = [
+        'can_edit_tasks', 'can_see_revenue', 'can_create_invoices',
+        'can_upload_files', 'all_projects_access'
+    ];
+    for (const field of booleanPermissionFields) {
+        if (!Object.prototype.hasOwnProperty.call(payload, field)) continue;
+        if (typeof payload[field] !== 'boolean') {
+            const err = new Error(`Team member "${field}" must be a boolean.`);
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+}
+
+// ─── Invoice financial-integrity validation ──────────────────────
+// Runs on POST/PATCH for the 'invoices' collection. Rejects negative
+// numbers, non-finite values, and status values outside the allowed set.
+// Partial payloads are allowed on PATCH — fields absent from the body
+// are not validated.
+const ALLOWED_INVOICE_STATUSES = new Set([
+    'draft', 'pending', 'paid', 'overdue', 'recurring', 'cancelled', 'refunded'
+]);
+const INVOICE_NUMERIC_FIELDS = ['amount', 'total_amount', 'gst_percent', 'paid_amount'];
+
+function validateInvoicePayload(payload, { isCreate }) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        const err = new Error('Invoice payload must be an object.');
+        err.statusCode = 400;
+        throw err;
+    }
+    for (const field of INVOICE_NUMERIC_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(payload, field)) continue;
+        const raw = payload[field];
+        if (raw === '' || raw === null) continue;
+        const num = Number(raw);
+        if (!Number.isFinite(num) || num < 0) {
+            const err = new Error(`Invoice "${field}" must be a non-negative number.`);
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'status')) {
+        const status = String(payload.status || '').trim().toLowerCase();
+        if (status && !ALLOWED_INVOICE_STATUSES.has(status)) {
+            const err = new Error(`Invoice "status" must be one of: ${Array.from(ALLOWED_INVOICE_STATUSES).join(', ')}.`);
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+    // Cross-field invariant: paid_amount cannot exceed total_amount when both present.
+    if (
+        Object.prototype.hasOwnProperty.call(payload, 'paid_amount')
+        && Object.prototype.hasOwnProperty.call(payload, 'total_amount')
+    ) {
+        const paid = Number(payload.paid_amount);
+        const total = Number(payload.total_amount);
+        if (Number.isFinite(paid) && Number.isFinite(total) && total > 0 && paid > total) {
+            const err = new Error('Invoice "paid_amount" cannot exceed "total_amount".');
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+    // Create-only: at least one monetary field required to prevent empty invoices.
+    if (isCreate) {
+        const hasAnyAmount = INVOICE_NUMERIC_FIELDS.some(f =>
+            Object.prototype.hasOwnProperty.call(payload, f)
+            && payload[f] !== '' && payload[f] !== null
+            && Number.isFinite(Number(payload[f]))
+        );
+        if (!hasAnyAmount) {
+            const err = new Error('Invoice must include at least one monetary amount (amount / total_amount).');
+            err.statusCode = 400;
+            throw err;
+        }
+    }
+}
+
 function sanitizeDashboardPayload(payload) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
         return {};
@@ -492,6 +620,15 @@ module.exports = async function handler(req, res) {
             }
 
             const body = normalizeBody(req.body);
+
+            // Collection-specific validation.
+            if (route.collectionId === 'invoices') {
+                validateInvoicePayload(body, { isCreate: true });
+            }
+            if (route.collectionId === 'team_members') {
+                validateTeamMemberPayload(body, { isCreate: true });
+            }
+
             const builtDoc = buildDashboardDocument(body, sessionUser, true);
 
             // Hard validation: projects MUST have a workspace_id
@@ -539,6 +676,14 @@ module.exports = async function handler(req, res) {
             }
             const body = normalizeBody(req.body);
             assertNoTemplateWorkspaceMutationViaDashboardPatch(route.collectionId, body);
+
+            // Collection-specific validation.
+            if (route.collectionId === 'invoices') {
+                validateInvoicePayload(body, { isCreate: false });
+            }
+            if (route.collectionId === 'team_members') {
+                validateTeamMemberPayload(body, { isCreate: false });
+            }
             if (!canPerformCollectionAction({
                 collectionId: route.collectionId,
                 action: 'update',

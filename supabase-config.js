@@ -3364,6 +3364,33 @@ async function recordPaymentRecord(options = {}) {
 // API-first: the backend is the sole source of truth.
 // localStorage is treated as a disposable cache that we overwrite or wipe
 // based on the server response — never as an authoritative read source.
+// ─── fetchClients: single-flight + network-safe + anti-loop ───
+// Guards against circular refresh by (a) reusing an in-flight promise,
+// (b) never re-dispatching cache events on failure, (c) not clearing
+// cache on transient auth/network errors that could retrigger listeners.
+let _inFlightFetchClientsPromise = null;
+const _loggedClientFetchErrors = new Map(); // key → last-logged timestamp
+const _CLIENT_FETCH_ERROR_LOG_TTL_MS = 60 * 1000;
+
+function _logClientFetchErrorOnce(key, error) {
+    const now = Date.now();
+    const last = _loggedClientFetchErrors.get(key) || 0;
+    if (now - last < _CLIENT_FETCH_ERROR_LOG_TTL_MS) return;
+    _loggedClientFetchErrors.set(key, now);
+    console.error('[fetchClients]', key, error && error.message ? error.message : error);
+}
+
+function _isNetworkLikeError(error) {
+    const code = String(error && error.code ? error.code : '').toLowerCase();
+    const message = String(error && error.message ? error.message : '').toLowerCase();
+    return code === 'auth/network-request-failed'
+        || code === 'api/unavailable'
+        || code === 'api/not-configured'
+        || message.includes('network')
+        || message.includes('failed to fetch')
+        || message.includes('unavailable');
+}
+
 async function fetchClients(options) {
     const allowFallback = Boolean(options && options.allowFallback);
 
@@ -3372,44 +3399,62 @@ async function fetchClients(options) {
     if (!isFirebaseConfigured) return createAccessFilteredDataset('clients', sampleClients);
 
     if (!isFirebaseUserAuthenticated()) {
-        // No session → no authority to render anything. Wipe stale cache.
-        clearLocalEntityData('clients');
+        // No session → no authority to render anything. Silent wipe so
+        // we don't re-dispatch nexlance-data-changed and retrigger listeners.
+        clearLocalEntityData('clients', { silent: true });
         return [];
     }
 
-    try {
-        // Await the API BEFORE returning anything — no early local read.
-        const response = await dashboardApiRequest('GET', 'clients');
-        const apiRecords = Array.isArray(response) ? response : [];
+    // Single-flight: if a fetch is already running, return its promise.
+    // Prevents stacking parallel requests + cascading failures.
+    if (_inFlightFetchClientsPromise) return _inFlightFetchClientsPromise;
 
-        if (apiRecords.length === 0) {
-            // Empty server state is authoritative — purge the cache so
-            // previously-deleted records cannot reappear in the UI.
-            clearLocalEntityData('clients');
+    _inFlightFetchClientsPromise = (async () => {
+        try {
+            const response = await dashboardApiRequest('GET', 'clients');
+            const apiRecords = Array.isArray(response) ? response : [];
+
+            if (apiRecords.length === 0) {
+                // Authoritative empty — silent clear to avoid re-entrancy via
+                // the nexlance-data-changed event listener.
+                clearLocalEntityData('clients', { silent: true });
+                return [];
+            }
+
+            const cleaned = apiRecords.filter(record => !(record && record.storage_fallback === true));
+            // Silent write — UI refresh is driven by the caller's await, not
+            // by the event bus, so we don't dispatch and risk a loop.
+            setLocalEntityData('clients', cleaned, { silent: true });
+            return cleaned;
+        } catch (error) {
+            // Opt-in fallback only.
+            if (allowFallback && shouldUseLocalEntityFallback(error)) {
+                return getLocalEntityData('clients')
+                    .filter(record => !(record && record.storage_fallback === true));
+            }
+
+            // CRITICAL: transient network/auth errors must NOT clear cache
+            // — clearing triggers the event bus which retriggers fetchers.
+            // Also do not retry here; the lock released in finally lets the
+            // next user-initiated refresh try again on its own cadence.
+            if (_isNetworkLikeError(error)) {
+                _logClientFetchErrorOnce('network', error);
+                // Return last-known-good cache shape without touching storage.
+                return getLocalEntityData('clients')
+                    .filter(record => !(record && record.storage_fallback === true));
+            }
+
+            // Non-transient failure (permission, 5xx, etc): log once, return
+            // empty, and do NOT clear cache (silent clear only on true empty).
+            _logClientFetchErrorOnce('api', error);
             return [];
+        } finally {
+            // Always release the lock — even on unexpected throws.
+            _inFlightFetchClientsPromise = null;
         }
+    })();
 
-        // Drop any storage_fallback rows that were written during prior
-        // offline writes; the server does not know about them and they
-        // would otherwise live forever in the cache.
-        const cleaned = apiRecords.filter(record => !(record && record.storage_fallback === true));
-
-        // Overwrite (no merge) so deletes on the server propagate cleanly.
-        setLocalEntityData('clients', cleaned);
-        return cleaned;
-    } catch (error) {
-        // Opt-in fallback only — by default we prefer empty over stale.
-        if (allowFallback && shouldUseLocalEntityFallback(error)) {
-            const cached = getLocalEntityData('clients')
-                .filter(record => !(record && record.storage_fallback === true));
-            return cached;
-        }
-        // Default: surface an empty state rather than risk showing
-        // records that no longer exist on the server.
-        console.error('[fetchClients] API failed — clearing cache to avoid stale UI', error);
-        clearLocalEntityData('clients');
-        return [];
-    }
+    return _inFlightFetchClientsPromise;
 }
 
 async function fetchClientById(id) {
@@ -4147,36 +4192,47 @@ async function syncProjectToBackend(projectId) {
     return persistedProject;
 }
 
-async function fetchTasks(projectId) {
+// API-first: backend is sole source of truth.
+// Project-scoped filtering applied client-side over the authoritative list.
+async function fetchTasks(projectId, options) {
+    const allowFallback = Boolean(options && options.allowFallback);
+    const targetProjectId = String(projectId || '').trim();
+
     if (!canAccessEntity('tasks')) return [];
     if (!isFirebaseConfigured) {
-        return createAccessFilteredDataset('tasks', sampleTasks).filter(t => t.project_id === projectId);
+        return createAccessFilteredDataset('tasks', sampleTasks).filter(t => t.project_id === targetProjectId);
     }
+
+    if (!isFirebaseUserAuthenticated()) {
+        // No session — do NOT clear full cache (other projects' tasks live here);
+        // just return empty for this project.
+        return [];
+    }
+
     try {
-        if (isFirebaseUserAuthenticated()) {
-            try {
-                const records = await dashboardApiRequest('GET', 'tasks');
-                return (Array.isArray(records) ? records : []).filter(t => t.project_id === projectId);
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'tasks', 'read');
-            }
+        // Await API BEFORE returning — no early local read.
+        const records = await dashboardApiRequest('GET', 'tasks');
+        const apiRecords = Array.isArray(records) ? records : [];
+
+        // Drop storage_fallback rows — server doesn't know about them.
+        const cleaned = apiRecords.filter(record => !(record && record.storage_fallback === true));
+
+        // Overwrite full tasks cache silently (no event loop risk).
+        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', cleaned), { silent: true });
+
+        // Client-side filter + sort by created_at (preserves existing UX).
+        return cleaned
+            .filter(t => t && t.project_id === targetProjectId)
+            .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    } catch (error) {
+        if (allowFallback && shouldUseLocalEntityFallback(error)) {
+            return filterRecordsForCurrentUserScope('tasks', getLocalEntityData('tasks'))
+                .filter(t => t && t.project_id === targetProjectId && t.storage_fallback !== true)
+                .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
         }
-        if (shouldBypassDirectFirestoreForCollection('tasks') || shouldSkipOwnerScopedFallbackForCurrentUser()) {
-            return filterRecordsForCurrentUserScope('tasks', getLocalEntityData('tasks')).filter(t => t.project_id === projectId);
-        }
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) return [];
-        const snap = await db.collection('tasks')
-            .where('owner_key', '==', ownerKey)
-            .where('project_id', '==', projectId)
-            .get();
-        return filterRecordsForCurrentUserScope('tasks', mergeEntityCollections(
-            _snap(snap).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
-            getLocalEntityData('tasks').filter(t => t.project_id === projectId)
-        )).sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-    } catch (e) {
-        if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        return filterRecordsForCurrentUserScope('tasks', getLocalEntityData('tasks')).filter(t => t.project_id === projectId);
+        // Prefer empty over stale — don't touch cache (other projects' data).
+        console.error('[fetchTasks] API failed — returning empty for project', targetProjectId, error && error.message);
+        return [];
     }
 }
 
@@ -4234,20 +4290,8 @@ async function addTask(d) {
     if (!isFirebaseConfigured) {
         return createLocalDraftTask(false);
     }
-    if (shouldBypassDirectFirestoreForCollection('tasks')) {
-        return createLocalDraftTask(true);
-    }
-    try {
-        const ref = await db.collection('tasks').add(doc);
-        const persistedTask = stripOptimisticMetadata({ id: ref.id, ...doc });
-        setLocalEntityData('tasks', sortEntityRecordsForStorage('tasks', mergeEntityCollections([persistedTask], getLocalEntityData('tasks'))));
-        return persistedTask;
-    } catch (error) {
-        if (shouldUseLocalEntityFallback(error)) {
-            return createLocalDraftTask(true);
-        }
-        throw error;
-    }
+    // API unavailable → localStorage draft only (no direct Firestore).
+    return createLocalDraftTask(true);
 }
 
 async function updateTask(id, d) {
@@ -4313,26 +4357,10 @@ async function updateTask(id, d) {
     if (!isFirebaseConfigured) {
         return applyTaskPatchToLocalRecords(doc, false);
     }
-    if (shouldBypassDirectFirestoreForCollection('tasks')) {
-        return applyTaskPatchToLocalRecords(doc, true);
-    }
-    try {
-        await db.collection('tasks').doc(taskId).update(doc);
-        const updatedTask = applyTaskPatchToLocalRecords(doc, false);
-        if (updatedTask) return updatedTask;
-        return stripOptimisticMetadata({ id: taskId, ...doc });
-    } catch (error) {
-        const message = String(error && error.message ? error.message : '');
-        const code = String(error && error.code ? error.code : '');
-        const isMissingDocumentError = message.toLowerCase().includes('no document to update')
-            || code === 'not-found'
-            || code === 5;
-        if (shouldUseLocalEntityFallback(error) || isMissingDocumentError) {
-            return applyTaskPatchToLocalRecords(doc, true);
-        }
-        rollbackOptimisticState();
-        throw error;
-    }
+    // API unavailable → localStorage patch only (no direct Firestore).
+    const fallbackRecord = applyTaskPatchToLocalRecords(doc, true);
+    if (fallbackRecord) return fallbackRecord;
+    return stripOptimisticMetadata({ id: taskId, ...doc, storage_fallback: true });
 }
 
 async function deleteTask(id) {
@@ -4375,55 +4403,55 @@ async function deleteTask(id) {
         }
         return;
     }
-    if (shouldBypassDirectFirestoreForCollection('tasks')) {
-        if (!optimisticApplied) {
-            const records = getLocalEntityData('tasks').filter(task => String(task && task.id || '') !== taskId);
-            setLocalEntityData('tasks', records);
-        }
-        return;
-    }
-    try {
-        await db.collection('tasks').doc(taskId).delete();
-    } catch (error) {
-        const message = String(error && error.message ? error.message : '');
-        const code = String(error && error.code ? error.code : '');
-        const isMissingDocumentError = message.toLowerCase().includes('no document to update')
-            || message.toLowerCase().includes('no document to delete')
-            || code === 'not-found'
-            || code === 5;
-        if (!shouldUseLocalEntityFallback(error) && !isMissingDocumentError) {
-            rollbackOptimisticState();
-            throw error;
-        }
+    // API unavailable → localStorage cleanup only (no direct Firestore).
+    if (!optimisticApplied) {
+        const records = getLocalEntityData('tasks').filter(task => String(task && task.id || '') !== taskId);
+        setLocalEntityData('tasks', records);
     }
 }
 
-async function fetchInvoices() {
+// API-first: backend is sole source of truth.
+// Sorted descending by created_at to preserve existing UI ordering.
+async function fetchInvoices(options) {
+    const allowFallback = Boolean(options && options.allowFallback);
+
     if (!canAccessEntity('invoices')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('invoices', sampleInvoices);
+
+    if (!isFirebaseUserAuthenticated()) {
+        // No session → no authority. Silent wipe to avoid event-bus loops.
+        clearLocalEntityData('invoices', { silent: true });
+        return [];
+    }
+
     try {
-        if (isFirebaseUserAuthenticated()) {
-            try {
-                const records = await dashboardApiRequest('GET', 'invoices');
-                return Array.isArray(records) ? records : [];
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'invoices', 'update');
-            }
+        // Await API BEFORE returning — no early local read.
+        const response = await dashboardApiRequest('GET', 'invoices');
+        const apiRecords = Array.isArray(response) ? response : [];
+
+        if (apiRecords.length === 0) {
+            // Empty server state is authoritative — purge cache so
+            // previously-deleted invoices cannot reappear.
+            clearLocalEntityData('invoices', { silent: true });
+            return [];
         }
-        if (shouldBypassDirectFirestoreForCollection('invoices')) {
+
+        // Drop storage_fallback rows — server doesn't know about them.
+        const cleaned = apiRecords
+            .filter(record => !(record && record.storage_fallback === true))
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+        // Silent overwrite (no merge) so server deletes propagate cleanly.
+        setLocalEntityData('invoices', cleaned, { silent: true });
+        return cleaned;
+    } catch (error) {
+        if (allowFallback && shouldUseLocalEntityFallback(error)) {
             return getLocalEntityData('invoices')
+                .filter(record => !(record && record.storage_fallback === true))
                 .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
         }
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) return [];
-        const snap = await db.collection('invoices').where('owner_key', '==', ownerKey).get();
-        return mergeEntityCollections(
-            _snap(snap).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
-            getLocalEntityData('invoices')
-        ).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    } catch (e) {
-        if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        return getLocalEntityData('invoices');
+        console.error('[fetchInvoices] API failed — returning empty to avoid stale UI', error && error.message);
+        return [];
     }
 }
 
@@ -4447,26 +4475,12 @@ async function addInvoice(d) {
         setLocalEntityData('invoices', records);
         return r;
     }
-    if (shouldBypassDirectFirestoreForCollection('invoices')) {
-        const records = getLocalEntityData('invoices');
-        const r = { ...doc, id: 'i' + Date.now(), storage_fallback: true };
-        records.unshift(r);
-        setLocalEntityData('invoices', records);
-        return r;
-    }
-    try {
-        const ref = await db.collection('invoices').add(doc);
-        return { id: ref.id, ...doc };
-    } catch (error) {
-        if (shouldUseLocalEntityFallback(error)) {
-            const records = getLocalEntityData('invoices');
-            const r = { ...doc, id: 'i' + Date.now(), storage_fallback: true };
-            records.unshift(r);
-            setLocalEntityData('invoices', records);
-            return r;
-        }
-        throw error;
-    }
+    // API unavailable → localStorage draft only (no direct Firestore).
+    const records = getLocalEntityData('invoices');
+    const r = { ...doc, id: 'i' + Date.now(), storage_fallback: true };
+    records.unshift(r);
+    setLocalEntityData('invoices', records);
+    return r;
 }
 
 async function updateInvoiceStatus(id, status, paidDate = null) {
@@ -4492,16 +4506,13 @@ async function updateInvoiceStatus(id, status, paidDate = null) {
         }
         return;
     }
-    if (shouldBypassDirectFirestoreForCollection('invoices')) {
-        const records = getLocalEntityData('invoices');
-        const i = records.findIndex(inv => inv.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...upd, storage_fallback: true };
-            setLocalEntityData('invoices', records);
-        }
-        return;
+    // API unavailable → localStorage patch only (no direct Firestore).
+    const records = getLocalEntityData('invoices');
+    const i = records.findIndex(inv => inv.id === id);
+    if (i > -1) {
+        records[i] = { ...records[i], ...upd, storage_fallback: true };
+        setLocalEntityData('invoices', records);
     }
-    await db.collection('invoices').doc(id).update(upd);
 }
 
 async function deleteInvoice(id) {
@@ -4522,42 +4533,51 @@ async function deleteInvoice(id) {
         setLocalEntityData('invoices', records);
         return;
     }
-    if (shouldBypassDirectFirestoreForCollection('invoices')) {
-        const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
-        setLocalEntityData('invoices', records);
-        return;
-    }
-    try {
-        await db.collection('invoices').doc(id).delete();
-    } catch (error) {
-        if (!shouldUseLocalEntityFallback(error)) throw error;
-    }
+    // API unavailable → localStorage cleanup only (no direct Firestore).
     const records = getLocalEntityData('invoices').filter(inv => inv.id !== id);
     setLocalEntityData('invoices', records);
 }
 
-async function fetchServices() {
+// API-first: backend is sole source of truth.
+// Preserves existing schema — dropdowns/selections/dependencies get the same
+// shape they get today. localStorage is a disposable cache only.
+async function fetchServices(options) {
+    const allowFallback = Boolean(options && options.allowFallback);
+
     if (!canAccessEntity('services')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('services', sampleServices);
+
+    if (!isFirebaseUserAuthenticated()) {
+        // No session → no authority. Silent wipe to avoid event-bus loops.
+        clearLocalEntityData('services', { silent: true });
+        return [];
+    }
+
     try {
-        if (isFirebaseUserAuthenticated()) {
-            try {
-                const records = await dashboardApiRequest('GET', 'services');
-                return Array.isArray(records) ? records : [];
-            } catch (error) {
-                if (!isDashboardApiUnavailableError(error)) throw normalizeDashboardApiError(error, 'services', 'update');
-            }
+        // Await API BEFORE returning — no early local read.
+        const response = await dashboardApiRequest('GET', 'services');
+        const apiRecords = Array.isArray(response) ? response : [];
+
+        if (apiRecords.length === 0) {
+            // Authoritative empty — purge cache so deleted services
+            // cannot reappear in dropdowns.
+            clearLocalEntityData('services', { silent: true });
+            return [];
         }
-        if (shouldBypassDirectFirestoreForCollection('services')) {
-            return getLocalEntityData('services');
+
+        // Drop storage_fallback rows — server doesn't know about them.
+        const cleaned = apiRecords.filter(record => !(record && record.storage_fallback === true));
+
+        // Silent overwrite (no merge) so server-side deletes propagate.
+        setLocalEntityData('services', cleaned, { silent: true });
+        return cleaned;
+    } catch (error) {
+        if (allowFallback && shouldUseLocalEntityFallback(error)) {
+            return getLocalEntityData('services')
+                .filter(record => !(record && record.storage_fallback === true));
         }
-        const ownerKey = getCurrentOwnerKey();
-        if (!ownerKey) return [];
-        const snap = await db.collection('services').where('owner_key', '==', ownerKey).get();
-        return mergeEntityCollections(_snap(snap), getLocalEntityData('services'));
-    } catch (e) {
-        if (!shouldUseLocalEntityFallback(e)) console.error(e);
-        return getLocalEntityData('services');
+        console.error('[fetchServices] API failed — returning empty to avoid stale UI', error && error.message);
+        return [];
     }
 }
 
@@ -4581,26 +4601,12 @@ async function addService(d) {
         setLocalEntityData('services', records);
         return r;
     }
-    if (shouldBypassDirectFirestoreForCollection('services')) {
-        const records = getLocalEntityData('services');
-        const r = { ...doc, id: 's' + Date.now(), storage_fallback: true };
-        records.push(r);
-        setLocalEntityData('services', records);
-        return r;
-    }
-    try {
-        const ref = await db.collection('services').add(doc);
-        return { id: ref.id, ...doc };
-    } catch (error) {
-        if (shouldUseLocalEntityFallback(error)) {
-            const records = getLocalEntityData('services');
-            const r = { ...doc, id: 's' + Date.now(), storage_fallback: true };
-            records.push(r);
-            setLocalEntityData('services', records);
-            return r;
-        }
-        throw error;
-    }
+    // API unavailable → localStorage draft only (no direct Firestore).
+    const records = getLocalEntityData('services');
+    const r = { ...doc, id: 's' + Date.now(), storage_fallback: true };
+    records.push(r);
+    setLocalEntityData('services', records);
+    return r;
 }
 
 async function updateService(id, d) {
@@ -4626,18 +4632,15 @@ async function updateService(id, d) {
         }
         return null;
     }
-    if (shouldBypassDirectFirestoreForCollection('services')) {
-        const records = getLocalEntityData('services');
-        const i = records.findIndex(s => s.id === id);
-        if (i > -1) {
-            records[i] = { ...records[i], ...doc, storage_fallback: true };
-            setLocalEntityData('services', records);
-            return records[i];
-        }
-        return null;
+    // API unavailable → localStorage patch only (no direct Firestore).
+    const records = getLocalEntityData('services');
+    const i = records.findIndex(s => s.id === id);
+    if (i > -1) {
+        records[i] = { ...records[i], ...doc, storage_fallback: true };
+        setLocalEntityData('services', records);
+        return records[i];
     }
-    await db.collection('services').doc(id).update(doc);
-    return { id, ...doc };
+    return null;
 }
 
 async function deleteService(id) {
@@ -4658,16 +4661,7 @@ async function deleteService(id) {
         setLocalEntityData('services', records);
         return;
     }
-    if (shouldBypassDirectFirestoreForCollection('services')) {
-        const records = getLocalEntityData('services').filter(s => s.id !== id);
-        setLocalEntityData('services', records);
-        return;
-    }
-    try {
-        await db.collection('services').doc(id).delete();
-    } catch (error) {
-        if (!shouldUseLocalEntityFallback(error)) throw error;
-    }
+    // API unavailable → localStorage cleanup only (no direct Firestore).
     const records = getLocalEntityData('services').filter(s => s.id !== id);
     setLocalEntityData('services', records);
 }

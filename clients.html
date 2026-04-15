@@ -627,21 +627,61 @@ document.getElementById('clientModal').addEventListener('click', function (event
 document.getElementById('fAssignedProjects').addEventListener('change', normalizeProjectAccessSelection);
 document.getElementById('fProjectType').addEventListener('change', () => syncWebsiteTypeInput('fProjectType', 'fProjectTypeCustomGroup', 'fProjectTypeCustom'));
 
-var _clientsRefreshCooldownUntil = 0;
-var _clientsRefreshPendingTimer = null;
-function throttledClientsRefresh() {
-  var now = Date.now();
-  if (now < _clientsRefreshCooldownUntil) {
-    if (!_clientsRefreshPendingTimer) {
-      _clientsRefreshPendingTimer = setTimeout(function() {
-        _clientsRefreshPendingTimer = null;
-        throttledClientsRefresh();
-      }, _clientsRefreshCooldownUntil - now + 100);
-    }
+// ─── throttledClientsRefresh: anti-loop, single-flight ───
+// Guarantees: (1) only one refresh runs at a time, (2) at most one
+// pending timer, (3) no recursive re-arming, (4) cooldown enforced.
+var CLIENTS_REFRESH_COOLDOWN_MS = 30000;
+var _clientsRefreshInFlight = false;        // lock — set while refreshClientsData is running
+var _clientsRefreshLastRunAt = 0;           // timestamp of last successful kickoff
+var _clientsRefreshPendingTimer = null;     // at most one scheduled follow-up
+var _clientsRefreshDirtyDuringRun = false;  // coalesces events that arrive mid-flight
+
+function _runClientsRefresh() {
+  if (_clientsRefreshInFlight) {
+    // A refresh is running — mark dirty so we do ONE follow-up when it settles.
+    _clientsRefreshDirtyDuringRun = true;
     return;
   }
-  _clientsRefreshCooldownUntil = now + 30000;
-  refreshClientsData().catch(function() {});
+  _clientsRefreshInFlight = true;
+  _clientsRefreshLastRunAt = Date.now();
+  // refreshClientsData itself calls fetchClients, which is single-flight.
+  // Swallow errors here — fetchClients already dedupes its own logging.
+  Promise.resolve()
+    .then(function() { return refreshClientsData(); })
+    .catch(function() { /* intentionally silent — no retry, no loop */ })
+    .then(function() {
+      _clientsRefreshInFlight = false;
+      // If an event fired mid-run, schedule exactly one follow-up.
+      if (_clientsRefreshDirtyDuringRun) {
+        _clientsRefreshDirtyDuringRun = false;
+        if (!_clientsRefreshPendingTimer) {
+          _clientsRefreshPendingTimer = setTimeout(function() {
+            _clientsRefreshPendingTimer = null;
+            _runClientsRefresh();
+          }, CLIENTS_REFRESH_COOLDOWN_MS);
+        }
+      }
+    });
+}
+
+function throttledClientsRefresh() {
+  // Ignore while a fetch is in progress — prevents stacking.
+  if (_clientsRefreshInFlight) {
+    _clientsRefreshDirtyDuringRun = true;
+    return;
+  }
+  var now = Date.now();
+  var elapsed = now - _clientsRefreshLastRunAt;
+  if (elapsed >= CLIENTS_REFRESH_COOLDOWN_MS) {
+    _runClientsRefresh();
+    return;
+  }
+  // Inside cooldown: ensure ONLY ONE pending timer. Never recurse.
+  if (_clientsRefreshPendingTimer) return;
+  _clientsRefreshPendingTimer = setTimeout(function() {
+    _clientsRefreshPendingTimer = null;
+    _runClientsRefresh();
+  }, CLIENTS_REFRESH_COOLDOWN_MS - elapsed);
 }
 
 window.addEventListener('focus', throttledClientsRefresh);
@@ -650,10 +690,11 @@ document.addEventListener('visibilitychange', function() {
   if (!document.hidden) throttledClientsRefresh();
 });
 
-window.addEventListener('nexlance-data-changed', function(event) {
-  var entity = event && event.detail ? event.detail.entity : '';
-  if (entity === 'clients') throttledClientsRefresh();
-});
+// NOTE: do NOT subscribe to 'nexlance-data-changed' for the 'clients' entity
+// here — fetchClients now writes/clears the cache silently, and mutations
+// (saveClient/handleDelete) call refreshClientsData() directly. Listening
+// to the event bus from the same file that writes to it creates a feedback
+// loop with any future silent→loud regression. Keep this decoupled.
 
 init();
 </script>
