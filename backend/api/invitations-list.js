@@ -1,4 +1,4 @@
-const { requireAuth, requireOwnerOnly } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser, requireOwnerOnly } = require('../services/request-guards');
 const { queryCollectionDocuments } = require('../services/firebase-service');
 const { handleOptions, sendApiError, setApiCors } = require('./_utils');
 
@@ -13,6 +13,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         requireOwnerOnly(session);
         const invites = await queryCollectionDocuments('invitations', {
             fieldPath: 'workspaceId',

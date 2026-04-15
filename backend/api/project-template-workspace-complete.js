@@ -1,4 +1,4 @@
-const { requireAuth } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser } = require('../services/request-guards');
 const { completeTemplateWorkspace } = require('../services/template-workspace');
 
 module.exports = async function handler(req, res) {
@@ -18,6 +18,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         const payload = await completeTemplateWorkspace(session, req.body || {});
         res.status(200).json({ ok: true, ...payload });
     } catch (error) {

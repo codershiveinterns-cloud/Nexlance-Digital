@@ -14,9 +14,11 @@ const {
     commitBatchedWrites,
     createCollectionDocument,
     getCollectionDocument,
+    getFirestoreDocRef,
     patchCollectionDocument,
     queryCollectionDocuments,
     queryCollectionDocumentsMulti,
+    runFirestoreTransaction,
     sanitizeDocumentId,
     upsertCollectionDocument
 } = require('./firebase-service');
@@ -177,12 +179,12 @@ async function getProjectNames(projectIds = []) {
     return names;
 }
 
-async function sendInvitationEmail({ inviteType, inviteeName, email, workspaceName, inviteLink, role, assignedProjectIds }) {
+async function sendInvitationEmail({ inviteType, inviteeName, email, workspaceName, inviteLink, role, assignedProjectIds, ownerEmail, allProjectsAccess }) {
     const roleLabel = AccessControl.getRoleDisplayLabel(role);
     const projectNames = await getProjectNames(assignedProjectIds);
     const payload = inviteType === 'client'
-        ? buildClientInviteEmail({ inviteeName, workspaceName, inviteLink, projectNames })
-        : buildTeamInviteEmail({ inviteeName, workspaceName, inviteLink, roleLabel, projectNames });
+        ? buildClientInviteEmail({ inviteeName, workspaceName, inviteLink, projectNames, ownerEmail, allProjectsAccess, roleLabel })
+        : buildTeamInviteEmail({ inviteeName, workspaceName, inviteLink, roleLabel, projectNames, ownerEmail, allProjectsAccess });
 
     return sendEmailWithResend({
         to: email,
@@ -652,7 +654,9 @@ async function createInvitation({
             workspaceName: sessionUser.businessName || sessionUser.workspaceId,
             inviteLink: invitationRecord.inviteLink,
             role: normalizedRole,
-            assignedProjectIds: safeAssignedProjectIds
+            assignedProjectIds: safeAssignedProjectIds,
+            ownerEmail: sessionUser.workspaceOwnerEmail || sessionUser.email,
+            allProjectsAccess: safeAllProjectsAccess === true
         });
     } catch (error) {
         const failedAt = new Date().toISOString();
@@ -759,7 +763,9 @@ async function resendInvitation({ invitationId, session, origin = '' }) {
             workspaceName: sessionUser.businessName || sessionUser.workspaceId,
             inviteLink: nextRecord.inviteLink,
             role: nextRecord.role,
-            assignedProjectIds: nextRecord.assignedProjectIds
+            assignedProjectIds: nextRecord.assignedProjectIds,
+            ownerEmail: nextRecord.workspaceOwnerEmail || sessionUser.workspaceOwnerEmail || sessionUser.email,
+            allProjectsAccess: nextRecord.allProjectsAccess === true
         });
     } catch (error) {
         await patchCollectionDocument('invitations', invitationId, {
@@ -823,28 +829,51 @@ function assertInvitationUsable(invitation) {
     return record;
 }
 
-async function acceptInvitation({ session, token }) {
-    const invitation = await resolveInvitationByToken(token);
+async function findPendingInvitationForEmail(email) {
+    const normalizedEmail = AccessControl.normalizeEmail(email);
+    if (!normalizedEmail) return null;
+    const matches = await queryCollectionDocumentsMulti('invitations', [
+        { fieldPath: 'email', op: 'EQUAL', value: normalizedEmail },
+        { fieldPath: 'status', op: 'EQUAL', value: 'pending' }
+    ], 10).catch(() => []);
+    const candidates = Array.isArray(matches) ? matches : [];
+    const usable = candidates.find(entry => {
+        const data = entry && entry.data ? entry.data : {};
+        if (!data) return false;
+        if (data.expiresAt && new Date(data.expiresAt).getTime() <= Date.now()) return false;
+        return true;
+    });
+    return usable ? { id: usable.id, data: usable.data } : null;
+}
+
+async function acceptInvitation({ session, token, invitation: preResolvedInvitation }) {
+    console.info('[InviteAccept] start', { userId: session && session.authUser && session.authUser.uid });
+
+    const invitation = preResolvedInvitation || await resolveInvitationByToken(token);
     const record = assertInvitationUsable(invitation);
     const sessionUser = session.sessionUser;
     const safeSessionEmail = AccessControl.normalizeEmail(sessionUser.email);
     const invitationWorkspaceId = String(record.workspaceId || '').trim();
+    const role = AccessControl.normalizeRole(record.role);
+
     if (!invitationWorkspaceId) {
         const error = new Error('Invitation is missing workspace assignment.');
         error.statusCode = 400;
         throw error;
     }
-
+    if (!role) {
+        const error = new Error('Invitation is missing a role.');
+        error.statusCode = 400;
+        throw error;
+    }
     if (!session.authUser || !session.authUser.emailVerified) {
         const error = new Error('Please verify your email address before accepting this invitation.');
         error.statusCode = 403;
         throw error;
     }
-
     if (safeSessionEmail !== AccessControl.normalizeEmail(record.email)) {
         throw new Error('This invitation was sent to a different email address.');
     }
-
     if (
         sessionUser.workspaceId
         && record.workspaceId
@@ -853,7 +882,6 @@ async function acceptInvitation({ session, token }) {
         throw new Error('This account is already attached to another workspace.');
     }
 
-    const role = AccessControl.normalizeRole(record.role);
     let accessFields = buildProfileAccessFields(record);
     if (role === AccessControl.ROLES.CLIENT || String(record.inviteType || '').trim().toLowerCase() === 'team') {
         const resolvedScope = await resolveAssignedProjectIdsForWorkspace({
@@ -897,30 +925,109 @@ async function acceptInvitation({ session, token }) {
         joinedAt: session.userProfile.joinedAt || new Date().toISOString()
     }, session.authUser);
 
+    const nowIso = new Date().toISOString();
     const nextUserProfile = {
         workspaceId: invitationWorkspaceId,
-        workspaceOwnerEmail: record.workspaceOwnerEmail,
-        workspaceOwnerUserId: record.workspaceOwnerUserId,
-        ownerEmail: record.workspaceOwnerEmail,
-        ownerUserId: record.workspaceOwnerUserId,
+        workspaceOwnerEmail: record.workspaceOwnerEmail || '',
+        workspaceOwnerUserId: record.workspaceOwnerUserId || '',
+        ownerEmail: record.workspaceOwnerEmail || '',
+        ownerUserId: record.workspaceOwnerUserId || '',
         isWorkspaceOwner: false,
         role,
         workspaceRole: role,
         permissionKeys: profileFields.permissionKeys,
         permissions: profileFields.permissions,
         permissionMode: profileFields.permissionMode,
-        assignedProjectIds: accessFields.assignedProjectIds,
-        allProjectsAccess: accessFields.allProjectsAccess,
+        assignedProjectIds: accessFields.assignedProjectIds || [],
+        allProjectsAccess: accessFields.allProjectsAccess === true,
         projectAccessScope: accessFields.projectAccessScope,
         membershipStatus: 'active',
         inviteType: record.inviteType,
-        inviteAcceptedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        inviteAcceptedAt: nowIso,
+        updatedAt: nowIso
     };
 
-    await patchCollectionDocument('users', session.authUser.uid, nextUserProfile);
+    const assignmentIds = AccessControl.sanitizeAssignedProjectIds(accessFields.assignedProjectIds);
+    const userId = String(session.authUser.uid || '').trim();
+    const assignmentIdentityToken = safeSessionEmail || userId;
+
+    const invitationRef = getFirestoreDocRef('invitations', invitation.id);
+    const userRef = getFirestoreDocRef('users', userId);
+    const assignmentPlans = (!nextUserProfile.allProjectsAccess ? assignmentIds : [])
+        .map(projectId => String(projectId || '').trim())
+        .filter(Boolean)
+        .map(projectId => ({
+            projectId,
+            ref: getFirestoreDocRef(
+                'project_assignments',
+                sanitizeDocumentId(`${invitationWorkspaceId}_${projectId}_${assignmentIdentityToken}`)
+            )
+        }));
+
+    await runFirestoreTransaction(async tx => {
+        const invitationSnap = await tx.get(invitationRef);
+        if (!invitationSnap.exists) {
+            const error = new Error('Invitation is invalid or has expired.');
+            error.statusCode = 404;
+            throw error;
+        }
+        const currentInvitation = invitationSnap.data() || {};
+        const status = String(currentInvitation.status || 'pending').trim().toLowerCase();
+        if (status !== 'pending') {
+            const error = new Error('This invitation has already been used.');
+            error.statusCode = 409;
+            throw error;
+        }
+        if (currentInvitation.expiresAt && new Date(currentInvitation.expiresAt).getTime() <= Date.now()) {
+            const error = new Error('This invitation has expired.');
+            error.statusCode = 410;
+            throw error;
+        }
+        // Required read before writes (user doc may not yet exist — merge-set handles both cases)
+        await tx.get(userRef);
+
+        tx.set(userRef, nextUserProfile, { merge: true });
+
+        for (const { projectId, ref } of assignmentPlans) {
+            tx.set(ref, {
+                workspaceId: invitationWorkspaceId,
+                workspace_id: invitationWorkspaceId,
+                projectId,
+                project_id: projectId,
+                userId,
+                user_id: userId,
+                email: safeSessionEmail,
+                user_email: safeSessionEmail,
+                role,
+                inviteType: record.inviteType,
+                status: 'active',
+                active: true,
+                createdAt: nowIso,
+                created_at: nowIso,
+                updatedAt: nowIso,
+                updated_at: nowIso
+            }, { merge: true });
+        }
+
+        tx.update(invitationRef, {
+            status: 'accepted',
+            acceptedAt: nowIso,
+            usedAt: nowIso,
+            acceptedByUserId: userId,
+            acceptedByEmail: safeSessionEmail,
+            updatedAt: nowIso
+        });
+    });
+
+    console.info('[InviteAccept] user updated', { userId, workspaceId: invitationWorkspaceId, role });
+    console.info('[InviteAccept] assignments created', {
+        userId,
+        workspaceId: invitationWorkspaceId,
+        assignedProjectIds: assignmentPlans.map(p => p.projectId)
+    });
+
     // Invalidate cached session — role, workspace, and permissions just changed
-    invalidateSessionCache(session.authUser.uid);
+    invalidateSessionCache(userId);
     const authoritativeScope = getAuthoritativeAssignmentScope(nextUserProfile);
     if (!authoritativeScope.workspaceId) {
         const scopeError = new Error('Authoritative workspace scope is missing after invitation acceptance.');
@@ -954,50 +1061,12 @@ async function acceptInvitation({ session, token }) {
         updatedAt: new Date().toISOString()
     });
 
-    const assignmentIds = AccessControl.sanitizeAssignedProjectIds(authoritativeScope.assignedProjectIds);
-    const assignmentSyncTimestamp = new Date().toISOString();
     await deactivateExistingProjectAssignments({
         workspaceId: authoritativeScope.workspaceId,
-        userId: String(session.authUser.uid || '').trim(),
+        userId,
         email: safeSessionEmail,
         reason: 'invitation_accept_resync'
     }).catch(() => undefined);
-
-    if (!authoritativeScope.allProjectsAccess) {
-        for (const projectId of assignmentIds) {
-            // Enforce NOT NULL: skip if workspace_id or project_id is empty
-            const safeWorkspaceId = String(authoritativeScope.workspaceId || '').trim();
-            const safeProjectId = String(projectId || '').trim();
-            if (!safeWorkspaceId || !safeProjectId) {
-                console.error('[ProjectAssignment] SKIPPED: workspace_id or project_id is empty', {
-                    workspaceId: safeWorkspaceId,
-                    projectId: safeProjectId,
-                    email: safeSessionEmail
-                });
-                continue;
-            }
-            const assignmentIdentityToken = safeSessionEmail || String(session.authUser.uid || '').trim();
-            const assignmentId = sanitizeDocumentId(`${safeWorkspaceId}_${safeProjectId}_${assignmentIdentityToken}`);
-            await upsertCollectionDocument('project_assignments', assignmentId, {
-                workspaceId: safeWorkspaceId,
-                workspace_id: safeWorkspaceId,
-                projectId: safeProjectId,
-                project_id: safeProjectId,
-                userId: session.authUser.uid,
-                user_id: session.authUser.uid,
-                email: safeSessionEmail,
-                user_email: safeSessionEmail,
-                role,
-                inviteType: record.inviteType,
-                status: 'active',
-                createdAt: assignmentSyncTimestamp,
-                created_at: assignmentSyncTimestamp,
-                updatedAt: assignmentSyncTimestamp,
-                updated_at: assignmentSyncTimestamp,
-                active: true
-            });
-        }
-    }
 
     if (record.targetRecordCollection && record.targetRecordId) {
         await patchCollectionDocument(record.targetRecordCollection, record.targetRecordId, {
@@ -1029,14 +1098,6 @@ async function acceptInvitation({ session, token }) {
         });
     }
 
-    await patchCollectionDocument('invitations', invitation.id, {
-        status: 'accepted',
-        usedAt: new Date().toISOString(),
-        acceptedByUserId: session.authUser.uid,
-        acceptedByEmail: safeSessionEmail,
-        updatedAt: new Date().toISOString()
-    });
-
     await logAuditEvent('invite_accepted', {
         workspaceId: invitationWorkspaceId,
         actorUserId: session.authUser.uid,
@@ -1057,7 +1118,7 @@ async function acceptInvitation({ session, token }) {
         name: sessionUser.name || safeSessionEmail
     };
 
-    console.info('[WorkspaceAssignment] Invitation accepted', {
+    console.info('[InviteAccept] success', {
         invitationId: invitation.id,
         inviteType: record.inviteType,
         workspaceId: invitationWorkspaceId,
@@ -1078,6 +1139,7 @@ module.exports = {
     assertInvitationUsable,
     createInvitation,
     createRawInviteToken,
+    findPendingInvitationForEmail,
     hashInviteToken,
     resendInvitation,
     resolveInvitationByToken

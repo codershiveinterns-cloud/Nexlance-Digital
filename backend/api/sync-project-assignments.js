@@ -1,4 +1,4 @@
-const { requireAuth } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser } = require('../services/request-guards');
 const { handleOptions, sendApiError, setApiCors } = require('./_utils');
 const { resolveScopedAssignedProjectsForLogin, invalidateSessionCache } = require('../services/workspace-access');
 
@@ -13,6 +13,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         const { sessionUser } = session;
         
         console.info('[SyncProjectAssignments] Starting force sync', {

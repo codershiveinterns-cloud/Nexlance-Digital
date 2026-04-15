@@ -107,15 +107,20 @@ function getWorkspaceId(profile = {}, authUser = {}) {
 function getWorkspaceOwnerEmail(profile = {}, authUser = {}) {
     const explicitOwnerEmail = AccessControl.normalizeEmail(profile.workspaceOwnerEmail || profile.ownerEmail);
     if (explicitOwnerEmail) return explicitOwnerEmail;
-    if (hasPendingInviteState(profile)) return '';
-    return AccessControl.normalizeEmail(authUser.email);
+    // Owner-of-own-workspace: only when profile is unambiguously the workspace owner.
+    if (profile.isWorkspaceOwner === true) {
+        return AccessControl.normalizeEmail(authUser.email);
+    }
+    return '';
 }
 
 function getWorkspaceOwnerUserId(profile = {}, authUser = {}) {
     const explicitOwnerUserId = String(profile.workspaceOwnerUserId || profile.ownerUserId || '').trim();
     if (explicitOwnerUserId) return explicitOwnerUserId;
-    if (hasPendingInviteState(profile)) return '';
-    return String(authUser.uid || '').trim();
+    if (profile.isWorkspaceOwner === true) {
+        return String(authUser.uid || '').trim();
+    }
+    return '';
 }
 
 function getWorkspaceMemberDocumentId(workspaceId, userId, email) {
@@ -1069,7 +1074,7 @@ async function ensureWorkspaceAccessProfile(authUser) {
 
 // The actual heavy resolution logic, extracted so deduplication wrapper stays clean
 async function _resolveWorkspaceAccessProfile(authUser) {
-    const profileDocument = await loadUserProfileDocument(authUser);
+    let profileDocument = await loadUserProfileDocument(authUser);
     let existingProfile = profileDocument && profileDocument.data ? profileDocument.data : {};
     const autoBootstrappedClientProfile = await autoBootstrapClientAccessFromInvitation({
         existingProfile,
@@ -1077,6 +1082,57 @@ async function _resolveWorkspaceAccessProfile(authUser) {
     }).catch(() => null);
     if (autoBootstrappedClientProfile) {
         existingProfile = autoBootstrappedClientProfile;
+    }
+
+    // ─── SESSION REPAIR ───
+    // If workspaceId missing or membership inactive, auto-apply a matching pending invitation.
+    const repairNeeded = !String(existingProfile.workspaceId || '').trim()
+        || String(existingProfile.membershipStatus || '').trim().toLowerCase() !== 'active';
+    if (repairNeeded && authUser && authUser.email && authUser.emailVerified !== false) {
+        console.info('[SessionRepair] triggered', {
+            userId: authUser.uid,
+            email: AccessControl.normalizeEmail(authUser.email),
+            workspaceId: String(existingProfile.workspaceId || '').trim(),
+            membershipStatus: existingProfile.membershipStatus || ''
+        });
+        // Lazy require to avoid circular dependency (invitations.js → workspace-access.js)
+        const { findPendingInvitationForEmail, acceptInvitation } = require('./invitations');
+        const pendingInvite = await findPendingInvitationForEmail(authUser.email).catch(() => null);
+        if (pendingInvite) {
+            console.info('[SessionRepair] invitation found', {
+                userId: authUser.uid,
+                invitationId: pendingInvite.id,
+                workspaceId: String(pendingInvite.data && pendingInvite.data.workspaceId || '').trim(),
+                role: pendingInvite.data && pendingInvite.data.role
+            });
+            try {
+                await acceptInvitation({
+                    session: {
+                        authUser,
+                        userProfile: existingProfile,
+                        sessionUser: {
+                            email: AccessControl.normalizeEmail(authUser.email),
+                            name: existingProfile.name || authUser.email,
+                            workspaceId: existingProfile.workspaceId || ''
+                        }
+                    },
+                    invitation: pendingInvite
+                });
+                profileDocument = await loadUserProfileDocument(authUser);
+                existingProfile = profileDocument && profileDocument.data ? profileDocument.data : existingProfile;
+                console.info('[SessionRepair] repaired successfully', {
+                    userId: authUser.uid,
+                    workspaceId: String(existingProfile.workspaceId || '').trim(),
+                    role: existingProfile.role
+                });
+            } catch (repairError) {
+                console.error('[SessionRepair] repair failed', {
+                    userId: authUser.uid,
+                    invitationId: pendingInvite.id,
+                    error: repairError && repairError.message
+                });
+            }
+        }
     }
 
     // CRITICAL: If workspaceId is still empty, resolve from team_members/clients by email
@@ -1124,21 +1180,31 @@ async function _resolveWorkspaceAccessProfile(authUser) {
 
     let pendingInviteBootstrap = hasPendingInviteState(existingProfile);
 
-    // If workspace is still empty and resolveWorkspaceFromTeamMembership found nothing,
-    // clear stale pending state so bootstrapRequired can trigger workspace auto-creation
+    // If user has invite-shaped state but no workspace could be resolved (including post-repair),
+    // fail explicitly rather than silently promoting them to owner of a phantom workspace.
     if (pendingInviteBootstrap && !String(existingProfile.workspaceId || '').trim()) {
-        console.info('[WorkspaceResolution] Clearing stale pending invite state — no membership found, allowing workspace bootstrap', {
-            email: AccessControl.normalizeEmail(authUser.email),
-            membershipStatus: existingProfile.membershipStatus,
-            inviteType: existingProfile.inviteType
-        });
-        existingProfile.membershipStatus = 'active';
-        pendingInviteBootstrap = false;
+        const error = new Error('No active workspace could be resolved for this account. Ask your workspace owner to re-send the invitation.');
+        error.statusCode = 403;
+        error.code = 'WORKSPACE_UNRESOLVED';
+        throw error;
     }
 
-    const ownerEmail = getWorkspaceOwnerEmail(existingProfile, authUser);
-    const ownerUserId = getWorkspaceOwnerUserId(existingProfile, authUser);
+    const existingRole = AccessControl.normalizeRole(existingProfile.role || existingProfile.workspaceRole || existingProfile.canonical_role);
+    const isInviteOnlyRole = existingRole === AccessControl.ROLES.CLIENT
+        || existingRole === AccessControl.ROLES.DEVELOPER
+        || existingRole === AccessControl.ROLES.DESIGNER;
+    if (!String(existingProfile.workspaceId || '').trim() && isInviteOnlyRole) {
+        const error = new Error('No active workspace is attached to this account. Ask your workspace owner to re-send the invitation.');
+        error.statusCode = 403;
+        error.code = 'WORKSPACE_UNRESOLVED';
+        throw error;
+    }
+
     const bootstrapRequired = !existingProfile.workspaceId && !pendingInviteBootstrap;
+    const ownerEmailExplicit = getWorkspaceOwnerEmail(existingProfile, authUser);
+    const ownerUserIdExplicit = getWorkspaceOwnerUserId(existingProfile, authUser);
+    const ownerEmail = ownerEmailExplicit || (bootstrapRequired ? AccessControl.normalizeEmail(authUser.email) : '');
+    const ownerUserId = ownerUserIdExplicit || (bootstrapRequired ? String(authUser.uid || '').trim() : '');
     const inferredOwner = existingProfile.isWorkspaceOwner === true
         || (bootstrapRequired && ownerEmail === AccessControl.normalizeEmail(authUser.email));
 

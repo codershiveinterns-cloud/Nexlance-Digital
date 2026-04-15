@@ -1,5 +1,6 @@
 const AccessControl = require('../../rbac.js');
 const { authenticateDashboardRequest } = require('../services/dashboard-auth');
+const { requireInitializedUser } = require('../services/request-guards');
 const { canPerformCollectionAction, normalizeEmail } = require('../services/dashboard-rbac');
 const { syncClientAccessState } = require('../services/client-access');
 const { syncTeamMemberState } = require('../services/team-member-access');
@@ -272,39 +273,94 @@ function isProjectWorkspaceConsistent(record = {}, sessionUser = {}) {
     return false;
 }
 
-async function listDashboardCollectionRecords(collectionId, sessionUser) {
-    const ownerKey = getWorkspaceOwnerKey(sessionUser);
+async function rehydrateAssignedProjectIdsFromAssignments(sessionUser) {
     const workspaceId = String(sessionUser.workspaceId || '').trim();
-    if (!ownerKey && !workspaceId) return [];
+    const userId = String(sessionUser.uid || '').trim();
+    const email = normalizeEmail(sessionUser.email);
+    if (!workspaceId || (!userId && !email)) return [];
 
-    // 30s TTL cache — skip Firestore entirely on cache hit
+    const filterField = userId ? 'userId' : 'email';
+    const filterValue = userId || email;
+    const assignmentRecords = await queryCollectionDocuments('project_assignments', {
+        fieldPath: filterField,
+        op: 'EQUAL',
+        value: filterValue,
+        limit: 500
+    }).catch(() => []);
+
+    const ids = new Set();
+    for (const entry of (Array.isArray(assignmentRecords) ? assignmentRecords : [])) {
+        const data = entry.data || entry;
+        const recordWs = String(data.workspaceId || data.workspace_id || '').trim();
+        if (recordWs !== workspaceId) continue;
+        const status = String(data.status || '').trim().toLowerCase();
+        if (status && status !== 'active') continue;
+        const projectId = String(data.projectId || data.project_id || '').trim();
+        if (projectId) ids.add(projectId);
+    }
+    return Array.from(ids);
+}
+
+async function listDashboardCollectionRecords(collectionId, sessionUser) {
+    const workspaceId = String(sessionUser.workspaceId || '').trim();
+    if (!workspaceId) {
+        const error = new Error('No workspace is attached to this session.');
+        error.statusCode = 403;
+        error.code = 'WORKSPACE_UNRESOLVED';
+        throw error;
+    }
+
+    const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
+    const isScopedRole = role === AccessControl.ROLES.CLIENT
+        || role === AccessControl.ROLES.DEVELOPER
+        || role === AccessControl.ROLES.DESIGNER;
+    const allProjectsAccess = hasAllProjectsAccess(sessionUser);
+
+    if (collectionId === 'projects' && isScopedRole && !allProjectsAccess) {
+        let assignedIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
+        if (!assignedIds.length) {
+            const rehydrated = await rehydrateAssignedProjectIdsFromAssignments(sessionUser);
+            if (rehydrated.length) {
+                console.info('[DashboardProjects] assignment filter', {
+                    workspaceId,
+                    source: 'rehydrated_from_project_assignments',
+                    count: rehydrated.length
+                });
+                sessionUser.assignedProjectIds = rehydrated;
+                assignedIds = rehydrated;
+            } else {
+                console.warn('[DashboardProjects] empty assignments', {
+                    workspaceId,
+                    role,
+                    userId: sessionUser.uid,
+                    email: normalizeEmail(sessionUser.email)
+                });
+                return [];
+            }
+        }
+    }
+
     const cacheKey = _dashboardListCacheKey(collectionId, sessionUser);
     const cached = _getDashboardListCache(cacheKey);
     if (cached) return cached;
 
-    // Run owner_key + workspace_id queries in parallel (no fallback full scan)
-    const queries = [];
-    if (ownerKey) {
-        queries.push(queryCollectionDocuments(collectionId, {
-            fieldPath: 'owner_key',
-            op: 'EQUAL',
-            value: ownerKey,
-            limit: 500
-        }).catch(() => []));
-    }
-    if (workspaceId) {
-        queries.push(queryCollectionDocuments(collectionId, {
-            fieldPath: 'workspace_id',
-            op: 'EQUAL',
-            value: workspaceId,
-            limit: 500
-        }).catch(() => []));
-    }
-    const results = await Promise.all(queries);
-    const queryResults = results.flat();
+    console.info('[DashboardProjects] workspace query', {
+        collectionId,
+        workspaceId,
+        role,
+        isScopedRole,
+        allProjectsAccess
+    });
+
+    const queryResults = await queryCollectionDocuments(collectionId, {
+        fieldPath: 'workspace_id',
+        op: 'EQUAL',
+        value: workspaceId,
+        limit: 500
+    }).catch(() => []);
 
     const seen = new Set();
-    const deduped = queryResults
+    const deduped = (Array.isArray(queryResults) ? queryResults : [])
         .map(record => ({
             id: record.id || (record.name ? record.name.split('/').pop() : ''),
             data: record.data || record
@@ -315,26 +371,28 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
             return true;
         });
 
-    // Auto-repair: patch projects with empty workspace_id if session has one
-    if (collectionId === 'projects' && workspaceId) {
-        for (const record of deduped) {
-            const recordWsId = String(record.data && (record.data.workspace_id || record.data.workspaceId) || '').trim();
-            if (!recordWsId && record.id) {
-                console.info('[DashboardProjects] Auto-repairing project with empty workspace_id', {
-                    projectId: record.id,
-                    workspaceId
-                });
-                await patchCollectionDocument('projects', record.id, {
-                    workspace_id: workspaceId,
-                    updated_at: new Date().toISOString()
-                }).catch(() => undefined);
-                record.data = { ...record.data, workspace_id: workspaceId };
-            }
-        }
-    }
+    // Strict workspace membership check — drop any record whose workspace_id doesn't match.
+    const workspaceMatched = deduped.filter(record => {
+        const recordWs = String(record.data && (record.data.workspace_id || record.data.workspaceId) || '').trim();
+        if (recordWs === workspaceId) return true;
+        console.warn('[DashboardProjects] dropping record with mismatched workspace_id', {
+            collectionId,
+            recordId: record.id,
+            recordWorkspaceId: recordWs,
+            expectedWorkspaceId: workspaceId
+        });
+        return false;
+    });
 
-    _setDashboardListCache(cacheKey, deduped);
-    return deduped;
+    console.info('[DashboardProjects] final count', {
+        collectionId,
+        workspaceId,
+        fetched: deduped.length,
+        retained: workspaceMatched.length
+    });
+
+    _setDashboardListCache(cacheKey, workspaceMatched);
+    return workspaceMatched;
 }
 
 function hasAllProjectsAccess(sessionUser = {}) {
@@ -556,6 +614,7 @@ module.exports = async function handler(req, res) {
         }
 
         const session = await authenticateDashboardRequest(req);
+        requireInitializedUser(session);
         const { authUser, userProfile, sessionUser } = session;
 
         if (req.method === 'GET') {

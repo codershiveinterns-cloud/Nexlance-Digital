@@ -21,7 +21,11 @@
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('firebase.json', 'utf8'\\)\\); console.log\\('firebase.json: valid'\\);\")",
       "Bash(ls api/invitations/ backend/api/invitations* backend/services/email-service.js backend/services/invitation-emails.js)",
       "Bash(ls .env*)",
-      "Bash(grep -l \"sendInvitationEmail\\\\|sendEmail\\\\|RESEND\" backend/services/*.js backend/api/*.js)"
+      "Bash(grep -l \"sendInvitationEmail\\\\|sendEmail\\\\|RESEND\" backend/services/*.js backend/api/*.js)",
+      "Bash(node -e \"require\\('./backend/services/invitations.js'\\); console.log\\('OK'\\)\")",
+      "Bash(FIREBASE_PROJECT_ID=stub FIREBASE_CLIENT_EMAIL=x@x FIREBASE_PRIVATE_KEY=stub node -c backend/services/invitations.js)",
+      "Bash(FIREBASE_PROJECT_ID=stub FIREBASE_CLIENT_EMAIL=x@x FIREBASE_PRIVATE_KEY=stub node -c backend/services/workspace-access.js)",
+      "Bash(FIREBASE_PROJECT_ID=stub FIREBASE_CLIENT_EMAIL=x@x FIREBASE_PRIVATE_KEY=stub node -c backend/api/dashboard.js)"
     ]
   }
 }

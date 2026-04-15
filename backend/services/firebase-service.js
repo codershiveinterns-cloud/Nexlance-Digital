@@ -329,6 +329,10 @@ function getFirestoreDocRef(collectionId, docId) {
     return db.collection(collectionId).doc(docId);
 }
 
+function runFirestoreTransaction(updateFn) {
+    return db.runTransaction(updateFn);
+}
+
 /**
  * Commits an array of batch operations in chunks of 500 (Firestore limit).
  * Each item in `operations` is { collectionId, docId, data, merge }.
@@ -358,6 +362,7 @@ module.exports = {
     getCollectionDocument,
     getFirestoreBatch,
     getFirestoreDocRef,
+    runFirestoreTransaction,
     queryCollectionDocuments,
     queryCollectionDocumentsMulti,
     listCollectionDocuments,

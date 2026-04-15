@@ -1,5 +1,5 @@
 const AccessControl = require('../../rbac.js');
-const { requireAuth, requireOwnerOnly } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser, requireOwnerOnly } = require('../services/request-guards');
 const { createInvitation } = require('../services/invitations');
 const { buildClientAccessFields, normalizeProjectAccess } = require('../services/client-access');
 const { resolveAssignedProjectIdsForWorkspace } = require('../services/project-assignment-resolution');
@@ -106,6 +106,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         requireOwnerOnly(session);
         const body = normalizeBody(req.body);
         const normalizedPayload = await normalizeTeamInvitePayload(body, session.sessionUser);

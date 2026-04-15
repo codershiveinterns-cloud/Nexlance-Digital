@@ -1,4 +1,4 @@
-const { requireAuth, requireOwnerOnly } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser, requireOwnerOnly } = require('../services/request-guards');
 const { resendInvitation } = require('../services/invitations');
 const { handleOptions, sendApiError, setApiCors, getRequestOrigin } = require('./_utils');
 
@@ -13,6 +13,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         requireOwnerOnly(session);
         const invitationId = String((req.query && req.query.id) || '').trim();
         if (!invitationId) {

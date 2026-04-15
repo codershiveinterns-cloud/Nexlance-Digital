@@ -1,6 +1,6 @@
 const AccessControl = require('../../rbac.js');
 const { createCollectionDocument } = require('../services/firebase-service');
-const { requireAuth, requirePermission } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser, requirePermission } = require('../services/request-guards');
 
 const SERVER_MANAGED_FIELDS = new Set([
     'id',
@@ -102,6 +102,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         requirePermission(session, AccessControl.PERMISSIONS.MANAGE_PROJECTS);
 
         const body = toJsonBody(req.body);

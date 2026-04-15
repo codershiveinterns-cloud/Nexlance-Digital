@@ -44,9 +44,12 @@ function getRequestOrigin(req) {
 }
 
 function sendApiError(res, error, fallbackMessage, fallbackStatusCode = 400) {
-    res.status(error.statusCode || error.status || fallbackStatusCode).json({
-        error: error.message || fallbackMessage
-    });
+    const payload = { error: error.message || fallbackMessage };
+    if (error && error.code) payload.code = error.code;
+    if (error && Array.isArray(error.missingFields) && error.missingFields.length) {
+        payload.missingFields = error.missingFields;
+    }
+    res.status(error.statusCode || error.status || fallbackStatusCode).json(payload);
 }
 
 module.exports = {

@@ -1,4 +1,4 @@
-const { requireAuth } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser } = require('../services/request-guards');
 const { fetchTemplateWorkspace } = require('../services/template-workspace');
 
 module.exports = async function handler(req, res) {
@@ -18,6 +18,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         const requestUrl = new URL(req.url, 'https://nexlance.local');
         const projectId = String(requestUrl.searchParams.get('projectId') || '').trim();
         const payload = await fetchTemplateWorkspace(session, projectId);

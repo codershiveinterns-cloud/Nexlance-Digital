@@ -1,5 +1,5 @@
 const AccessControl = require('../../rbac.js');
-const { requireAuth } = require('../services/request-guards');
+const { requireAuth, requireInitializedUser } = require('../services/request-guards');
 const { buildProjectTemplateZipBundle } = require('../services/template-access');
 const { loadTemplateWorkspaceContext, requireTemplateWorkspaceCapability } = require('../services/template-workspace');
 
@@ -20,6 +20,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const session = await requireAuth(req);
+        requireInitializedUser(session);
         const body = req.body && typeof req.body === 'object'
             ? req.body
             : (typeof req.body === 'string' && req.body
