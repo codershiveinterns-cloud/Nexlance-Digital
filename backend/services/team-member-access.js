@@ -223,14 +223,10 @@ async function syncTeamMemberState(teamMemberInput) {
         }).catch(() => undefined);
     }
 
-    if (workspaceId && (linkedUserId || email) && access.assignedProjectIds && access.assignedProjectIds.length) {
-        await resolveScopedAssignedProjectsForLogin({
-            workspaceId,
-            userId: linkedUserId,
-            email,
-            role: roleFields.canonical_role
-        }).catch(() => undefined);
-    }
+    // NOTE: resolveScopedAssignedProjectsForLogin() is already called at the
+    // end of syncProjectAssignments() above — calling it a second time here
+    // is redundant and doubles the Firestore read/write cost for the same
+    // result.  Removed to prevent unnecessary load.
 
     return {
         id: teamMemberRecord.id,

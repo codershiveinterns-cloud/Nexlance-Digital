@@ -866,11 +866,16 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
         error.statusCode = 400;
         throw error;
     }
-    if (!session.authUser || !session.authUser.emailVerified) {
-        const error = new Error('Please verify your email address before accepting this invitation.');
+    if (!session.authUser) {
+        const error = new Error('Please sign in before accepting this invitation.');
         error.statusCode = 403;
         throw error;
     }
+    // Email verification is intentionally NOT enforced here.
+    // The invitation token itself (cryptographic, single-use, sent to the
+    // email) proves ownership of the address.  This allows invited users to
+    // create an account and join the workspace in a single step without
+    // waiting for a verification email round-trip.
     if (safeSessionEmail !== AccessControl.normalizeEmail(record.email)) {
         throw new Error('This invitation was sent to a different email address.');
     }
@@ -1084,12 +1089,14 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
         updatedAt: new Date().toISOString()
     });
 
-    await deactivateExistingProjectAssignments({
-        workspaceId: authoritativeScope.workspaceId,
-        userId,
-        email: safeSessionEmail,
-        reason: 'invitation_accept_resync'
-    }).catch(() => undefined);
+    // NOTE: deactivateExistingProjectAssignments was previously called here but has
+    // been removed.  The Firestore transaction above already creates the authoritative
+    // set of assignments with merge:true — calling a blanket deactivation immediately
+    // afterward would destroy those freshly-created records, leaving the user with an
+    // empty dashboard on first login.  Stale pre-invite assignments (if any) are
+    // naturally superseded by the merge-set and cleaned up by the idempotent
+    // syncProjectAssignments() / resolveScopedAssignedProjectsForLogin() on subsequent
+    // syncs.
 
     if (record.targetRecordCollection && record.targetRecordId) {
         await patchCollectionDocument(record.targetRecordCollection, record.targetRecordId, {

@@ -160,11 +160,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("loginEmail").value = invitation.email;
   document.getElementById("signupName").value = invitation.inviteeName || "";
 
-  // If the same user is already logged in and verified, silently accept.
+  // If the same user is already logged in, silently accept.
+  // Email verification is not required for invitation acceptance — the
+  // invitation token proves email ownership.
   if (
     auth.currentUser
     && String(auth.currentUser.email || "").toLowerCase() === String(invitation.email || "").toLowerCase()
-    && auth.currentUser.emailVerified
   ) {
     showState("loadingState");
     try {
@@ -222,20 +223,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       if (!result.success) throw new Error(result.error || "Account could not be created.");
 
-      // If Firebase requires email verification, we cannot accept yet.
-      if (auth.currentUser && !auth.currentUser.emailVerified) {
-        clearPersistedSession();
-        await auth.signOut().catch(() => undefined);
-        setMessage(
-          "signupMessage",
-          "Account created. Please check your inbox, verify your email, then sign in here to finish accepting.",
-          "success"
-        );
-        setTimeout(() => showState("loginState"), 1500);
-        return;
-      }
-
-      // Accept immediately
+      // Accept immediately — email verification is skipped for invited users
+      // because the invitation token itself proves email ownership.
       await acceptFlow(token, "signupMessage");
     } catch (error) {
       const msg = String(error && error.message || "Account setup failed.");
@@ -260,7 +249,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setMessage("loginMessage", "Signing you in…", "success");
 
     try {
-      const result = await loginWithEmail(invitation.email, password, {});
+      const result = await loginWithEmail(invitation.email, password, {}, { skipEmailVerification: true });
       if (!result.success) throw new Error(result.error || "Sign in failed.");
       await acceptFlow(token, "loginMessage");
     } catch (error) {

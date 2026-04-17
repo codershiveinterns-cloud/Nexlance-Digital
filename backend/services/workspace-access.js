@@ -1097,7 +1097,11 @@ async function _resolveWorkspaceAccessProfile(authUser) {
     // If workspaceId missing or membership inactive, auto-apply a matching pending invitation.
     const repairNeeded = !String(existingProfile.workspaceId || '').trim()
         || String(existingProfile.membershipStatus || '').trim().toLowerCase() !== 'active';
-    if (repairNeeded && authUser && authUser.email && authUser.emailVerified !== false) {
+    // Allow session repair for all authenticated users, including those with
+    // unverified email.  Invited users skip email verification (the invitation
+    // token proves ownership), so gating repair on emailVerified would block
+    // them if their first /api/me call needs repair after partial acceptance.
+    if (repairNeeded && authUser && authUser.email) {
         console.info('[SessionRepair] triggered', {
             userId: authUser.uid,
             email: AccessControl.normalizeEmail(authUser.email),

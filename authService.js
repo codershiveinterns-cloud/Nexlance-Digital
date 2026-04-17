@@ -207,11 +207,12 @@ export async function createInvitedAccountSession({
     password,
     displayName,
     profileData,
+    skipEmailVerification: true,
     keepSignedIn: true,
   });
 }
 
-export async function loginWithEmail(email, password, profileDefaults = {}) {
+export async function loginWithEmail(email, password, profileDefaults = {}, options = {}) {
   try {
     await authReady;
 
@@ -234,7 +235,9 @@ export async function loginWithEmail(email, password, profileDefaults = {}) {
       });
     }
 
-    if (!auth.currentUser?.emailVerified) {
+    // Skip the emailVerified gate when the caller is the invitation-accept
+    // flow — the invitation token itself proves the user owns the email.
+    if (!options.skipEmailVerification && !auth.currentUser?.emailVerified) {
       await signOut(auth);
       return buildFailure(
         { code: "auth/email-not-verified" },
