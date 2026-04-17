@@ -215,14 +215,15 @@ async function deactivateAllActiveAssignmentsForUser({ workspaceId = '', userId 
     });
 }
 
-async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', email = '' } = {}) {
+async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', email = '', includeInactive = false } = {}) {
     const normalizedWorkspaceId = String(workspaceId || '').trim();
     const normalizedUserId = String(userId || '').trim();
     const normalizedEmail = AccessControl.normalizeEmail(email);
     if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) {
-        return [];
+        return includeInactive ? { active: [], inactive: [] } : [];
     }
     const results = [];
+    const inactiveResults = [];
     const seenIds = new Set();
 
     const pushRecords = (records = []) => {
@@ -236,10 +237,12 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
             const matchesByEmail = normalizedEmail && entry.email === normalizedEmail;
             const matchesByUserId = normalizedUserId && entry.userId === normalizedUserId;
             if (!matchesByEmail && !matchesByUserId) return;
-            const isActive = isProjectAssignmentActive(entry);
-            if (!isActive) return;
             seenIds.add(entry.id);
-            results.push(entry);
+            if (isProjectAssignmentActive(entry)) {
+                results.push(entry);
+            } else if (includeInactive) {
+                inactiveResults.push(entry);
+            }
         });
     };
 
@@ -291,10 +294,14 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail,
-        count: results.length,
+        activeCount: results.length,
+        inactiveCount: inactiveResults.length,
         ids: results.map(r => r.id)
     });
 
+    if (includeInactive) {
+        return { active: results, inactive: inactiveResults };
+    }
     return results;
 }
 
@@ -331,16 +338,72 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         timestamp: new Date().toISOString()
     });
 
-    const assignments = await listProjectAssignmentsForUser({
+    const assignmentBuckets = await listProjectAssignmentsForUser({
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
-        email: normalizedEmail
+        email: normalizedEmail,
+        includeInactive: true
     });
-    
+    const assignments = assignmentBuckets.active || [];
+    const inactiveAssignments = assignmentBuckets.inactive || [];
+
+    // ─── SAFETY GUARD: all-inactive detection ───
+    // If we found zero active assignments but inactive records DO exist with
+    // bug-signature deactivation reasons, auto-reactivate them.  This unsticks
+    // users whose records were deactivated by the old acceptInvitation bug
+    // without requiring admin intervention or a manual migration run.
+    if (assignments.length === 0 && inactiveAssignments.length > 0) {
+        const BUG_REASONS = new Set(['invitation_accept_resync', 'assignment_resync']);
+        const recoverable = inactiveAssignments.filter(entry => {
+            const data = entry && entry.data ? entry.data : {};
+            const reason = String(data.deactivatedReason || data.mismatchReason || '').trim();
+            return BUG_REASONS.has(reason);
+        });
+        if (recoverable.length > 0) {
+            console.warn('[ProjectAssignmentScope] All-inactive state detected — auto-reactivating bug-deactivated records', {
+                workspaceId: normalizedWorkspaceId,
+                userId: normalizedUserId,
+                email: normalizedEmail,
+                totalInactive: inactiveAssignments.length,
+                recoverableCount: recoverable.length
+            });
+            const now = new Date().toISOString();
+            const reactivateOps = recoverable.map(entry => ({
+                collectionId: 'project_assignments',
+                docId: entry.id,
+                data: {
+                    status: 'active',
+                    active: true,
+                    deactivatedReason: '',
+                    mismatchReason: '',
+                    expectedWorkspaceId: '',
+                    actualWorkspaceId: '',
+                    recoveredAt: now,
+                    recoveredReason: 'auto_reactivated_all_inactive_guard',
+                    updatedAt: now,
+                    updated_at: now
+                }
+            }));
+            await commitBatchedWrites(reactivateOps).catch(err => {
+                console.warn('[ProjectAssignmentScope] Auto-reactivation batch failed', { error: err.message });
+            });
+            // Promote the recovered records into the active list for the rest
+            // of this resolution pass.
+            for (const entry of recoverable) {
+                assignments.push({
+                    ...entry,
+                    status: 'active',
+                    active: true
+                });
+            }
+        }
+    }
+
     console.info('[ProjectAssignmentScope] ========== ACTIVE ASSIGNMENTS SNAPSHOT ==========', {
         userId: normalizedUserId,
         email: normalizedEmail,
         activeAssignments: assignments.length,
+        inactiveAssignments: inactiveAssignments.length,
         assignments: assignments.map(a => ({ id: a.id, projectId: a.projectId, workspaceId: a.workspaceId, role: a.role, active: a.active, status: a.status }))
     });
     const validProjectIds = new Set();
@@ -370,6 +433,15 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
     for (const assignment of assignments) {
         const assignmentWorkspaceId = String(assignment.workspaceId || '').trim();
         if (!assignmentWorkspaceId || assignmentWorkspaceId !== normalizedWorkspaceId) {
+            console.warn('[WorkspaceConsistency] Assignment workspace mismatch — deactivating', {
+                assignmentId: assignment.id,
+                userId: normalizedUserId,
+                email: normalizedEmail,
+                projectId: String(assignment.projectId || '').trim(),
+                expectedWorkspaceId: normalizedWorkspaceId,
+                actualWorkspaceId: assignmentWorkspaceId,
+                reason: 'assignment.workspaceId does not equal user.workspaceId'
+            });
             await markProjectAssignmentInactive(
                 assignment,
                 'workspace_mismatch',
@@ -381,6 +453,13 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
 
         const projectId = String(assignment.projectId || '').trim();
         if (!projectId) {
+            console.warn('[WorkspaceConsistency] Assignment missing projectId — deactivating', {
+                assignmentId: assignment.id,
+                userId: normalizedUserId,
+                email: normalizedEmail,
+                workspaceId: normalizedWorkspaceId,
+                reason: 'assignment has no projectId/project_id field'
+            });
             await markProjectAssignmentInactive(
                 assignment,
                 'missing_project_id',
@@ -393,6 +472,20 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
         const projectRecord = await _getProjectDoc(projectId);
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
         if (!projectRecord || !projectWorkspaceId || projectWorkspaceId !== normalizedWorkspaceId) {
+            console.warn('[WorkspaceConsistency] Project workspace mismatch — deactivating assignment', {
+                assignmentId: assignment.id,
+                userId: normalizedUserId,
+                email: normalizedEmail,
+                projectId: projectId,
+                expectedWorkspaceId: normalizedWorkspaceId,
+                projectWorkspaceId: projectWorkspaceId,
+                projectExists: Boolean(projectRecord),
+                reason: !projectRecord
+                    ? 'project document does not exist in Firestore'
+                    : !projectWorkspaceId
+                        ? 'project document has no workspace_id field'
+                        : 'project.workspace_id does not equal user.workspaceId'
+            });
             await markProjectAssignmentInactive(
                 assignment,
                 'project_workspace_mismatch',
@@ -1059,11 +1152,31 @@ async function ensureWorkspaceAccessProfile(authUser) {
     // ─── OPTIMIZATION 1: Return cached profile if available (5-min TTL) ───
     const cachedProfile = _getSessionCache(authUser);
     if (cachedProfile) {
-        console.info('[SessionCache] Returning cached profile', {
-            userId: authUser.uid,
-            workspaceId: String(cachedProfile.workspaceId || '').trim()
-        });
-        return cachedProfile;
+        // Cache-bust for stale empty-assignment profiles.  A client/developer/
+        // designer with an empty assignedProjectIds list is almost always a
+        // transient state (e.g. cached before session-repair completed) — force
+        // a fresh rebuild rather than serving the empty cache.
+        const cachedRole = AccessControl.normalizeRole(cachedProfile.role || cachedProfile.workspaceRole);
+        const cachedNeedsAssignments = cachedRole === AccessControl.ROLES.CLIENT
+            || cachedRole === AccessControl.ROLES.DEVELOPER
+            || cachedRole === AccessControl.ROLES.DESIGNER;
+        const cachedAssignedIds = Array.isArray(cachedProfile.assignedProjectIds) ? cachedProfile.assignedProjectIds : [];
+        const cachedAllAccess = cachedProfile.allProjectsAccess === true
+            || cachedProfile.all_projects_access === true;
+        if (cachedNeedsAssignments && !cachedAllAccess && cachedAssignedIds.length === 0) {
+            console.warn('[SessionCache] Cache-busting stale empty-assignment profile — forcing fresh rebuild', {
+                userId: authUser.uid,
+                role: cachedRole,
+                workspaceId: String(cachedProfile.workspaceId || '').trim()
+            });
+            invalidateSessionCache(authUser && authUser.uid);
+        } else {
+            console.info('[SessionCache] Returning cached profile', {
+                userId: authUser.uid,
+                workspaceId: String(cachedProfile.workspaceId || '').trim()
+            });
+            return cachedProfile;
+        }
     }
 
     // ─── REQUEST DEDUPLICATION: If a resolution is already in-flight for this uid, reuse it ───
@@ -1356,12 +1469,40 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                     recoveredIds: targetAssignedIds,
                     count: targetAssignedIds.length
                 });
-                // ─── OPTIMIZATION 2: Batch write all project assignments (chunked for >500 safety) ───
+
+                // Query EXISTING project_assignments for this user so we can
+                // force-reactivate any inactive records rather than creating
+                // duplicates with a different doc ID format.  Records may have
+                // been created under the old buggy code with email-only doc IDs
+                // while new records use a different identity token — we need to
+                // cover both cases.
+                const existingAssignments = await queryCollectionDocumentsMulti('project_assignments', [
+                    { fieldPath: 'workspace_id', op: 'EQUAL', value: nextProfile.workspaceId },
+                    { fieldPath: 'email', op: 'EQUAL', value: nextProfile.email }
+                ], 500).catch(() => []);
+
+                // Index existing records by projectId so we can look them up.
+                const existingByProjectId = new Map();
+                for (const record of (Array.isArray(existingAssignments) ? existingAssignments : [])) {
+                    const data = record && record.data ? record.data : {};
+                    const pid = String(data.projectId || data.project_id || '').trim();
+                    if (!pid) continue;
+                    if (!existingByProjectId.has(pid)) {
+                        existingByProjectId.set(pid, []);
+                    }
+                    existingByProjectId.get(pid).push({ id: record.id, data });
+                }
+
                 const now = new Date().toISOString();
-                const batchOps = targetAssignedIds.map(projectId => ({
-                    collectionId: 'project_assignments',
-                    docId: `${nextProfile.workspaceId}_${projectId}_${nextProfile.email}`,
-                    data: {
+                const batchOps = [];
+
+                for (const projectId of targetAssignedIds) {
+                    const existingForProject = existingByProjectId.get(projectId) || [];
+
+                    // Build the authoritative active-record payload.  Explicitly
+                    // clear ALL deactivation metadata so stale records become
+                    // visible again to resolveScopedAssignedProjectsForLogin.
+                    const activePayload = {
                         workspaceId: nextProfile.workspaceId,
                         workspace_id: nextProfile.workspaceId,
                         projectId: projectId,
@@ -1374,15 +1515,54 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                         inviteType: nextProfile.inviteType || '',
                         status: 'active',
                         active: true,
-                        createdAt: now,
-                        created_at: now,
+                        // Force-clear deactivation metadata.
+                        deactivatedReason: '',
+                        mismatchReason: '',
+                        expectedWorkspaceId: '',
+                        actualWorkspaceId: '',
+                        // Audit trail: mark that this record was reactivated by fallback.
+                        recoveredAt: now,
+                        recoveredReason: 'fallback_from_' + targetCollection,
                         updatedAt: now,
                         updated_at: now
+                    };
+
+                    if (existingForProject.length > 0) {
+                        // Reactivate every existing record (primary + any duplicates).
+                        // Preserve original createdAt from the primary to keep the audit trail intact.
+                        const primary = existingForProject[0];
+                        activePayload.createdAt = primary.data.createdAt || primary.data.created_at || now;
+                        activePayload.created_at = primary.data.created_at || primary.data.createdAt || now;
+                        for (const existing of existingForProject) {
+                            batchOps.push({
+                                collectionId: 'project_assignments',
+                                docId: existing.id,
+                                data: activePayload
+                            });
+                        }
+                    } else {
+                        // No existing record — create a fresh one with the canonical doc ID.
+                        activePayload.createdAt = now;
+                        activePayload.created_at = now;
+                        batchOps.push({
+                            collectionId: 'project_assignments',
+                            docId: `${nextProfile.workspaceId}_${projectId}_${nextProfile.email}`,
+                            data: activePayload
+                        });
                     }
-                }));
-                await commitBatchedWrites(batchOps).catch(err => {
-                    console.warn('[ProjectAssignmentScope] Batch re-create assignments failed', { error: err.message });
-                });
+                }
+
+                if (batchOps.length) {
+                    await commitBatchedWrites(batchOps).catch(err => {
+                        console.warn('[ProjectAssignmentScope] Fallback batch reactivate failed', { error: err.message });
+                    });
+                    console.info('[ProjectAssignmentScope] Fallback reactivated/created assignments', {
+                        userId: authUser.uid,
+                        writeCount: batchOps.length,
+                        projectCount: targetAssignedIds.length
+                    });
+                }
+
                 resolvedIds = targetAssignedIds;
             }
         }
@@ -1495,8 +1675,27 @@ async function _resolveWorkspaceAccessProfile(authUser) {
         ...nextProfile
     };
 
-    // Store in cache so subsequent /api/me calls skip all DB operations
-    _setSessionCache(authUser, result);
+    // Store in cache so subsequent /api/me calls skip all DB operations.
+    // BUT: do not cache an empty-assignment profile for a role that requires
+    // assignments — that would pin the user to an empty dashboard until the
+    // 5-minute TTL expires.  Letting the next /api/me call rebuild fresh is a
+    // tiny cost and guarantees recovery as soon as assignments appear.
+    const resultRole = AccessControl.normalizeRole(result.role || result.workspaceRole);
+    const resultNeedsAssignments = resultRole === AccessControl.ROLES.CLIENT
+        || resultRole === AccessControl.ROLES.DEVELOPER
+        || resultRole === AccessControl.ROLES.DESIGNER;
+    const resultAllAccess = result.allProjectsAccess === true || result.all_projects_access === true;
+    const resultAssignedIds = Array.isArray(result.assignedProjectIds) ? result.assignedProjectIds : [];
+    const shouldCache = !(resultNeedsAssignments && !resultAllAccess && resultAssignedIds.length === 0);
+    if (shouldCache) {
+        _setSessionCache(authUser, result);
+    } else {
+        console.warn('[SessionCache] Skipping cache write — empty assignments for role that requires them', {
+            userId: authUser.uid,
+            role: resultRole,
+            workspaceId: String(result.workspaceId || '').trim()
+        });
+    }
 
     return result;
 }
