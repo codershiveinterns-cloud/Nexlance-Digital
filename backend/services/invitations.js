@@ -1152,25 +1152,6 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
         }
     });
 
-    // Bust the dashboard list cache for both the invitation's workspace (so the
-    // admin sees the new member and the invitee sees their assigned projects on
-    // first load) and the invitee's previous stale workspace (defensive cleanup).
-    try {
-        const { invalidateDashboardListCacheByWorkspace } = require('../api/dashboard');
-        if (typeof invalidateDashboardListCacheByWorkspace === 'function') {
-            invalidateDashboardListCacheByWorkspace(invitationWorkspaceId);
-            const previousWorkspaceId = String(sessionUser.workspaceId || '').trim();
-            if (previousWorkspaceId && previousWorkspaceId !== invitationWorkspaceId) {
-                invalidateDashboardListCacheByWorkspace(previousWorkspaceId);
-            }
-        }
-    } catch (cacheError) {
-        console.warn('[InviteAccept] dashboard cache bust failed', {
-            workspaceId: invitationWorkspaceId,
-            error: cacheError && cacheError.message
-        });
-    }
-
     const mergedProfile = {
         ...session.userProfile,
         ...nextUserProfile,

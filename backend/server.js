@@ -527,6 +527,46 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
     const workspaceId = String(sessionUser.workspaceId || '').trim();
     if (!ownerKey && !workspaceId) return [];
 
+    // Scoped-role fast path: clients / developers / designers with specific
+    // assignedProjectIds see projects fetched by ID directly.  The assignment
+    // list is the authoritative scope (written only via validated flows:
+    // acceptInvitation + syncProjectAssignments), so cross-checking against
+    // workspace_id is both redundant and fragile — stale workspace stamping
+    // on legacy accounts causes the workspace query to drop valid projects.
+    const role = AccessControl.normalizeRole(sessionUser.role || sessionUser.workspaceRole);
+    const isScopedRole = role === AccessControl.ROLES.CLIENT
+        || role === AccessControl.ROLES.DEVELOPER
+        || role === AccessControl.ROLES.DESIGNER;
+    const allProjectsAccess = hasAllProjectsAccess(sessionUser);
+    if (collectionId === 'projects' && isScopedRole && !allProjectsAccess) {
+        const assignedIds = AccessControl.sanitizeAssignedProjectIds(sessionUser.assignedProjectIds);
+        if (!assignedIds.length) {
+            console.warn('[DashboardProjects] scoped role with empty assignments', {
+                workspaceId,
+                role,
+                userId: sessionUser.uid,
+                email: String(sessionUser.email || '').trim().toLowerCase()
+            });
+            return [];
+        }
+        const projectDocs = await Promise.all(
+            assignedIds.map(projectId => getCollectionDocument('projects', projectId).catch(() => null))
+        );
+        const scopedProjects = projectDocs
+            .filter(doc => doc && doc.data)
+            .map(doc => ({ id: doc.id, data: doc.data }));
+        const foundIds = new Set(scopedProjects.map(p => p.id));
+        console.info('[DashboardProjects] scoped-by-id fetch', {
+            role,
+            userId: sessionUser.uid,
+            email: String(sessionUser.email || '').trim().toLowerCase(),
+            assignedCount: assignedIds.length,
+            foundCount: scopedProjects.length,
+            missingIds: assignedIds.filter(pid => !foundIds.has(pid))
+        });
+        return scopedProjects;
+    }
+
     // Run both indexed queries in parallel (no fallback full scan)
     const queries = [];
     if (ownerKey && (!workspaceId || collectionId !== 'projects')) {
@@ -600,7 +640,17 @@ function filterDashboardRecordsForSession(collectionId, records, sessionUser) {
     }
 
     return (Array.isArray(records) ? records : []).filter(record => {
-        const projectIds = getScopedProjectIdsFromRecord(record && record.data ? record.data : record, collectionId);
+        // Records from listDashboardCollectionRecords have shape { id, data }.
+        // getScopedProjectIdsFromRecord reads recordData.id for the projects
+        // collection, so we must surface the outer doc id into the payload
+        // or every scoped-user query returns zero — the bug that was hiding
+        // behind the previous workspace_id filter returning empty upstream.
+        const recordData = record && record.data ? record.data : (record || {});
+        const outerId = String((record && record.id) || recordData.id || '').trim();
+        const projectIds = getScopedProjectIdsFromRecord(
+            outerId ? { ...recordData, id: outerId } : recordData,
+            collectionId
+        );
         if (!projectIds.length) {
             return false;
         }
