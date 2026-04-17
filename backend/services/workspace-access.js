@@ -1390,6 +1390,91 @@ async function _resolveWorkspaceAccessProfile(authUser) {
         }
     }
 
+    // SECONDARY ALIGNMENT: Follow the projects collection as the ultimate source
+    // of truth.  Some legacy accounts have a corrupted chain where users.workspaceId,
+    // the clients/team_members record, AND the project_assignments record all point
+    // at the same stale auto-generated workspace (workspace_<uid>), while the actual
+    // projects/<id> docs live under the admin's real workspace.  In that case the
+    // primary Fix 4a pass sees no mismatch (stale == stale) and cannot heal.
+    // Here we look up each assigned project's actual workspace — if they all agree
+    // on a single workspace different from the current one, align + repair the
+    // downstream project_assignments records too.
+    {
+        const userIsWorkspaceOwner = existingProfile.isWorkspaceOwner === true
+            || existingProfile.workspaceOwner === true
+            || existingProfile.owner === true
+            || String(existingProfile.role || '').trim().toLowerCase() === 'owner';
+        const currentWorkspaceId = String(existingProfile.workspaceId || '').trim();
+        const normalizedEmailForProjectScan = AccessControl.normalizeEmail(existingProfile.email || authUser.email);
+        if (!userIsWorkspaceOwner && currentWorkspaceId && normalizedEmailForProjectScan) {
+            const assignmentRecords = await queryCollectionDocumentsMulti('project_assignments', [
+                { fieldPath: 'email', op: 'EQUAL', value: normalizedEmailForProjectScan }
+            ], 100).catch(() => []);
+            const activeAssignments = (Array.isArray(assignmentRecords) ? assignmentRecords : []).filter(record => {
+                const data = record && record.data ? record.data : {};
+                const status = String(data.status || '').trim().toLowerCase();
+                return data.active !== false && !['inactive', 'revoked', 'cancelled', 'deleted'].includes(status);
+            });
+            const assignedProjectIds = new Set();
+            for (const record of activeAssignments) {
+                const data = record.data || {};
+                const pid = String(data.projectId || data.project_id || '').trim();
+                if (pid) assignedProjectIds.add(pid);
+            }
+            if (assignedProjectIds.size > 0) {
+                const projectWorkspaceIds = new Set();
+                for (const pid of assignedProjectIds) {
+                    const projectDoc = await getCollectionDocument('projects', pid).catch(() => null);
+                    const wsId = String(
+                        (projectDoc && projectDoc.data && (projectDoc.data.workspace_id || projectDoc.data.workspaceId)) || ''
+                    ).trim();
+                    if (wsId) projectWorkspaceIds.add(wsId);
+                }
+                if (projectWorkspaceIds.size === 1) {
+                    const projectWorkspaceId = Array.from(projectWorkspaceIds)[0];
+                    if (projectWorkspaceId !== currentWorkspaceId) {
+                        console.warn('[WorkspaceResolution] Aligning users.workspaceId to actual project workspace (corrupted-chain recovery)', {
+                            userId: authUser.uid,
+                            email: normalizedEmailForProjectScan,
+                            previousWorkspaceId: currentWorkspaceId,
+                            nextWorkspaceId: projectWorkspaceId,
+                            assignedProjectIds: Array.from(assignedProjectIds)
+                        });
+                        existingProfile.workspaceId = projectWorkspaceId;
+                        const nowIso = new Date().toISOString();
+                        await patchCollectionDocument('users', profileDocument.id || authUser.uid, {
+                            workspaceId: projectWorkspaceId,
+                            updatedAt: nowIso
+                        }).catch(err => {
+                            console.warn('[WorkspaceResolution] Failed to persist project-aligned workspace to users doc', { error: err.message });
+                        });
+                        // Repair downstream project_assignments records so the
+                        // dashboard scope query finds them under the correct workspace.
+                        for (const record of activeAssignments) {
+                            if (!record || !record.id) continue;
+                            const data = record.data || {};
+                            const recordWorkspaceId = String(data.workspace_id || data.workspaceId || '').trim();
+                            if (recordWorkspaceId === projectWorkspaceId) continue;
+                            await patchCollectionDocument('project_assignments', record.id, {
+                                workspaceId: projectWorkspaceId,
+                                workspace_id: projectWorkspaceId,
+                                updatedAt: nowIso,
+                                updated_at: nowIso
+                            }).catch(() => undefined);
+                        }
+                        invalidateSessionCache(authUser.uid);
+                    }
+                } else if (projectWorkspaceIds.size > 1) {
+                    console.warn('[WorkspaceResolution] Multiple project workspaces detected — cannot auto-align', {
+                        userId: authUser.uid,
+                        email: normalizedEmailForProjectScan,
+                        workspaceIds: Array.from(projectWorkspaceIds)
+                    });
+                }
+            }
+        }
+    }
+
     let pendingInviteBootstrap = hasPendingInviteState(existingProfile);
 
     // If user has invite-shaped state but no workspace could be resolved (including post-repair),
