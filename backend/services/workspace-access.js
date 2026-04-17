@@ -222,7 +222,6 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
     if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) {
         return [];
     }
-    const useEmailIdentity = Boolean(normalizedEmail);
     const results = [];
     const seenIds = new Set();
 
@@ -231,10 +230,12 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
             const entry = normalizeProjectAssignmentRecord(record);
             if (!entry.id || seenIds.has(entry.id)) return;
             if (!entry.workspaceId || entry.workspaceId !== normalizedWorkspaceId) return;
-            const identityMatch = useEmailIdentity
-                ? entry.email === normalizedEmail
-                : (normalizedUserId && entry.userId === normalizedUserId);
-            if (!identityMatch) return;
+            // Accept the record if it matches by either userId or email.
+            // This prevents misses when a record was created with email only
+            // and later backfilled with userId (or vice-versa).
+            const matchesByEmail = normalizedEmail && entry.email === normalizedEmail;
+            const matchesByUserId = normalizedUserId && entry.userId === normalizedUserId;
+            if (!matchesByEmail && !matchesByUserId) return;
             const isActive = isProjectAssignmentActive(entry);
             if (!isActive) return;
             seenIds.add(entry.id);
@@ -242,28 +243,13 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
         });
     };
 
-    // ─── OPTIMIZATION 4: Run email/legacy queries in parallel instead of sequentially ───
-    if (normalizedEmail) {
-        const [emailMatched, legacyEmailMatched] = await Promise.all([
-            queryCollectionDocuments('project_assignments', {
-                fieldPath: 'email',
-                op: 'EQUAL',
-                value: normalizedEmail,
-                limit: 500
-            }).catch(() => []),
-            queryCollectionDocuments('project_assignments', {
-                fieldPath: 'user_email',
-                op: 'EQUAL',
-                value: normalizedEmail,
-                limit: 500
-            }).catch(() => [])
-        ]);
-        pushRecords(emailMatched);
-        pushRecords(legacyEmailMatched);
-    }
+    // ─── Query by userId first (preferred identity), then email as fallback ───
+    // When both are available, run all queries in parallel so records created
+    // under either identity are found and merged.
+    const queries = [];
 
-    if (!useEmailIdentity && normalizedUserId) {
-        const [userMatched, legacyUserMatched] = await Promise.all([
+    if (normalizedUserId) {
+        queries.push(
             queryCollectionDocuments('project_assignments', {
                 fieldPath: 'userId',
                 op: 'EQUAL',
@@ -276,16 +262,35 @@ async function listProjectAssignmentsForUser({ workspaceId = '', userId = '', em
                 value: normalizedUserId,
                 limit: 500
             }).catch(() => [])
-        ]);
-        pushRecords(userMatched);
-        pushRecords(legacyUserMatched);
+        );
+    }
+
+    if (normalizedEmail) {
+        queries.push(
+            queryCollectionDocuments('project_assignments', {
+                fieldPath: 'email',
+                op: 'EQUAL',
+                value: normalizedEmail,
+                limit: 500
+            }).catch(() => []),
+            queryCollectionDocuments('project_assignments', {
+                fieldPath: 'user_email',
+                op: 'EQUAL',
+                value: normalizedEmail,
+                limit: 500
+            }).catch(() => [])
+        );
+    }
+
+    const queryResults = await Promise.all(queries);
+    for (const batch of queryResults) {
+        pushRecords(batch);
     }
 
     console.info('[ProjectAssignmentScope] Fetched assignments', {
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,
         email: normalizedEmail,
-        useEmailIdentity,
         count: results.length,
         ids: results.map(r => r.id)
     });
@@ -401,14 +406,18 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
             continue;
         }
 
+        // Role mismatch: skip the assignment at runtime instead of permanently
+        // deactivating it.  The assignment may become valid again when the user's
+        // role changes, and destroying it here forces a re-sync that may never
+        // happen (e.g. if admin re-assigns while user hasn't accepted the invite).
         const assignmentRole = AccessControl.normalizeRole(assignment.role);
         if (normalizedRole && assignmentRole && assignmentRole !== normalizedRole && assignmentRole !== 'member') {
-            await markProjectAssignmentInactive(
-                assignment,
-                'role_mismatch',
-                normalizedWorkspaceId,
-                assignmentWorkspaceId
-            );
+            console.info('[ProjectAssignmentScope] Skipping role-mismatched assignment (not deactivating)', {
+                assignmentId: assignment.id,
+                assignmentRole,
+                sessionRole: normalizedRole,
+                projectId: String(assignment.projectId || '').trim()
+            });
             continue;
         }
 
@@ -1305,13 +1314,37 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                 workspaceId: nextProfile.workspaceId
             });
             const targetCollection = normalizedRole === AccessControl.ROLES.CLIENT ? 'clients' : 'team_members';
+
+            // Query by fields instead of relying on document ID format (workspaceId_email).
+            // Documents may use random IDs, so a direct getCollectionDocument would miss them.
+            const fallbackResults = await queryCollectionDocumentsMulti(targetCollection, [
+                { fieldPath: 'workspace_id', op: 'EQUAL', value: nextProfile.workspaceId },
+                { fieldPath: 'email', op: 'EQUAL', value: nextProfile.email }
+            ], 10).catch(() => []);
+
+            // Also try by document ID as a secondary fallback for legacy data
             const targetDocId = sanitizeDocumentId(`${nextProfile.workspaceId}_${nextProfile.email}`);
-            const targetDoc = await getCollectionDocument(targetCollection, targetDocId).catch(() => null);
-            const targetAssignedIds = targetDoc && targetDoc.data
-                ? AccessControl.sanitizeAssignedProjectIds(
-                    targetDoc.data.assigned_project_ids || targetDoc.data.assignedProjectIds
-                )
-                : [];
+            const targetDocById = await getCollectionDocument(targetCollection, targetDocId).catch(() => null);
+
+            // Merge results — collect assigned project IDs from ALL matching
+            // documents so that no project is lost when data is split across
+            // multiple records (e.g. different doc ID formats).
+            const candidateDocs = [
+                ...(Array.isArray(fallbackResults) ? fallbackResults : []),
+                ...(targetDocById ? [targetDocById] : [])
+            ];
+            const seenDocIds = new Set();
+            const mergedProjectIdSet = new Set();
+            for (const doc of candidateDocs) {
+                if (!doc || !doc.id || seenDocIds.has(doc.id)) continue;
+                seenDocIds.add(doc.id);
+                const docData = doc && doc.data ? doc.data : {};
+                const ids = AccessControl.sanitizeAssignedProjectIds(
+                    docData.assigned_project_ids || docData.assignedProjectIds
+                );
+                ids.forEach(id => mergedProjectIdSet.add(id));
+            }
+            const targetAssignedIds = Array.from(mergedProjectIdSet);
 
             if (targetAssignedIds.length) {
                 console.info('[ProjectAssignmentScope] Recovered assignments from ' + targetCollection, {
@@ -1347,6 +1380,47 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                     console.warn('[ProjectAssignmentScope] Batch re-create assignments failed', { error: err.message });
                 });
                 resolvedIds = targetAssignedIds;
+            }
+        }
+
+        // ─── Backfill user_id on email-only assignments ───
+        // Assignments created before the user signed up only have an email.
+        // Now that we have authUser.uid, patch those records so future lookups
+        // by userId also find them, preventing duplicates on the next sync.
+        if (resolvedIds.length && authUser.uid && nextProfile.email) {
+            const emailOnlyAssignments = await queryCollectionDocumentsMulti('project_assignments', [
+                { fieldPath: 'workspace_id', op: 'EQUAL', value: nextProfile.workspaceId },
+                { fieldPath: 'email', op: 'EQUAL', value: nextProfile.email }
+            ], 500).catch(() => []);
+            const backfillOps = [];
+            for (const record of (Array.isArray(emailOnlyAssignments) ? emailOnlyAssignments : [])) {
+                const data = record && record.data ? record.data : {};
+                const existingUserId = String(data.userId || data.user_id || '').trim();
+                const isActive = data.active !== false && !['inactive', 'revoked', 'cancelled', 'deleted'].includes(
+                    String(data.status || '').trim().toLowerCase()
+                );
+                if (isActive && !existingUserId) {
+                    backfillOps.push({
+                        collectionId: 'project_assignments',
+                        docId: record.id,
+                        data: {
+                            userId: authUser.uid,
+                            user_id: authUser.uid,
+                            updatedAt: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }
+                    });
+                }
+            }
+            if (backfillOps.length) {
+                console.info('[ProjectAssignmentScope] Backfilling user_id on email-only assignments', {
+                    userId: authUser.uid,
+                    email: nextProfile.email,
+                    count: backfillOps.length
+                });
+                await commitBatchedWrites(backfillOps).catch(err => {
+                    console.warn('[ProjectAssignmentScope] user_id backfill failed', { error: err.message });
+                });
             }
         }
 

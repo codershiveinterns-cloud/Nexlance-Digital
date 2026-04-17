@@ -184,30 +184,106 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
     }
 
     // 3) Insert/update only validated project assignments (batched).
+    //    Idempotency: for each projectId we look for an existing assignment that
+    //    already covers this user (by email OR userId) to avoid creating duplicates
+    //    when the identity token changes from email → userId after signup.
+    const existingByProject = new Map();
+    for (const assignment of matchingAssignments) {
+        const pid = String(assignment.projectId || assignment.project_id || '').trim();
+        if (!pid) continue;
+        if (!existingByProject.has(pid)) {
+            existingByProject.set(pid, []);
+        }
+        existingByProject.get(pid).push(assignment);
+    }
+
+    // Also query by userId if we have both email and userId, because the initial
+    // query above only searched by email (the `else if` branch was skipped).
+    if (normalizedEmail && normalizedUserId) {
+        const [byUserId, byLegacyUserId] = await Promise.all([
+            queryCollectionDocumentsMulti('project_assignments', [
+                { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+                { fieldPath: 'user_id', op: 'EQUAL', value: normalizedUserId }
+            ], 500).catch(() => []),
+            queryCollectionDocumentsMulti('project_assignments', [
+                { fieldPath: 'workspace_id', op: 'EQUAL', value: normalizedWorkspaceId },
+                { fieldPath: 'userId', op: 'EQUAL', value: normalizedUserId }
+            ], 500).catch(() => [])
+        ]);
+        for (const batch of [byUserId, byLegacyUserId]) {
+            for (const record of (Array.isArray(batch) ? batch : [])) {
+                if (!record || !record.id || seenAssignmentIds.has(record.id)) continue;
+                seenAssignmentIds.add(record.id);
+                const data = record.data || {};
+                const pid = String(data.projectId || data.project_id || '').trim();
+                if (!pid) continue;
+                if (!existingByProject.has(pid)) {
+                    existingByProject.set(pid, []);
+                }
+                existingByProject.get(pid).push({ id: record.id, ...data });
+            }
+        }
+    }
+
     const upsertOps = [];
+    const duplicateCleanupOps = [];
     for (const projectId of validProjectIdSet) {
+        const existingForProject = existingByProject.get(projectId) || [];
+        // Prefer the record that already has a userId, then most recent
+        const sorted = existingForProject.slice().sort((a, b) => {
+            const aHasUser = String(a.userId || a.user_id || '').trim() ? 1 : 0;
+            const bHasUser = String(b.userId || b.user_id || '').trim() ? 1 : 0;
+            if (bHasUser !== aHasUser) return bHasUser - aHasUser;
+            const aTime = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at || '').getTime() || 0;
+            const bTime = new Date(b.updatedAt || b.updated_at || b.createdAt || b.created_at || '').getTime() || 0;
+            return bTime - aTime;
+        });
+        const primary = sorted[0] || null;
+        const duplicates = sorted.slice(1);
+
+        // Deactivate duplicates for this project
+        for (const dup of duplicates) {
+            if (!dup.id) continue;
+            duplicateCleanupOps.push({
+                collectionId: 'project_assignments',
+                docId: dup.id,
+                data: {
+                    status: 'inactive',
+                    active: false,
+                    mismatchReason: 'duplicate_consolidated',
+                    updatedAt: now,
+                    updated_at: now
+                }
+            });
+        }
+
+        // Use existing doc ID if available, otherwise generate a canonical one
+        const docId = primary ? primary.id : `${normalizedWorkspaceId}_${projectId}_${identityToken}`;
         upsertOps.push({
             collectionId: 'project_assignments',
-            docId: `${normalizedWorkspaceId}_${projectId}_${identityToken}`,
+            docId,
             data: {
                 workspaceId: normalizedWorkspaceId,
                 workspace_id: normalizedWorkspaceId,
                 projectId,
                 project_id: projectId,
-                userId: normalizedUserId,
-                user_id: normalizedUserId,
-                email: normalizedEmail,
-                user_email: normalizedEmail,
+                userId: normalizedUserId || (primary ? String(primary.userId || primary.user_id || '').trim() : ''),
+                user_id: normalizedUserId || (primary ? String(primary.userId || primary.user_id || '').trim() : ''),
+                email: normalizedEmail || (primary ? AccessControl.normalizeEmail(primary.email || primary.user_email) : ''),
+                user_email: normalizedEmail || (primary ? AccessControl.normalizeEmail(primary.email || primary.user_email) : ''),
                 role: normalizedRole,
                 inviteType: String(inviteType || 'client').trim().toLowerCase(),
                 status: 'active',
-                createdAt: now,
-                created_at: now,
+                createdAt: primary ? (primary.createdAt || primary.created_at || now) : now,
+                created_at: primary ? (primary.created_at || primary.createdAt || now) : now,
                 updatedAt: now,
                 updated_at: now,
                 active: true
             }
         });
+    }
+    if (duplicateCleanupOps.length) {
+        await commitBatchedWrites(duplicateCleanupOps).catch(() => undefined);
     }
     if (upsertOps.length) {
         await commitBatchedWrites(upsertOps).catch(() => undefined);
@@ -252,7 +328,10 @@ async function syncClientAccessState(clientRecordInput) {
     const email = AccessControl.normalizeEmail(clientRecord.data.email);
     const workspaceId = String(clientRecord.data.workspace_id || '').trim();
 
-    if (!userId || !workspaceId || !email) {
+    // Only require workspaceId and email — userId may not exist yet if the user
+    // hasn't accepted the invite.  Project assignments must be created at admin
+    // action time so they are ready when the user eventually logs in.
+    if (!workspaceId || !email) {
         return {
             id: clientRecord.id,
             data: {
@@ -262,14 +341,17 @@ async function syncClientAccessState(clientRecordInput) {
         };
     }
 
-    const userProfile = await getCollectionDocument('users', userId).catch(() => null);
-    if (userProfile && userProfile.data) {
-        await patchCollectionDocument('users', userId, {
-            ...profileAccessFields,
-            updatedAt: new Date().toISOString()
-        }).catch(() => undefined);
-        // Invalidate cached session — project access/permissions just changed
-        invalidateSessionCache(userId);
+    // User profile and session cache updates only possible when userId is known
+    if (userId) {
+        const userProfile = await getCollectionDocument('users', userId).catch(() => null);
+        if (userProfile && userProfile.data) {
+            await patchCollectionDocument('users', userId, {
+                ...profileAccessFields,
+                updatedAt: new Date().toISOString()
+            }).catch(() => undefined);
+            // Invalidate cached session — project access/permissions just changed
+            invalidateSessionCache(userId);
+        }
     }
 
     const clientProfileId = sanitizeDocumentId(`${workspaceId}_${email}`);
