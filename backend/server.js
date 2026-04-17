@@ -50,6 +50,7 @@ const projectTemplateWorkspaceUnlockHandler = require('./api/project-template-wo
 const projectSyncHandler = require('./api/project-sync');
 const userPreferencesHandler = require('./api/user-preferences');
 const meWorkspacesHandler = require('./api/me-workspaces');
+const diagnoseWorkspaceAlignmentHandler = require('./api/diagnose-workspace-alignment');
 const templateAccessCompleteHandler = require('./api/template-access-complete');
 const templateAccessStartHandler = require('./api/template-access-start');
 const templateDownloadHandler = require('./api/template-download');
@@ -875,6 +876,10 @@ const server = http.createServer(async (req, res) => {
             req.body = await readBody(req);
         }
         return meWorkspacesHandler(req, res);
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/diagnose/workspace-alignment') {
+        return diagnoseWorkspaceAlignmentHandler(req, res);
     }
 
     if ((req.method === 'GET' || req.method === 'PATCH') && url.pathname === '/api/user-preferences') {

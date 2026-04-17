@@ -1330,6 +1330,66 @@ async function _resolveWorkspaceAccessProfile(authUser) {
         }
     }
 
+    // CRITICAL: Detect stale users.workspaceId pointing at a leftover auto-generated
+    // workspace (e.g. workspace_<uid>) when the authoritative team_members/clients
+    // record for this email lives under a different workspace.  Align on every login
+    // so retroactive repair happens without requiring an admin edit.
+    // Workspace owners are exempt — we never flip an owner out of their own workspace.
+    {
+        const userIsWorkspaceOwner = existingProfile.isWorkspaceOwner === true
+            || existingProfile.workspaceOwner === true
+            || existingProfile.owner === true
+            || String(existingProfile.role || '').trim().toLowerCase() === 'owner';
+        const currentWorkspaceId = String(existingProfile.workspaceId || '').trim();
+        if (!userIsWorkspaceOwner && currentWorkspaceId) {
+            const authoritativeMembership = await resolveWorkspaceFromTeamMembership(authUser.email).catch(() => null);
+            const authoritativeWorkspaceId = authoritativeMembership && authoritativeMembership.workspaceId
+                ? String(authoritativeMembership.workspaceId).trim()
+                : '';
+            if (authoritativeWorkspaceId && authoritativeWorkspaceId !== currentWorkspaceId) {
+                console.warn('[WorkspaceResolution] Aligning stale users.workspaceId to authoritative team_members/clients record', {
+                    userId: authUser.uid,
+                    email: AccessControl.normalizeEmail(authUser.email),
+                    previousWorkspaceId: currentWorkspaceId,
+                    nextWorkspaceId: authoritativeWorkspaceId,
+                    role: authoritativeMembership.role
+                });
+                existingProfile.workspaceId = authoritativeWorkspaceId;
+                existingProfile.workspaceOwnerEmail = authoritativeMembership.workspaceOwnerEmail || existingProfile.workspaceOwnerEmail;
+                existingProfile.workspaceOwnerUserId = authoritativeMembership.workspaceOwnerUserId || existingProfile.workspaceOwnerUserId;
+                // Old assignedProjectIds belonged to the stale workspace — drop them so
+                // resolveScopedAssignedProjectsForLogin rehydrates from project_assignments.
+                existingProfile.assignedProjectIds = authoritativeMembership.assignedProjectIds.length
+                    ? authoritativeMembership.assignedProjectIds
+                    : [];
+                existingProfile.allProjectsAccess = authoritativeMembership.allProjectsAccess;
+                existingProfile.inviteType = authoritativeMembership.inviteType || existingProfile.inviteType;
+                existingProfile.membershipStatus = 'active';
+                if (authoritativeMembership.role) {
+                    existingProfile.role = authoritativeMembership.role;
+                    existingProfile.workspaceRole = authoritativeMembership.role;
+                    existingProfile.canonical_role = AccessControl.normalizeRole(authoritativeMembership.role);
+                }
+                await patchCollectionDocument('users', profileDocument.id || authUser.uid, {
+                    workspaceId: authoritativeWorkspaceId,
+                    workspaceOwnerEmail: existingProfile.workspaceOwnerEmail,
+                    workspaceOwnerUserId: existingProfile.workspaceOwnerUserId,
+                    assignedProjectIds: existingProfile.assignedProjectIds,
+                    allProjectsAccess: existingProfile.allProjectsAccess,
+                    membershipStatus: 'active',
+                    role: existingProfile.role,
+                    workspaceRole: existingProfile.workspaceRole,
+                    canonical_role: existingProfile.canonical_role,
+                    inviteType: existingProfile.inviteType,
+                    updatedAt: new Date().toISOString()
+                }).catch(err => {
+                    console.warn('[WorkspaceResolution] Failed to persist aligned workspace to users doc', { error: err.message });
+                });
+                invalidateSessionCache(authUser.uid);
+            }
+        }
+    }
+
     let pendingInviteBootstrap = hasPendingInviteState(existingProfile);
 
     // If user has invite-shaped state but no workspace could be resolved (including post-repair),
@@ -1768,6 +1828,7 @@ module.exports = {
     hasPendingInviteState,
     hasInvitationMetadata,
     getWorkspaceId,
+    resolveWorkspaceFromTeamMembership,
     getWorkspaceMemberDocumentId,
     getWorkspaceOwnerEmail,
     getWorkspaceOwnerUserId,

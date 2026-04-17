@@ -54,6 +54,18 @@ function _invalidateDashboardListCache(collectionId, sessionUser) {
     }
 }
 
+// Cross-module invalidation: bust every cached list for a given workspaceId,
+// regardless of collection.  Called from invitation acceptance so the first
+// post-accept dashboard load doesn't serve a pre-accept empty result.
+function invalidateDashboardListCacheByWorkspace(workspaceId) {
+    const ws = String(workspaceId || '').trim();
+    if (!ws) return;
+    const suffix = `::${ws}::`;
+    for (const key of _dashboardListCache.keys()) {
+        if (key.includes(suffix)) _dashboardListCache.delete(key);
+    }
+}
+
 const DASHBOARD_COLLECTIONS = new Set([
     'clients',
     'invoices',
@@ -891,4 +903,6 @@ module.exports = async function handler(req, res) {
         }
     }
 };
+
+module.exports.invalidateDashboardListCacheByWorkspace = invalidateDashboardListCacheByWorkspace;
 
