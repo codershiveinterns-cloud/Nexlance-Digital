@@ -172,7 +172,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       await acceptFlow(token, "signupMessage");
       return;
     } catch (err) {
-      console.warn("[InviteAccept] silent accept failed, falling back to modal", err);
+      console.warn("[InviteAccept] silent accept failed, falling back", err);
+      // If the invitation has already been used, the user is already part of
+      // the workspace — just rebuild their session and send them to their
+      // dashboard instead of showing a confusing error.
+      const errMsg = String(err && err.message || "");
+      if (/already been used|already accepted|already used/i.test(errMsg)) {
+        try {
+          const finalSession = await rebuildSessionAfterAccept({});
+          window.location.href = getPostAcceptRedirect(finalSession);
+          return;
+        } catch (_) {
+          window.location.href = "login.html";
+          return;
+        }
+      }
+      // Any other failure: fall through to the login/signup form so the user
+      // can re-authenticate manually.
     }
   }
 
@@ -192,7 +208,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     showState("signupState");
   });
 
-  // Signup handler — creates Firebase user inline and attempts immediate acceptance
+  // Signup handler — creates the Firebase account ONLY, then signs out and
+  // redirects to the login page.  The invitation stays pending in Firestore;
+  // when the user logs in with their new credentials, the backend's
+  // session-repair (ensureWorkspaceAccessProfile → findPendingInvitationForEmail
+  // → acceptInvitation) will automatically accept the invitation and assign
+  // the workspace.  This split avoids the race where a partial acceptance
+  // marks the invitation as used before the UI can redirect, which previously
+  // caused users to see "This invitation has already been used" on retry.
   document.getElementById("createAccountBtn").addEventListener("click", async () => {
     const btn = document.getElementById("createAccountBtn");
     const name = document.getElementById("signupName").value.trim() || invitation.inviteeName || invitation.email;
@@ -223,9 +246,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       if (!result.success) throw new Error(result.error || "Account could not be created.");
 
-      // Accept immediately — email verification is skipped for invited users
-      // because the invitation token itself proves email ownership.
-      await acceptFlow(token, "signupMessage");
+      // Sign out the freshly-created user so the login page asks for their
+      // new credentials.  Also clear any persisted session from localStorage
+      // so the login page's auto-redirect does not fire on stale data.
+      await auth.signOut().catch(() => undefined);
+      clearPersistedSession();
+
+      setMessage("signupMessage", "Account created! Redirecting you to sign in…", "success");
+      setTimeout(() => {
+        window.location.href = "login.html";
+      }, 900);
     } catch (error) {
       const msg = String(error && error.message || "Account setup failed.");
       if (/email.*(already|in use|exists)/i.test(msg)) {
