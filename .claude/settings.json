@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --input-type=module -e \"import\\('./authService.js'\\).catch\\(e => { if \\(e.message.match\\(/Cannot resolve|Cannot find|ERR_MODULE_NOT_FOUND/\\)\\) console.log\\('authService.js: OK \\(syntax valid\\)'\\); else { console.error\\('SYNTAX ERROR:', e.message\\); process.exit\\(1\\); } }\\)\")",
+      "Bash(node --check auth.js)",
+      "Bash(node --input-type=module -e ' *)"
+    ]
+  }
+}

@@ -238,17 +238,12 @@
     }
 
     function enforceVerifiedSession() {
-        const currentUser = getCurrentUser();
-        if (!currentUser || currentUser.emailVerified !== false) {
-            return true;
-        }
-
-        sessionStorage.setItem(AUTH_NOTICE_KEY, 'Please verify your email before accessing the dashboard.');
-        localStorage.removeItem('nexlance_auth');
-        localStorage.removeItem('nexlance_user');
-        localStorage.removeItem('nexlance_trial');
-        window.location.href = 'login.html';
-        return false;
+        // Email verification is no longer required for dashboard access.
+        // Verification emails are sent at account-creation time only (self-signup);
+        // invited users and returning users are not gated by verification status.
+        // The function is retained so existing callers continue to work, but it
+        // now always returns true and never redirects.
+        return true;
     }
 
     function getScopedStorageKey(baseKey) {

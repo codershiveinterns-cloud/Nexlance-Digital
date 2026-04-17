@@ -235,15 +235,13 @@ export async function loginWithEmail(email, password, profileDefaults = {}, opti
       });
     }
 
-    // Skip the emailVerified gate when the caller is the invitation-accept
-    // flow — the invitation token itself proves the user owns the email.
-    if (!options.skipEmailVerification && !auth.currentUser?.emailVerified) {
-      await signOut(auth);
-      return buildFailure(
-        { code: "auth/email-not-verified" },
-        { requiresEmailVerification: true }
-      );
-    }
+    // Email verification is NOT required to log in.  Verification emails are
+    // only sent at account-creation time (self-signup).  Once an account
+    // exists, the user can sign in with their credentials — verification
+    // status does not gate access.  The `options.skipEmailVerification` and
+    // `requiresEmailVerification` paths are kept for backwards compatibility
+    // with any caller that still passes them, but they are no longer used to
+    // block login.
 
     return {
       success: true,

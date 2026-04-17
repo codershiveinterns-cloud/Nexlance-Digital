@@ -637,14 +637,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Email verification is no longer required to access the dashboard.  As long
+  // as a persisted session exists, forward the user to their post-login page;
+  // do NOT clear the session just because emailVerified is false.  Verification
+  // emails are sent only at account-creation time and are informational, not a
+  // gate to access.
   const storedUser = getStoredSessionUser();
-  if (localStorage.getItem("nexlance_auth") === "1" && storedUser?.emailVerified === true) {
+  if (localStorage.getItem("nexlance_auth") === "1" && storedUser) {
     window.location.href = getPostLoginRedirect();
     return;
-  }
-
-  if (storedUser?.emailVerified === false) {
-    clearPersistedSession();
   }
 
   const authNotice = popAuthNotice();
