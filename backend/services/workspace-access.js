@@ -97,10 +97,36 @@ function hasPendingInviteState(profile = {}) {
     return !workspaceId && membershipStatus === 'pending' && Boolean(inviteType);
 }
 
+// Broader invitation-shape detection.  Any of these signals indicates the
+// account is an invitee (client or team member) rather than a standalone
+// owner signup — auto-generating workspace_<uid> for such accounts permanently
+// fragments them away from the admin's workspace.
+function hasInvitationMetadata(profile = {}) {
+    if (profile.isWorkspaceOwner === true) return false;
+    const inviteType = String(profile.inviteType || profile.memberType || profile.invite_type || '').trim().toLowerCase();
+    if (inviteType) return true;
+    const membershipStatus = String(profile.membershipStatus || profile.status || '').trim().toLowerCase();
+    if (membershipStatus === 'pending') return true;
+    const inviteIdentifier = profile.invitationId
+        || profile.invitation_id
+        || profile.invitedBy
+        || profile.invited_by
+        || profile.invitedByEmail
+        || profile.invited_by_email
+        || profile.invited_user_id
+        || profile.invitedUserId
+        || profile.inviteAcceptedAt
+        || profile.invite_accepted_at
+        || profile.inviteStatus
+        || profile.invite_status;
+    return Boolean(inviteIdentifier);
+}
+
 function getWorkspaceId(profile = {}, authUser = {}) {
     const explicitId = String(profile.workspaceId || '').trim();
     if (explicitId) return explicitId;
     if (hasPendingInviteState(profile)) return '';
+    if (hasInvitationMetadata(profile)) return '';
     return sanitizeDocumentId(`workspace_${authUser.uid || profile.uid || Date.now()}`);
 }
 
@@ -1740,6 +1766,7 @@ module.exports = {
     ensureWorkspaceAccessProfile,
     getNormalizedAssignedProjectIds,
     hasPendingInviteState,
+    hasInvitationMetadata,
     getWorkspaceId,
     getWorkspaceMemberDocumentId,
     getWorkspaceOwnerEmail,

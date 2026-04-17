@@ -1,3 +1,6 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
 const admin = require('firebase-admin');
 
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;

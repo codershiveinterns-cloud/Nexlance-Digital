@@ -289,7 +289,49 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
         await commitBatchedWrites(upsertOps).catch(() => undefined);
     }
 
-    // 4) Canonical post-sync resolution for consistent assignment scope.
+    // 4) Workspace alignment for non-owner users.
+    //    When a user is assigned projects in a workspace, their users/{uid} doc
+    //    must point at that same workspace.  If an older profile still points at
+    //    a different (auto-generated) workspace, auto-correct it here so that
+    //    session rehydration and dashboard APIs see a consistent scope.
+    //    Workspace owners are exempt — we never flip an owner out of their own
+    //    workspace based on a project assignment.
+    if (normalizedUserId) {
+        try {
+            const existingUserDoc = await getCollectionDocument('users', normalizedUserId);
+            const existingUserProfile = existingUserDoc && existingUserDoc.data ? existingUserDoc.data : null;
+            if (existingUserProfile) {
+                const currentWorkspaceId = String(existingUserProfile.workspaceId || '').trim();
+                const existingRoleLower = String(existingUserProfile.role || '').trim().toLowerCase();
+                const isOwner = existingUserProfile.isWorkspaceOwner === true
+                    || existingUserProfile.workspaceOwner === true
+                    || existingUserProfile.owner === true
+                    || existingRoleLower === 'owner';
+                if (!isOwner && currentWorkspaceId && currentWorkspaceId !== normalizedWorkspaceId) {
+                    console.warn('[WorkspaceConsistency] Auto-correcting user workspaceId to match project workspace', {
+                        userId: normalizedUserId,
+                        email: normalizedEmail,
+                        previousWorkspaceId: currentWorkspaceId,
+                        nextWorkspaceId: normalizedWorkspaceId,
+                        role: normalizedRole
+                    });
+                    await patchCollectionDocument('users', normalizedUserId, {
+                        workspaceId: normalizedWorkspaceId,
+                        updatedAt: now
+                    }).catch(() => undefined);
+                    invalidateSessionCache(normalizedUserId);
+                }
+            }
+        } catch (alignmentError) {
+            console.warn('[WorkspaceConsistency] Workspace alignment check failed', {
+                userId: normalizedUserId,
+                workspaceId: normalizedWorkspaceId,
+                error: alignmentError && alignmentError.message
+            });
+        }
+    }
+
+    // 5) Canonical post-sync resolution for consistent assignment scope.
     await resolveScopedAssignedProjectsForLogin({
         workspaceId: normalizedWorkspaceId,
         userId: normalizedUserId,

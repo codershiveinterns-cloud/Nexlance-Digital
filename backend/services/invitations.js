@@ -879,12 +879,23 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
     if (safeSessionEmail !== AccessControl.normalizeEmail(record.email)) {
         throw new Error('This invitation was sent to a different email address.');
     }
+    const sessionIsWorkspaceOwner = AccessControl.isWorkspaceOwner(sessionUser)
+        || String(sessionUser.role || '').trim().toLowerCase() === 'owner'
+        || String(sessionUser.workspaceRole || '').trim().toLowerCase() === 'owner';
     if (
         sessionUser.workspaceId
         && record.workspaceId
         && sessionUser.workspaceId !== record.workspaceId
     ) {
-        throw new Error('This account is already attached to another workspace.');
+        if (sessionIsWorkspaceOwner) {
+            throw new Error('This account is already attached to another workspace.');
+        }
+        console.info('[InviteAccept] Reassigning non-owner user to invitation workspace', {
+            userId: String(session.authUser && session.authUser.uid || '').trim(),
+            email: safeSessionEmail,
+            previousWorkspaceId: sessionUser.workspaceId,
+            nextWorkspaceId: invitationWorkspaceId
+        });
     }
 
     let accessFields = buildProfileAccessFields(record);
