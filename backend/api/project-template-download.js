@@ -40,11 +40,8 @@ module.exports = async function handler(req, res) {
             throw error;
         }
 
-        if (context.project.template_download_paid !== true) {
-            const error = new Error('Complete the template payment before downloading the final output.');
-            error.statusCode = 403;
-            throw error;
-        }
+        // Download no longer requires payment — completed projects are
+        // available to any authenticated user with download capability.
 
         const renderedHtml = String(context.project.template_saved_html || '').trim();
         if (!renderedHtml) {

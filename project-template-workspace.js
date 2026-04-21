@@ -693,9 +693,11 @@
         completeBtn.style.display = canView ? '' : 'none';
         downloadBtn.style.display = canView ? '' : 'none';
 
-        editBtn.disabled = workspaceActionInFlight || completed || !canEdit;
+        // Edit + Save remain available after completion so users can keep
+        // refining the template even once the project is marked complete.
+        editBtn.disabled = workspaceActionInFlight || !canEdit;
         editBtn.textContent = isWorkspaceEditMode ? 'Editing Enabled' : 'Edit Mode';
-        saveBtn.disabled = workspaceActionInFlight || !needsSave || completed || !canSave;
+        saveBtn.disabled = workspaceActionInFlight || !needsSave || !canSave;
         completeBtn.disabled = workspaceActionInFlight || completed || needsSave || !canComplete;
         completeBtn.textContent = !canComplete
             ? 'Completion Restricted'
@@ -704,9 +706,7 @@
         downloadBtn.disabled = workspaceActionInFlight || !completed || needsSave || !canDownload;
         downloadBtn.textContent = !canDownload
             ? 'Download Restricted'
-            : (!completed
-                ? 'Download After Completion'
-                : (resolvedProject.template_download_paid ? 'Download Final Output' : 'Download (Pay GBP 199)'));
+            : (!completed ? 'Download After Completion' : 'Download Final Output');
         downloadBtn.title = !canDownload ? 'Your role cannot download final output for this project.' : '';
     }
 
@@ -1014,12 +1014,12 @@
                 if ((currentProject.template_workflow_status || '') !== 'completed') {
                     throw new Error('Complete the project before downloading the final output.');
                 }
+                // Download no longer requires a payment unlock step — deliver
+                // the bundle directly once the project is complete and saved.
                 const backendProjectId = requireBackendProjectId(currentProject, 'downloading final output');
-                const unlockedProject = await unlockTemplateDownload(currentProject, currentProject.template_name || currentProject.name);
-                const downloadProjectId = getProjectBackendId(unlockedProject) || backendProjectId;
-                await downloadProjectTemplateBundle(downloadProjectId, payload || {});
+                await downloadProjectTemplateBundle(backendProjectId, payload || {});
                 showToast('Final template output downloaded successfully.', 'success');
-                return unlockedProject;
+                return currentProject;
             },
             setDirtyState: setWorkspaceDirty,
             setEditMode: setWorkspaceEditMode

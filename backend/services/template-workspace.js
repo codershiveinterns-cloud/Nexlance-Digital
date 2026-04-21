@@ -255,9 +255,8 @@ function buildTemplateWorkspaceSavePatch(context, payload = {}) {
     const currentProject = context.project;
     const now = new Date().toISOString();
     const alreadyCompleted = String(currentProject.template_workflow_status || '').trim().toLowerCase() === 'completed';
-    if (alreadyCompleted && context.capabilities[AccessControl.TEMPLATE_WORKSPACE_CAPABILITIES.ADMIN_OVERRIDE] !== true) {
-        throw createHttpError('Completed template projects are read-only.', 409);
-    }
+    // Completed projects remain editable — users can keep saving changes
+    // after marking the project complete.
 
     const nextWorkflowStatus = alreadyCompleted ? 'completed' : 'in_progress';
     return {

@@ -152,7 +152,9 @@
         [ROLES.CLIENT]: Object.freeze([
             PERMISSIONS.VIEW_PROJECTS,
             PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
-            PERMISSIONS.VIEW_TASK_BOARD
+            PERMISSIONS.VIEW_TASK_BOARD,
+            PERMISSIONS.EDIT_TASK_BOARD,
+            PERMISSIONS.EDIT_TASKS
         ])
     });
 
@@ -285,6 +287,15 @@
                 ...(ROLE_PERMISSION_MAP[role] || ROLE_PERMISSION_MAP[ROLES.ADMIN]),
                 ...explicitPermissionKeys
             ].forEach(permission => permissionKeys.add(permission));
+        }
+
+        // Baseline capabilities that apply to every CLIENT regardless of the
+        // permissionMode or the explicit permission keys stored on their
+        // invitation record.  This lets clients manage tasks on the project
+        // task board even if their stored invitation predates this change.
+        if (role === ROLES.CLIENT) {
+            permissionKeys.add(PERMISSIONS.EDIT_TASK_BOARD);
+            permissionKeys.add(PERMISSIONS.EDIT_TASKS);
         }
 
         if (isWorkspaceOwner(user)) {
