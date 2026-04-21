@@ -5,6 +5,7 @@ const { canPerformCollectionAction, normalizeEmail } = require('../services/dash
 const { syncClientAccessState } = require('../services/client-access');
 const { syncTeamMemberState } = require('../services/team-member-access');
 const { invalidateSessionCache } = require('../services/workspace-access');
+const { cascadeDashboardDeletion } = require('../services/delete-cascade');
 const {
     createCollectionDocument,
     deleteCollectionDocument,
@@ -918,7 +919,46 @@ module.exports = async function handler(req, res) {
 
             await deleteCollectionDocument(route.collectionId, route.documentId);
             _invalidateDashboardListCache(route.collectionId, sessionUser);
-            res.status(200).json({ ok: true });
+
+            // Cascade cleanup so stale access grants don't survive the delete.
+            // Any related caches that might be referenced elsewhere in the
+            // dashboard need to be invalidated too — see cascadedCollections.
+            const workspaceIdForCascade = String(sessionUser && sessionUser.workspaceId || '').trim();
+            const cascadeResult = await cascadeDashboardDeletion({
+                collectionId: route.collectionId,
+                workspaceId: workspaceIdForCascade,
+                deletedRecord: existing,
+                deletedDocumentId: route.documentId
+            });
+            // Bust cached list responses for collections whose rows may now be stale.
+            const cascadedCollections = route.collectionId === 'projects'
+                ? ['project_assignments', 'team_members', 'clients', 'tasks']
+                : route.collectionId === 'team_members'
+                    ? ['project_assignments']
+                    : route.collectionId === 'clients'
+                        ? ['project_assignments']
+                        : [];
+            cascadedCollections.forEach(collection => _invalidateDashboardListCache(collection, sessionUser));
+
+            // If a team_member or client is removed, drop the session cache
+            // for that user so their next /api/me call reflects the revoked
+            // access immediately instead of serving the cached scope.
+            if (route.collectionId === 'team_members' || route.collectionId === 'clients') {
+                const affectedUserId = String(
+                    (existing.data && (existing.data.invited_user_id || existing.data.userId || existing.data.invitedUserId)) || ''
+                ).trim();
+                if (affectedUserId) invalidateSessionCache(affectedUserId);
+            }
+            // Project delete: invalidate session cache for every user who
+            // had the project assigned, so their next /api/me drops it
+            // immediately instead of waiting for the 5-minute TTL.
+            if (route.collectionId === 'projects' && cascadeResult && Array.isArray(cascadeResult.affectedUserIds)) {
+                cascadeResult.affectedUserIds.forEach(uid => {
+                    if (uid) invalidateSessionCache(uid);
+                });
+            }
+
+            res.status(200).json({ ok: true, cascade: cascadeResult && cascadeResult.summary });
             return;
         }
 

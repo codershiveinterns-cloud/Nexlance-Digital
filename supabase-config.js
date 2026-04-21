@@ -4106,6 +4106,14 @@ async function deleteProject(id) {
             try {
                 await dashboardApiRequest('DELETE', 'projects', projectId);
                 _pendingDeletes.delete(projectId);
+                // Project delete cascades server-side: project_assignments are
+                // removed and assigned_project_ids are pruned on team_members
+                // and clients.  Invalidate those local caches so any open
+                // team/clients view re-fetches fresh data.
+                clearLocalEntityData('team_members', { silent: false });
+                clearLocalEntityData('clients', { silent: false });
+                clearLocalEntityData('tasks', { silent: false });
+                window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'projects' } }));
                 return;
             } catch (error) {
                 // Idempotent delete: 404 (and occasionally 400 for IDs the
@@ -4114,6 +4122,10 @@ async function deleteProject(id) {
                 const status = Number(error && (error.status || (error.response && error.response.status)));
                 if (status === 404 || status === 400) {
                     _pendingDeletes.delete(projectId);
+                    clearLocalEntityData('team_members', { silent: false });
+                    clearLocalEntityData('clients', { silent: false });
+                    clearLocalEntityData('tasks', { silent: false });
+                    window.dispatchEvent(new CustomEvent('nexlance-data-changed', { detail: { entity: 'projects' } }));
                     return;
                 }
                 if (!isDashboardApiUnavailableError(error)) {

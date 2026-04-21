@@ -6,6 +6,25 @@
 <title>Team - Nexlance</title>
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="app.css">
+<style>
+.team-card-actions .action-btn { width: 34px; height: 34px; border-radius: 10px; }
+.team-card-actions .action-btn svg { display: block; }
+.team-card-actions .action-delete { background: #fff0f0; color: #d63031; border: 1px solid #ffd6d6; }
+.team-card-actions .action-delete:hover { background: #ffdede; border-color: #ffbcbc; }
+.team-card-actions .action-view { background: #f2efff; color: #6c5ce7; border: 1px solid #ddd4ff; }
+.team-card-actions .action-view:hover { background: #e6deff; border-color: #c7b8ff; }
+
+#memberViewModal .view-header { display: flex; gap: 16px; align-items: center; margin-bottom: 18px; }
+#memberViewModal .view-avatar { width: 64px; height: 64px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; border-radius: 50%; }
+#memberViewModal .view-name { font-size: 1.1rem; font-weight: 600; color: #333; }
+#memberViewModal .view-email { font-size: 0.85rem; color: #888; margin-top: 2px; }
+#memberViewModal .view-section { margin-top: 16px; padding: 14px 16px; background: #faf9ff; border: 1px solid #eceaff; border-radius: 10px; }
+#memberViewModal .view-section-title { font-size: 0.78rem; font-weight: 700; color: #6c5ce7; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+#memberViewModal .view-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+#memberViewModal .view-list li { font-size: 0.88rem; color: #333; padding: 6px 10px; background: #fff; border: 1px solid #eee; border-radius: 8px; }
+#memberViewModal .view-empty { font-size: 0.85rem; color: #999; font-style: italic; }
+#memberViewModal .view-note { margin-top: 16px; font-size: 0.78rem; color: #888; text-align: center; }
+</style>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -55,7 +74,7 @@
       <input type="search" class="search-input" id="searchInput" placeholder="Search by name or email...">
       <select id="filterRole">
         <option value="">All Roles</option>
-        <option>Admin</option>
+        <!-- <option>Admin</option> -->
         <option>Developer</option>
         <option>Designer</option>
         <option>Client</option>
@@ -66,6 +85,19 @@
       <div style="grid-column:1/-1;text-align:center;padding:40px;color:#aaa;">Loading team...</div>
     </div>
   </main>
+</div>
+
+<div class="modal-overlay" id="memberViewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Member Details</h2>
+      <button class="modal-close" type="button" onclick="closeViewModal()" aria-label="Close">x</button>
+    </div>
+    <div id="memberViewDetails"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" onclick="closeViewModal()">Close</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="memberModal">
@@ -322,24 +354,87 @@ function renderGrid(data) {
 
   grid.innerHTML = data.map(member => {
     const role = getRoleLabel(member.canonical_role || member.role);
-    const perms = getMemberPermissionState(member);
-    const permissionTags = [];
-    if (perms.tasks) permissionTags.push('Edit Tasks');
-    if (perms.revenue) permissionTags.push('Revenue');
-    if (perms.invoice) permissionTags.push('Invoices');
-    if (perms.upload) permissionTags.push('Uploads');
-
+    const memberId = String(member.id || '').replace(/'/g, "\\'");
     return `<div class="team-card">
       <div class="team-avatar" style="background:${roleGradients[role] || 'linear-gradient(135deg,#6c5ce7,#a29bfe)'}">${getInitials(member.name)}</div>
       <h3>${member.name}</h3>
       <div class="team-email">${member.email}</div>
       <span class="badge ${roleColors[role] || 'badge-gray'}">${role}</span>
-      ${permissionTags.length ? `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">${permissionTags.map(permission => `<span style="background:#f9f7ff;color:#6c5ce7;border-radius:6px;padding:2px 7px;font-size:0.7rem;font-weight:600;">${permission}</span>`).join('')}</div>` : ''}
       <div class="team-card-actions">
-        <button class="action-btn action-delete" type="button" onclick="handleDelete('${member.id}')" title="Remove">Delete</button>
+        <button class="action-btn action-view" type="button" onclick="openViewModal('${memberId}')" title="View details" aria-label="View details">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button class="action-btn action-delete" type="button" onclick="handleDelete('${memberId}')" title="Remove member" aria-label="Remove member">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+        </button>
       </div>
     </div>`;
   }).join('');
+}
+
+function openViewModal(id) {
+  const member = members.find(entry => String(entry.id) === String(id));
+  if (!member) {
+    showToast('Member details unavailable.', 'error');
+    return;
+  }
+  const modal = document.getElementById('memberViewModal');
+  if (!modal) return;
+
+  const role = getRoleLabel(member.canonical_role || member.role);
+  const perms = getMemberPermissionState(member);
+  const allAccess = Boolean(member.all_projects_access || member.allProjectsAccess
+    || String(member.project_access_scope || member.projectAccessScope || '').trim().toLowerCase() === 'all');
+  const assignedIds = Array.isArray(member.assigned_project_ids) ? member.assigned_project_ids
+    : Array.isArray(member.assignedProjectIds) ? member.assignedProjectIds : [];
+  const projectNameById = new Map(availableProjects.map(project => [String(project.id), String(project.name || project.id)]));
+  const assignedProjectNames = allAccess
+    ? ['All projects (workspace-wide access)']
+    : assignedIds.map(pid => projectNameById.get(String(pid)) || String(pid));
+
+  const permissionLabels = [];
+  if (perms.tasks) permissionLabels.push('Edit Tasks');
+  if (perms.revenue) permissionLabels.push('Revenue & Financial Data');
+  if (perms.invoice) permissionLabels.push('Create Invoices');
+  if (perms.upload) permissionLabels.push('Upload Files');
+
+  const escape = (value) => String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+  const projectListHtml = assignedProjectNames.length
+    ? `<ul class="view-list">${assignedProjectNames.map(name => `<li>${escape(name)}</li>`).join('')}</ul>`
+    : `<div class="view-empty">No projects assigned to this member.</div>`;
+  const permissionListHtml = permissionLabels.length
+    ? `<ul class="view-list">${permissionLabels.map(label => `<li>${escape(label)}</li>`).join('')}</ul>`
+    : `<div class="view-empty">No additional permissions granted.</div>`;
+
+  const detailsEl = document.getElementById('memberViewDetails');
+  detailsEl.innerHTML = `
+    <div class="view-header">
+      <div class="team-avatar view-avatar" style="background:${roleGradients[role] || 'linear-gradient(135deg,#6c5ce7,#a29bfe)'}">${escape(getInitials(member.name))}</div>
+      <div>
+        <div class="view-name">${escape(member.name || 'Unnamed member')}</div>
+        <div class="view-email">${escape(member.email || '')}</div>
+        <span class="badge ${roleColors[role] || 'badge-gray'}" style="margin-top:8px;display:inline-block;">${escape(role)}</span>
+      </div>
+    </div>
+    <div class="view-section">
+      <div class="view-section-title">Assigned Projects</div>
+      ${projectListHtml}
+    </div>
+    <div class="view-section">
+      <div class="view-section-title">Permissions</div>
+      ${permissionListHtml}
+    </div>
+    <div class="view-note">Read-only view — editing is disabled.</div>
+  `;
+  modal.classList.add('active');
+}
+
+function closeViewModal() {
+  const modal = document.getElementById('memberViewModal');
+  if (modal) modal.classList.remove('active');
 }
 
 function filterMembers() {
@@ -471,6 +566,10 @@ async function handleDelete(id) {
 
 document.getElementById('memberModal').addEventListener('click', function (event) {
   if (event.target === this) closeModal();
+});
+
+document.getElementById('memberViewModal').addEventListener('click', function (event) {
+  if (event.target === this) closeViewModal();
 });
 
 document.getElementById('fRole').addEventListener('change', function () {
