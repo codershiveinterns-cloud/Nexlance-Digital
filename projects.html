@@ -387,15 +387,30 @@ function renderTable(data) {
     return;
   }
   if (!data.length) {
-    const isClientUser = Boolean(
-      accessControl
+    const scopedRole = accessControl
       && currentUser
-      && accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole) === accessControl.ROLES.CLIENT
-    );
-    const emptyMessage = isClientUser
-      ? 'No projects are currently assigned to your account.'
-      : 'Create your first project';
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">📁</div><h3>No projects found</h3><p>${emptyMessage}</p></div></td></tr>`;
+      && accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
+    const isScopedUser = scopedRole === (accessControl && accessControl.ROLES.CLIENT)
+      || scopedRole === (accessControl && accessControl.ROLES.DEVELOPER)
+      || scopedRole === (accessControl && accessControl.ROLES.DESIGNER);
+    const scopeState = (window.NexlanceSessionState && typeof window.NexlanceSessionState.getProjectScopeState === 'function')
+      ? window.NexlanceSessionState.getProjectScopeState()
+      : { reason: '', assignmentsValidatedByBackend: false };
+    let heading = 'No projects found';
+    let emptyMessage = 'Create your first project';
+    if (isScopedUser) {
+      if (scopeState.reason === 'awaiting_backend_validation' || !scopeState.assignmentsValidatedByBackend) {
+        heading = 'Verifying your access';
+        emptyMessage = 'We are confirming your project assignments. This usually takes a moment — please refresh shortly.';
+      } else if (scopeState.reason === 'scoped_role_no_assignments') {
+        emptyMessage = 'No projects are currently assigned to your account. Ask your workspace admin to add you to a project.';
+      } else if (scopeState.reason === 'project_scope_filter') {
+        emptyMessage = 'Your assigned projects are not visible in this workspace. If you recently changed roles, sign out and back in to refresh access.';
+      } else {
+        emptyMessage = 'No projects are currently assigned to your account.';
+      }
+    }
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">📁</div><h3>${heading}</h3><p>${emptyMessage}</p></div></td></tr>`;
     return;
   }
   const today = new Date();

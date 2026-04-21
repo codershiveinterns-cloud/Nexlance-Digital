@@ -525,19 +525,34 @@ async function resolveScopedAssignedProjectsForLogin({ workspaceId = '', userId 
             continue;
         }
 
-        // Role mismatch: skip the assignment at runtime instead of permanently
-        // deactivating it.  The assignment may become valid again when the user's
-        // role changes, and destroying it here forces a re-sync that may never
-        // happen (e.g. if admin re-assigns while user hasn't accepted the invite).
+        // Role mismatch: auto-repair the assignment to the user's current
+        // session role instead of silently skipping it.  Skipping leaves the
+        // assignment frozen at its old role (e.g. the invite said 'client' but
+        // the user was later elevated to 'developer'), which makes the project
+        // permanently invisible until an admin manually re-invites.  Rewriting
+        // the assignment's role to the current session role keeps
+        // project_assignments as a self-healing single source of truth.
         const assignmentRole = AccessControl.normalizeRole(assignment.role);
         if (normalizedRole && assignmentRole && assignmentRole !== normalizedRole && assignmentRole !== 'member') {
-            console.info('[ProjectAssignmentScope] Skipping role-mismatched assignment (not deactivating)', {
+            console.info('[ProjectAssignmentScope] Repairing role-mismatched assignment', {
                 assignmentId: assignment.id,
-                assignmentRole,
+                previousRole: assignmentRole,
                 sessionRole: normalizedRole,
                 projectId: String(assignment.projectId || '').trim()
             });
-            continue;
+            patchCollectionDocument('project_assignments', assignment.id, {
+                role: normalizedRole,
+                previousRole: assignmentRole,
+                roleRepairedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }).catch(err => {
+                console.warn('[ProjectAssignmentScope] Role auto-repair write failed', {
+                    assignmentId: assignment.id,
+                    error: err && err.message
+                });
+            });
+            assignment.role = normalizedRole;
         }
 
         if (!activeAssignmentsByProjectId.has(projectId)) {
@@ -696,12 +711,18 @@ async function findPendingClientInvitationByEmail(email, preferredWorkspaceId = 
     return candidates[0];
 }
 
-async function syncProjectAssignmentsForUser({ workspaceId, userId, email, access }) {
+async function syncProjectAssignmentsForUser({ workspaceId, userId, email, access, role, inviteType }) {
     const normalizedWorkspaceId = String(workspaceId || '').trim();
     const normalizedUserId = String(userId || '').trim();
     const normalizedEmail = AccessControl.normalizeEmail(email);
     const identityToken = normalizedEmail || normalizedUserId;
     if (!normalizedWorkspaceId || (!normalizedUserId && !normalizedEmail)) return;
+    const normalizedRole = AccessControl.normalizeRole(
+        role || (access && (access.role || access.workspaceRole)) || AccessControl.ROLES.CLIENT
+    );
+    const normalizedInviteType = String(inviteType || (access && access.inviteType) || 'client')
+        .trim()
+        .toLowerCase();
 
     const now = new Date().toISOString();
     // Indexed composite query: workspace_id + email (or user_id) — no full scan
@@ -755,14 +776,16 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
         return;
     }
 
-    // Validate project workspace membership in parallel
+    // Validate project workspace membership in parallel — source of truth is
+    // the project doc itself.  Stamp workspaceId from the project, not from
+    // the caller, so invites can't write cross-workspace records.
     const projectIdList = (access.assignedProjectIds || [])
         .map(p => String(p || '').trim())
         .filter(Boolean);
     const projectDocs = await Promise.all(projectIdList.map(id =>
         getCollectionDocument('projects', id).catch(() => null)
     ));
-    const validProjectIds = [];
+    const validProjectEntries = [];
     projectIdList.forEach((projectId, idx) => {
         const projectRecord = projectDocs[idx];
         const projectWorkspaceId = String(projectRecord && projectRecord.data && projectRecord.data.workspace_id || '').trim();
@@ -774,34 +797,36 @@ async function syncProjectAssignmentsForUser({ workspaceId, userId, email, acces
             });
             return;
         }
-        validProjectIds.push(projectId);
+        validProjectEntries.push({ projectId, projectWorkspaceId });
     });
 
-    // Batch upsert — 1 chunked op instead of N sequential writes
-    const sanitizedIds = AccessControl.sanitizeAssignedProjectIds(validProjectIds);
+    const sanitizedIds = AccessControl.sanitizeAssignedProjectIds(validProjectEntries.map(e => e.projectId));
+    const sanitizedIdSet = new Set(sanitizedIds);
     if (sanitizedIds.length) {
-        const upsertOps = sanitizedIds.map(projectId => ({
-            collectionId: 'project_assignments',
-            docId: `${normalizedWorkspaceId}_${projectId}_${identityToken}`,
-            data: {
-                workspaceId: normalizedWorkspaceId,
-                workspace_id: normalizedWorkspaceId,
-                projectId,
-                project_id: projectId,
-                userId: normalizedUserId,
-                user_id: normalizedUserId,
-                email: normalizedEmail,
-                user_email: normalizedEmail,
-                role: AccessControl.ROLES.CLIENT,
-                inviteType: 'client',
-                status: 'active',
-                createdAt: now,
-                created_at: now,
-                updatedAt: now,
-                updated_at: now,
-                active: true
-            }
-        }));
+        const upsertOps = validProjectEntries
+            .filter(entry => sanitizedIdSet.has(entry.projectId))
+            .map(({ projectId, projectWorkspaceId }) => ({
+                collectionId: 'project_assignments',
+                docId: `${projectWorkspaceId}_${projectId}_${identityToken}`,
+                data: {
+                    workspaceId: projectWorkspaceId,
+                    workspace_id: projectWorkspaceId,
+                    projectId,
+                    project_id: projectId,
+                    userId: normalizedUserId,
+                    user_id: normalizedUserId,
+                    email: normalizedEmail,
+                    user_email: normalizedEmail,
+                    role: normalizedRole,
+                    inviteType: normalizedInviteType,
+                    status: 'active',
+                    createdAt: now,
+                    created_at: now,
+                    updatedAt: now,
+                    updated_at: now,
+                    active: true
+                }
+            }));
         await commitBatchedWrites(upsertOps).catch(() => undefined);
     }
 }
@@ -994,7 +1019,9 @@ async function autoBootstrapClientAccessFromInvitation({ existingProfile, authUs
         workspaceId,
         userId: String(authUser.uid || '').trim(),
         email: safeEmail,
-        access
+        access,
+        role: AccessControl.ROLES.CLIENT,
+        inviteType: 'client'
     }).catch(() => undefined);
 
     if (invite.targetRecordCollection && invite.targetRecordId) {
@@ -1667,15 +1694,30 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                 const now = new Date().toISOString();
                 const batchOps = [];
 
+                // Pre-resolve each project's workspaceId from its own doc so
+                // we stamp the assignment with the project's workspace (source
+                // of truth), not the user profile's — preventing silent drops
+                // when the two drift apart.
+                const projectWorkspaceLookups = await Promise.all(
+                    targetAssignedIds.map(pid => getCollectionDocument('projects', pid).catch(() => null))
+                );
+                const resolvedProjectWorkspaceById = new Map();
+                targetAssignedIds.forEach((pid, idx) => {
+                    const rec = projectWorkspaceLookups[idx];
+                    const ws = String(rec && rec.data && (rec.data.workspace_id || rec.data.workspaceId) || '').trim();
+                    if (ws) resolvedProjectWorkspaceById.set(pid, ws);
+                });
+
                 for (const projectId of targetAssignedIds) {
                     const existingForProject = existingByProjectId.get(projectId) || [];
+                    const projectWorkspaceId = resolvedProjectWorkspaceById.get(projectId) || nextProfile.workspaceId;
 
                     // Build the authoritative active-record payload.  Explicitly
                     // clear ALL deactivation metadata so stale records become
                     // visible again to resolveScopedAssignedProjectsForLogin.
                     const activePayload = {
-                        workspaceId: nextProfile.workspaceId,
-                        workspace_id: nextProfile.workspaceId,
+                        workspaceId: projectWorkspaceId,
+                        workspace_id: projectWorkspaceId,
                         projectId: projectId,
                         project_id: projectId,
                         userId: authUser.uid,
@@ -1683,7 +1725,7 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                         email: nextProfile.email,
                         user_email: nextProfile.email,
                         role: normalizedRole,
-                        inviteType: nextProfile.inviteType || '',
+                        inviteType: String(nextProfile.inviteType || '').trim().toLowerCase(),
                         status: 'active',
                         active: true,
                         // Force-clear deactivation metadata.
@@ -1717,7 +1759,7 @@ async function _resolveWorkspaceAccessProfile(authUser) {
                         activePayload.created_at = now;
                         batchOps.push({
                             collectionId: 'project_assignments',
-                            docId: `${nextProfile.workspaceId}_${projectId}_${nextProfile.email}`,
+                            docId: `${projectWorkspaceId}_${projectId}_${nextProfile.email}`,
                             data: activePayload
                         });
                     }

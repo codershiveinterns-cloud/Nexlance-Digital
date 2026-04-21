@@ -969,16 +969,40 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
 
     const invitationRef = getFirestoreDocRef('invitations', invitation.id);
     const userRef = getFirestoreDocRef('users', userId);
-    const assignmentPlans = (!nextUserProfile.allProjectsAccess ? assignmentIds : [])
+    const plannedProjectIds = (!nextUserProfile.allProjectsAccess ? assignmentIds : [])
         .map(projectId => String(projectId || '').trim())
-        .filter(Boolean)
-        .map(projectId => ({
+        .filter(Boolean);
+    // Resolve each project's workspaceId from its own document (source of truth)
+    // so the assignment is stamped with the project's workspace, not the
+    // invitation's.  Any project whose workspace differs from the invitation
+    // workspace is dropped — such records would be invisible to the scope
+    // resolver anyway and would pollute the assignments collection.
+    const projectDocs = await Promise.all(plannedProjectIds.map(id =>
+        getCollectionDocument('projects', id).catch(() => null)
+    ));
+    const assignmentPlans = [];
+    plannedProjectIds.forEach((projectId, idx) => {
+        const projectRecord = projectDocs[idx];
+        const projectWorkspaceId = String(
+            projectRecord && projectRecord.data && (projectRecord.data.workspace_id || projectRecord.data.workspaceId) || ''
+        ).trim();
+        if (!projectWorkspaceId || projectWorkspaceId !== invitationWorkspaceId) {
+            console.warn('[InviteAccept] Dropping project assignment with workspace mismatch', {
+                projectId,
+                invitationWorkspaceId,
+                projectWorkspaceId
+            });
+            return;
+        }
+        assignmentPlans.push({
             projectId,
+            projectWorkspaceId,
             ref: getFirestoreDocRef(
                 'project_assignments',
-                sanitizeDocumentId(`${invitationWorkspaceId}_${projectId}_${assignmentIdentityToken}`)
+                sanitizeDocumentId(`${projectWorkspaceId}_${projectId}_${assignmentIdentityToken}`)
             )
-        }));
+        });
+    });
 
     await runFirestoreTransaction(async tx => {
         const invitationSnap = await tx.get(invitationRef);
@@ -1004,18 +1028,18 @@ async function acceptInvitation({ session, token, invitation: preResolvedInvitat
 
         tx.set(userRef, nextUserProfile, { merge: true });
 
-        for (const { projectId, ref } of assignmentPlans) {
+        for (const { projectId, projectWorkspaceId, ref } of assignmentPlans) {
             tx.set(ref, {
-                workspaceId: invitationWorkspaceId,
-                workspace_id: invitationWorkspaceId,
+                workspaceId: projectWorkspaceId,
+                workspace_id: projectWorkspaceId,
                 projectId,
                 project_id: projectId,
                 userId,
                 user_id: userId,
                 email: safeSessionEmail,
                 user_email: safeSessionEmail,
-                role,
-                inviteType: record.inviteType,
+                role: AccessControl.normalizeRole(role),
+                inviteType: String(record.inviteType || '').trim().toLowerCase(),
                 status: 'active',
                 active: true,
                 createdAt: nowIso,

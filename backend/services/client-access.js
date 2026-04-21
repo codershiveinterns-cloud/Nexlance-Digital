@@ -257,20 +257,29 @@ async function syncProjectAssignments({ workspaceId, userId, email, access, role
             });
         }
 
-        // Use existing doc ID if available, otherwise generate a canonical one
-        const docId = primary ? primary.id : `${normalizedWorkspaceId}_${projectId}_${identityToken}`;
+        // Stamp workspaceId from the project document itself (source of truth)
+        // rather than the caller.  validProjectIdSet was built via
+        // resolveProjectWorkspaceId, so the cache already holds it.
+        const projectWorkspaceId = projectWorkspaceCache.get(projectId) || normalizedWorkspaceId;
+        // Always persist BOTH userId and email when either is known.  Merge
+        // with any identifier already on the primary record so single-identifier
+        // assignments (email-only invite, uid-only bootstrap) self-heal into
+        // dual-identifier records the next time this sync runs.
+        const resolvedUserId = normalizedUserId || (primary ? String(primary.userId || primary.user_id || '').trim() : '');
+        const resolvedEmail = normalizedEmail || (primary ? AccessControl.normalizeEmail(primary.email || primary.user_email) : '');
+        const docId = primary ? primary.id : `${projectWorkspaceId}_${projectId}_${identityToken}`;
         upsertOps.push({
             collectionId: 'project_assignments',
             docId,
             data: {
-                workspaceId: normalizedWorkspaceId,
-                workspace_id: normalizedWorkspaceId,
+                workspaceId: projectWorkspaceId,
+                workspace_id: projectWorkspaceId,
                 projectId,
                 project_id: projectId,
-                userId: normalizedUserId || (primary ? String(primary.userId || primary.user_id || '').trim() : ''),
-                user_id: normalizedUserId || (primary ? String(primary.userId || primary.user_id || '').trim() : ''),
-                email: normalizedEmail || (primary ? AccessControl.normalizeEmail(primary.email || primary.user_email) : ''),
-                user_email: normalizedEmail || (primary ? AccessControl.normalizeEmail(primary.email || primary.user_email) : ''),
+                userId: resolvedUserId,
+                user_id: resolvedUserId,
+                email: resolvedEmail,
+                user_email: resolvedEmail,
                 role: normalizedRole,
                 inviteType: String(inviteType || 'client').trim().toLowerCase(),
                 status: 'active',

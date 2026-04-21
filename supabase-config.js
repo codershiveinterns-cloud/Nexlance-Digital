@@ -211,7 +211,8 @@ const SESSION_RUNTIME = {
     lastAppliedRequestId: 0,
     inFlightRefreshPromise: null,
     activeRefreshAbortController: null,
-    assignmentsValidatedByBackend: false
+    assignmentsValidatedByBackend: false,
+    lastProjectScopeReason: ''
 };
 const TEAM_UPDATE_RUNTIME = {
     active: false,
@@ -788,6 +789,10 @@ if (typeof window !== 'undefined') {
         hardRefreshSessionFromServer,
         ensureSessionHydration,
         getCurrentSessionUser,
+        getProjectScopeState: () => ({
+            reason: SESSION_RUNTIME.lastProjectScopeReason || '',
+            assignmentsValidatedByBackend: SESSION_RUNTIME.assignmentsValidatedByBackend === true
+        }),
         forceProjectAssignmentSync: async () => {
             try {
                 console.info('[ForceSync] Starting background project assignment sync');
@@ -3184,6 +3189,7 @@ function filterRecordsForCurrentUserScope(entity, records) {
         : safeRecords;
     const debugProjectFilter = (filteredRecords, reason) => {
         if (entity !== 'projects') return;
+        SESSION_RUNTIME.lastProjectScopeReason = String(reason || '');
         console.info('[WorkspaceFilterDebug] filterRecordsForCurrentUserScope', {
             reason,
             workspaceId: expectedWorkspaceId,
