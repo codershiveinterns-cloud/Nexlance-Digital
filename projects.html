@@ -349,9 +349,26 @@ const statusBadges = {
   'Testing':'badge-teal','Planning':'badge-gray','On Hold':'badge-orange'
 };
 
+let projectsInitialLoadComplete = false;
+
+function renderProjectsLoadingState() {
+  const tbody = document.getElementById('projectsBody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="e-icon">⏳</div><h3>Loading projects...</h3><p>Fetching your workspace data — this should only take a moment.</p></div></td></tr>`;
+  const tableCount = document.getElementById('tableCount');
+  if (tableCount) tableCount.textContent = 'Loading…';
+}
+
+function isProjectsSessionReady() {
+  const user = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  return Boolean(user && String(user.workspaceId || '').trim());
+}
+
 async function init() {
   renderTrialBanner();
+  if (!projectsInitialLoadComplete) renderProjectsLoadingState();
   projects = await fetchProjects();
+  projectsInitialLoadComplete = true;
   applyProjectsUiPermissions();
   renderStats();
   renderTable(projects);
@@ -387,6 +404,10 @@ function renderTable(data) {
     return;
   }
   if (!data.length) {
+    if (!isProjectsSessionReady()) {
+      renderProjectsLoadingState();
+      return;
+    }
     const scopedRole = accessControl
       && currentUser
       && accessControl.normalizeRole(currentUser.role || currentUser.workspaceRole || currentUser.dashboardRole);
@@ -568,6 +589,10 @@ window.addEventListener('nexlance-project-completed', init);
 window.addEventListener('nexlance-data-changed', function(e) {
   var entity = e && e.detail && e.detail.entity;
   if (!entity || entity === 'projects') init();
+});
+// Re-init once the workspace/session resolves, so the first empty load upgrades to real data
+window.addEventListener('nexlance-session-context-changed', function() {
+  if (isProjectsSessionReady()) init();
 });
 </script>
 </body>

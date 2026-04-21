@@ -270,8 +270,27 @@ function getWebsiteTypeValue(selectId = 'fProjectType', customInputId = 'fProjec
   return customValue;
 }
 
+let clientsInitialLoadComplete = false;
+
+function renderClientsLoadingState() {
+  const tbody = document.getElementById('clientsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="e-icon">⏳</div><h3>Loading clients...</h3><p>Fetching your workspace data — this should only take a moment.</p></div></td></tr>`;
+  ['tableCount', 'clientCount'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = 'Loading…';
+  });
+}
+
+function isClientsSessionReady() {
+  const user = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  return Boolean(user && String(user.workspaceId || '').trim());
+}
+
 async function init() {
+  if (!clientsInitialLoadComplete) renderClientsLoadingState();
   await refreshClientsData({ preserveSelection: false });
+  clientsInitialLoadComplete = true;
   applyClientUiPermissions();
 }
 
@@ -374,6 +393,10 @@ function renderTable(data) {
   }
 
   if (!data.length) {
+    if (!isClientsSessionReady()) {
+      renderClientsLoadingState();
+      return;
+    }
     tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="e-icon">👥</div><h3>No clients found</h3><p>Add your first client to get started</p></div></td></tr>`;
     return;
   }
@@ -696,6 +719,10 @@ document.addEventListener('visibilitychange', function() {
 // loop with any future silent→loud regression. Keep this decoupled.
 
 init();
+// Re-init once workspace/session resolves so the first empty load upgrades to real data
+window.addEventListener('nexlance-session-context-changed', function() {
+  if (isClientsSessionReady()) init();
+});
 </script>
 </body>
 </html>

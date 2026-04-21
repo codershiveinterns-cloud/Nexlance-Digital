@@ -126,6 +126,33 @@ async function getCollectionDocument(collectionId, docId) {
     };
 }
 
+/**
+ * Batched multi-get.  Uses Firestore's getAll() so N documents are fetched in
+ * a single round-trip instead of N parallel round-trips.  Returns the same
+ * shape as getCollectionDocument() per found doc; missing docs are omitted.
+ */
+async function getCollectionDocumentsByIds(collectionId, docIds) {
+    const ids = (Array.isArray(docIds) ? docIds : [])
+        .map(id => String(id || '').trim())
+        .filter(Boolean);
+    if (!ids.length) return [];
+
+    // De-duplicate ids to keep the getAll call minimal.
+    const uniqueIds = Array.from(new Set(ids));
+    const refs = uniqueIds.map(id => db.collection(collectionId).doc(id));
+    const snapshots = await db.getAll(...refs);
+    const results = [];
+    snapshots.forEach(doc => {
+        if (!doc || !doc.exists) return;
+        results.push({
+            id: doc.id,
+            name: doc.ref.path,
+            data: doc.data()
+        });
+    });
+    return results;
+}
+
 async function upsertCollectionDocument(collectionId, docId, fields) {
     const normalizedDocId = sanitizeDocumentId(docId);
     const docRef = db.collection(collectionId).doc(normalizedDocId);
@@ -360,6 +387,7 @@ module.exports = {
     deleteCollectionDocument,
     findUserDocumentByEmail,
     getCollectionDocument,
+    getCollectionDocumentsByIds,
     getFirestoreBatch,
     getFirestoreDocRef,
     runFirestoreTransaction,

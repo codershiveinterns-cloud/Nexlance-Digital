@@ -1516,11 +1516,16 @@ let _inFlightFetchProjectsPromise = null;
 // Single-flight token fetch — prevents concurrent getIdToken() calls from racing
 let _inFlightTokenPromise = null;
 
-async function getDashboardBearerToken() {
-    // If a token fetch is already in progress, reuse it
-    if (_inFlightTokenPromise) return _inFlightTokenPromise;
+async function getDashboardBearerToken(options) {
+    // Default: use cached token (getIdToken(false)) — Firebase auto-refreshes
+    // when close to expiry.  Callers that actually need a fresh token (e.g.
+    // retrying after a 401) pass { forceRefresh: true } to override.
+    const forceRefresh = Boolean(options && options.forceRefresh);
 
-    _inFlightTokenPromise = (async () => {
+    // If a non-forced token fetch is already in progress, reuse it.
+    if (!forceRefresh && _inFlightTokenPromise) return _inFlightTokenPromise;
+
+    const fetchPromise = (async () => {
         await waitForFirebaseAuthSession();
         if (!isFirebaseUserAuthenticated()) {
             redirectToLoginForAuthMismatch('Your login session expired. Please sign in again to continue.');
@@ -1529,19 +1534,23 @@ async function getDashboardBearerToken() {
             throw error;
         }
         clearAuthRedirectLock();
-        // Force-refresh token — prefer modular SDK (single auth state), compat SDK as fallback
+        // Prefer modular SDK (single auth state), compat SDK as fallback.
         if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
-            return window.__nexlance_modular_auth.currentUser.getIdToken(true);
+            return window.__nexlance_modular_auth.currentUser.getIdToken(forceRefresh);
         }
         if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
-            return firebase.auth().currentUser.getIdToken(true);
+            return firebase.auth().currentUser.getIdToken(forceRefresh);
         }
         throw new Error('No authenticated Firebase user available.');
-    })().finally(() => {
-        _inFlightTokenPromise = null;
-    });
+    })();
 
-    return _inFlightTokenPromise;
+    if (!forceRefresh) {
+        _inFlightTokenPromise = fetchPromise.finally(() => {
+            _inFlightTokenPromise = null;
+        });
+        return _inFlightTokenPromise;
+    }
+    return fetchPromise;
 }
 
 async function refreshCurrentSessionUserFromApi(options = {}) {
@@ -1768,32 +1777,34 @@ async function dashboardApiRequest(method, collectionId, docId = '', payload = n
         throw error;
     }
 
-    const token = await getDashboardBearerToken();
     const path = docId
         ? `/api/dashboard/${encodeURIComponent(collectionId)}/${encodeURIComponent(docId)}`
         : `/api/dashboard/${encodeURIComponent(collectionId)}`;
-    console.info('[AuthContext] Dashboard API request prepared', {
-        method,
-        collectionId: String(collectionId || '').trim(),
-        hasBearerToken: Boolean(token),
-        path
-    });
 
-    let response;
-    try {
-        response = await fetch(path, {
-            method,
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            credentials: 'same-origin',
-            body: payload !== null ? JSON.stringify(payload) : undefined
-        });
-    } catch (error) {
-        const wrapped = new Error('Dashboard API is unavailable.');
-        wrapped.code = 'api/unavailable';
-        throw wrapped;
+    const doFetch = async (forceRefresh) => {
+        const token = await getDashboardBearerToken({ forceRefresh });
+        try {
+            return await fetch(path, {
+                method,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin',
+                body: payload !== null ? JSON.stringify(payload) : undefined
+            });
+        } catch (networkError) {
+            const wrapped = new Error('Dashboard API is unavailable.');
+            wrapped.code = 'api/unavailable';
+            throw wrapped;
+        }
+    };
+
+    // First attempt with a cached token (fast path). On 401 retry once with a
+    // force-refreshed token before bouncing the user to login.
+    let response = await doFetch(false);
+    if (response.status === 401) {
+        response = await doFetch(true);
     }
 
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
@@ -3701,9 +3712,9 @@ async function _fetchProjectsImpl(clientId = null, options) {
         return [];
     }
 
-    // Always wait for Firebase auth before making API calls — cache loads synchronously
-    // but Firebase auth restores asynchronously from IndexedDB
-    await waitForFirebaseAuthSession(3000).catch(() => null);
+    // Note: dashboardApiRequest() awaits waitForFirebaseAuthSession() internally,
+    // so no additional pre-wait is needed here — removing the extra 3s gate
+    // saves first-load latency when auth is already hydrated.
 
     try {
         if (isFirebaseUserAuthenticated()) {

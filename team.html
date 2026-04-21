@@ -249,8 +249,23 @@ async function refreshTeamData() {
   filterMembers();
 }
 
+let teamInitialLoadComplete = false;
+
+function renderTeamLoadingState() {
+  const grid = document.getElementById('teamGrid');
+  if (!grid) return;
+  grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#aaa;"><div style="font-size:2rem;margin-bottom:10px;">⏳</div><div style="font-weight:600;color:#666;">Loading team...</div><div style="font-size:0.85rem;margin-top:6px;">Fetching your workspace data — this should only take a moment.</div></div>`;
+}
+
+function isTeamSessionReady() {
+  const user = typeof getCurrentSessionUser === 'function' ? getCurrentSessionUser() : null;
+  return Boolean(user && String(user.workspaceId || '').trim());
+}
+
 async function init() {
+  if (!teamInitialLoadComplete) renderTeamLoadingState();
   await refreshTeamData();
+  teamInitialLoadComplete = true;
   applyTeamUiPermissions();
 }
 
@@ -297,6 +312,10 @@ function renderGrid(data) {
   }
 
   if (!data.length) {
+    if (!isTeamSessionReady()) {
+      renderTeamLoadingState();
+      return;
+    }
     grid.innerHTML = `<div style="grid-column:1/-1;"><div class="empty-state"><div class="e-icon">TEAM</div><h3>No team members found</h3><p>Add team members to get started</p></div></div>`;
     return;
   }
@@ -487,6 +506,10 @@ window.addEventListener('nexlance-data-changed', function(event) {
 });
 
 init();
+// Re-init once workspace/session resolves so the first empty load upgrades to real data
+window.addEventListener('nexlance-session-context-changed', function() {
+  if (isTeamSessionReady()) init();
+});
 </script>
 </body>
 </html>

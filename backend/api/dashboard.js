@@ -9,6 +9,7 @@ const {
     createCollectionDocument,
     deleteCollectionDocument,
     getCollectionDocument,
+    getCollectionDocumentsByIds,
     patchCollectionDocument,
     queryCollectionDocuments,
     sanitizeDocumentId,
@@ -413,9 +414,9 @@ async function listDashboardCollectionRecords(collectionId, sessionUser) {
         // so cross-checking against workspace_id is both redundant and
         // fragile — stale workspace stamping on legacy accounts causes the
         // workspace query below to drop valid projects.
-        const projectDocs = await Promise.all(
-            assignedIds.map(projectId => getCollectionDocument('projects', projectId).catch(() => null))
-        );
+        //
+        // Perf: single round-trip batched getAll() instead of N parallel reads.
+        const projectDocs = await getCollectionDocumentsByIds('projects', assignedIds).catch(() => []);
         const scopedProjects = projectDocs
             .filter(doc => doc && doc.data)
             .map(doc => ({ id: doc.id, data: doc.data }));
