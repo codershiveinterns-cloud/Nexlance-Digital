@@ -29,7 +29,10 @@ module.exports = async function handler(req, res) {
         const query = readQuery(req);
         const token = String(query.token || '').trim();
         const payload = verifyDownloadToken(token);
-        const bundle = buildTemplateZipBundle(payload.templateId, payload.email);
+        const proto = String((req.headers['x-forwarded-proto'] || '').split(',')[0] || 'https').trim();
+        const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
+        const origin = host ? `${proto}://${host}` : '';
+        const bundle = await buildTemplateZipBundle(payload.templateId, payload.email, { origin });
 
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${bundle.fileName}"`);

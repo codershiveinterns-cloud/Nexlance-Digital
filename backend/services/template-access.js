@@ -780,39 +780,73 @@ function normalizeAssetReference(reference) {
     return cleaned.replace(/^\.?\//, '');
 }
 
-function collectAssetPaths(template) {
+function normalizeOriginUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    // Strip trailing slash and any query/fragment so we can safely append paths.
+    return raw.replace(/[?#].*$/, '').replace(/\/+$/, '');
+}
+
+/**
+ * Read a template asset by relative path.
+ *
+ * Tries the local filesystem first (fast path for local dev), and falls back
+ * to HTTPS fetch from `origin` when the file isn't bundled with the running
+ * process — which is the normal case on Vercel, where static assets are
+ * served from the site origin rather than shipped with the lambda bundle.
+ *
+ * Returns an object of the form { buffer, text } or null on miss.
+ */
+async function readTemplateAsset(relativeFile, origin) {
+    const normalized = String(relativeFile || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    // Reject anything that could escape the project root (directory traversal,
+    // absolute URLs, control characters, etc.).
+    if (!normalized || normalized.includes('..') || /^(data:|https?:|\/\/)/i.test(normalized)) {
+        return null;
+    }
+
+    const absolutePath = path.normalize(path.join(PROJECT_ROOT, normalized));
+    if (absolutePath.startsWith(PROJECT_ROOT) && fs.existsSync(absolutePath)) {
+        const buffer = fs.readFileSync(absolutePath);
+        return { buffer, text: buffer.toString('utf8') };
+    }
+
+    const trimmedOrigin = normalizeOriginUrl(origin);
+    if (!trimmedOrigin || typeof fetch !== 'function') return null;
+
+    try {
+        const response = await fetch(`${trimmedOrigin}/${encodeURI(normalized)}`);
+        if (!response || !response.ok) return null;
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        return { buffer, text: buffer.toString('utf8') };
+    } catch (error) {
+        return null;
+    }
+}
+
+async function collectAssetPaths(template, origin) {
     const textExtensions = new Set(['.html', '.css', '.js']);
     const assetPaths = new Set(template.files);
 
-    template.files.forEach(relativeFile => {
-        const absolutePath = path.join(PROJECT_ROOT, relativeFile);
-        if (!fs.existsSync(absolutePath)) {
-            return;
-        }
-
+    for (const relativeFile of template.files) {
         const extension = path.extname(relativeFile).toLowerCase();
-        if (!textExtensions.has(extension)) {
-            return;
-        }
+        if (!textExtensions.has(extension)) continue;
 
-        const content = fs.readFileSync(absolutePath, 'utf8');
+        const asset = await readTemplateAsset(relativeFile, origin);
+        if (!asset || !asset.text) continue;
+
         const matches = [
-            ...content.matchAll(/(?:src|href)=["']([^"']+)["']/gi),
-            ...content.matchAll(/url\(([^)]+)\)/gi)
+            ...asset.text.matchAll(/(?:src|href)=["']([^"']+)["']/gi),
+            ...asset.text.matchAll(/url\(([^)]+)\)/gi)
         ];
 
-        matches.forEach(match => {
+        for (const match of matches) {
             const normalized = normalizeAssetReference(match[1]);
-            if (!normalized) return;
-
-            const absoluteReferencedPath = path.normalize(path.join(PROJECT_ROOT, normalized));
-            if (!absoluteReferencedPath.startsWith(PROJECT_ROOT) || !fs.existsSync(absoluteReferencedPath)) {
-                return;
-            }
-
+            if (!normalized) continue;
             assetPaths.add(normalized);
-        });
-    });
+        }
+    }
 
     return Array.from(assetPaths);
 }
@@ -903,27 +937,32 @@ function createStoredZip(entries) {
     return Buffer.concat([...localFileParts, centralDirectory, endOfCentralDirectory]);
 }
 
-function buildTemplateZipBundle(templateId, requestedBy) {
+async function buildTemplateZipBundle(templateId, requestedBy, options = {}) {
     const normalizedTemplateId = normalizeTemplateId(templateId);
     const template = TEMPLATE_CATALOG[normalizedTemplateId];
-    const assetPaths = collectAssetPaths(template);
+    const origin = normalizeOriginUrl(options.origin);
+    const assetPaths = await collectAssetPaths(template, origin);
+
+    const entries = [];
+    const includedFiles = [];
+    for (const relativePath of assetPaths) {
+        const asset = await readTemplateAsset(relativePath, origin);
+        if (!asset) continue;
+        entries.push({
+            name: relativePath.replace(/\\/g, '/'),
+            data: asset.buffer,
+            modifiedAt: new Date()
+        });
+        includedFiles.push(relativePath.replace(/\\/g, '/'));
+    }
 
     const manifest = {
         templateId: normalizedTemplateId,
         templateName: template.name,
         generatedAt: new Date().toISOString(),
         requestedBy: normalizeEmail(requestedBy),
-        includedFiles: assetPaths
+        includedFiles
     };
-
-    const entries = assetPaths.map(relativePath => {
-        const absolutePath = path.join(PROJECT_ROOT, relativePath);
-        return {
-            name: relativePath.replace(/\\/g, '/'),
-            data: fs.readFileSync(absolutePath),
-            modifiedAt: fs.statSync(absolutePath).mtime
-        };
-    });
 
     entries.push({
         name: 'README.txt',
@@ -946,14 +985,39 @@ function buildTemplateZipBundle(templateId, requestedBy) {
     };
 }
 
-function buildProjectTemplateZipBundle(options = {}) {
+async function buildProjectTemplateZipBundle(options = {}) {
     const normalizedTemplateId = normalizeTemplateId(options.templateId);
     const template = TEMPLATE_CATALOG[normalizedTemplateId];
-    const assetPaths = collectAssetPaths(template);
+    const origin = normalizeOriginUrl(options.origin);
+    const assetPaths = await collectAssetPaths(template, origin);
     const htmlFileName = template.files.find(file => path.extname(file).toLowerCase() === '.html') || `${normalizedTemplateId}.html`;
     const savedHtml = String(options.renderedHtml || '').trim();
     const projectName = String(options.projectName || template.name || normalizedTemplateId).trim();
     const projectId = String(options.projectId || '').trim();
+
+    const entries = [];
+    const includedFiles = [];
+    for (const relativePath of assetPaths) {
+        const normalizedRel = relativePath.replace(/\\/g, '/');
+        const useSavedHtml = savedHtml && normalizedRel === htmlFileName.replace(/\\/g, '/');
+        if (useSavedHtml) {
+            entries.push({
+                name: normalizedRel,
+                data: Buffer.from(savedHtml, 'utf8'),
+                modifiedAt: new Date()
+            });
+            includedFiles.push(normalizedRel);
+            continue;
+        }
+        const asset = await readTemplateAsset(relativePath, origin);
+        if (!asset) continue;
+        entries.push({
+            name: normalizedRel,
+            data: asset.buffer,
+            modifiedAt: new Date()
+        });
+        includedFiles.push(normalizedRel);
+    }
 
     const manifest = {
         templateId: normalizedTemplateId,
@@ -963,18 +1027,8 @@ function buildProjectTemplateZipBundle(options = {}) {
         generatedAt: new Date().toISOString(),
         requestedBy: normalizeEmail(options.requestedBy),
         customized: Boolean(savedHtml),
-        includedFiles: assetPaths
+        includedFiles
     };
-
-    const entries = assetPaths.map(relativePath => {
-        const absolutePath = path.join(PROJECT_ROOT, relativePath);
-        const useSavedHtml = savedHtml && relativePath.replace(/\\/g, '/') === htmlFileName.replace(/\\/g, '/');
-        return {
-            name: relativePath.replace(/\\/g, '/'),
-            data: useSavedHtml ? Buffer.from(savedHtml, 'utf8') : fs.readFileSync(absolutePath),
-            modifiedAt: useSavedHtml ? new Date() : fs.statSync(absolutePath).mtime
-        };
-    });
 
     entries.push({
         name: 'README.txt',

@@ -48,12 +48,17 @@ module.exports = async function handler(req, res) {
             throw new Error('No saved template output is available for download yet.');
         }
 
-        const bundle = buildProjectTemplateZipBundle({
+        const proto = String((req.headers['x-forwarded-proto'] || '').split(',')[0] || 'https').trim();
+        const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
+        const origin = host ? `${proto}://${host}` : '';
+
+        const bundle = await buildProjectTemplateZipBundle({
             templateId: context.project.template_id,
             requestedBy: session.sessionUser.email,
             renderedHtml,
             projectId,
-            projectName: context.project.name || context.project.template_name || context.project.template_id
+            projectName: context.project.name || context.project.template_name || context.project.template_id,
+            origin
         });
 
         res.setHeader('Content-Type', 'application/zip');
