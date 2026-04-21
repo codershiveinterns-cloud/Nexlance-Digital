@@ -382,7 +382,6 @@ function openViewModal(id) {
   if (!modal) return;
 
   const role = getRoleLabel(member.canonical_role || member.role);
-  const perms = getMemberPermissionState(member);
   const allAccess = Boolean(member.all_projects_access || member.allProjectsAccess
     || String(member.project_access_scope || member.projectAccessScope || '').trim().toLowerCase() === 'all');
   const assignedIds = Array.isArray(member.assigned_project_ids) ? member.assigned_project_ids
@@ -392,12 +391,6 @@ function openViewModal(id) {
     ? ['All projects (workspace-wide access)']
     : assignedIds.map(pid => projectNameById.get(String(pid)) || String(pid));
 
-  const permissionLabels = [];
-  if (perms.tasks) permissionLabels.push('Edit Tasks');
-  if (perms.revenue) permissionLabels.push('Revenue & Financial Data');
-  if (perms.invoice) permissionLabels.push('Create Invoices');
-  if (perms.upload) permissionLabels.push('Upload Files');
-
   const escape = (value) => String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -405,9 +398,6 @@ function openViewModal(id) {
   const projectListHtml = assignedProjectNames.length
     ? `<ul class="view-list">${assignedProjectNames.map(name => `<li>${escape(name)}</li>`).join('')}</ul>`
     : `<div class="view-empty">No projects assigned to this member.</div>`;
-  const permissionListHtml = permissionLabels.length
-    ? `<ul class="view-list">${permissionLabels.map(label => `<li>${escape(label)}</li>`).join('')}</ul>`
-    : `<div class="view-empty">No additional permissions granted.</div>`;
 
   const detailsEl = document.getElementById('memberViewDetails');
   detailsEl.innerHTML = `
@@ -422,10 +412,6 @@ function openViewModal(id) {
     <div class="view-section">
       <div class="view-section-title">Assigned Projects</div>
       ${projectListHtml}
-    </div>
-    <div class="view-section">
-      <div class="view-section-title">Permissions</div>
-      ${permissionListHtml}
     </div>
     <div class="view-note">Read-only view — editing is disabled.</div>
   `;
