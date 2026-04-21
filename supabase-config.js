@@ -3415,6 +3415,12 @@ async function fetchClients(options) {
     // Demo / unconfigured mode is the one place sample data is allowed.
     if (!isFirebaseConfigured) return createAccessFilteredDataset('clients', sampleClients);
 
+    // Auth can still be restoring from IndexedDB on first paint.  Only wait
+    // if the sync check is not yet positive — no cost when already warm.
+    if (!isFirebaseUserAuthenticated()) {
+        await waitForFirebaseAuthSession(3000).catch(() => null);
+    }
+
     if (!isFirebaseUserAuthenticated()) {
         // No session → no authority to render anything. Silent wipe so
         // we don't re-dispatch nexlance-data-changed and retrigger listeners.
@@ -3712,9 +3718,13 @@ async function _fetchProjectsImpl(clientId = null, options) {
         return [];
     }
 
-    // Note: dashboardApiRequest() awaits waitForFirebaseAuthSession() internally,
-    // so no additional pre-wait is needed here — removing the extra 3s gate
-    // saves first-load latency when auth is already hydrated.
+    // The isFirebaseUserAuthenticated() check below is synchronous.  If auth
+    // is still restoring from IndexedDB, the check would return false and we
+    // would wrongly return [].  Only wait when auth isn't already ready — no
+    // cost when it is, which is the fast path for warm navigations.
+    if (!isFirebaseUserAuthenticated()) {
+        await waitForFirebaseAuthSession(3000).catch(() => null);
+    }
 
     try {
         if (isFirebaseUserAuthenticated()) {
@@ -3806,6 +3816,13 @@ async function addProject(d) {
 
     if (isFirebaseConfigured) {
         if (!hasDashboardPermission('projects', 'create')) throw createDashboardPermissionError('projects', 'create');
+        // workspaceId can be hydrated synchronously from localStorage while the
+        // Firebase auth SDK is still restoring from IndexedDB.  Wait here so
+        // the sync isFirebaseUserAuthenticated() check below is accurate — else
+        // the call falls through to the "server is unreachable" error path.
+        if (!isFirebaseUserAuthenticated()) {
+            await waitForFirebaseAuthSession(3000).catch(() => null);
+        }
         if (isFirebaseUserAuthenticated()) {
             optimisticSnapshot = createEntityRecordsSnapshot('projects');
             optimisticDraftId = `tmp_project_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -4507,6 +4524,11 @@ async function fetchInvoices(options) {
     if (!canAccessEntity('invoices')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('invoices', sampleInvoices);
 
+    // Auth can still be restoring from IndexedDB on first paint.
+    if (!isFirebaseUserAuthenticated()) {
+        await waitForFirebaseAuthSession(3000).catch(() => null);
+    }
+
     if (!isFirebaseUserAuthenticated()) {
         // No session → no authority. Silent wipe to avoid event-bus loops.
         clearLocalEntityData('invoices', { silent: true });
@@ -4775,6 +4797,11 @@ async function fetchTeamMembers(options) {
 
     if (!canAccessEntity('team')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('team_members', sampleTeamMembers);
+
+    // Auth can still be restoring from IndexedDB on first paint.
+    if (!isFirebaseUserAuthenticated()) {
+        await waitForFirebaseAuthSession(3000).catch(() => null);
+    }
 
     if (!isFirebaseUserAuthenticated()) {
         // No session → no authority. Wipe cache to prevent stale render.
