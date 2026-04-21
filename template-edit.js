@@ -219,6 +219,19 @@ document.addEventListener('DOMContentLoaded', () => {
         clone.querySelectorAll('#templateWorkspaceStyles').forEach(element => element.remove());
         clone.querySelectorAll('#templateWorkspaceImagePicker').forEach(element => element.remove());
 
+        // Strip the workspace editor bootstrap script and any metadata attributes
+        // it added, so the downloaded HTML renders standalone without needing
+        // template-edit.js or carrying editor-only classes/attrs.
+        clone.querySelectorAll('script[src]').forEach(element => {
+            const src = String(element.getAttribute('src') || '');
+            if (/(?:^|\/)template-edit\.js(?:$|[?#])/i.test(src)) {
+                element.remove();
+            }
+        });
+        clone.querySelectorAll('[data-template-edit-key]').forEach(element => element.removeAttribute('data-template-edit-key'));
+        clone.querySelectorAll('[data-template-image-updated]').forEach(element => element.removeAttribute('data-template-image-updated'));
+        clone.querySelectorAll('.template-workspace-editing').forEach(element => element.classList.remove('template-workspace-editing'));
+
         if (normalizeAssetsAbsolute) {
             clone.querySelectorAll('link[href], script[src], img[src], source[src]').forEach(element => {
                 const attr = element.tagName.toLowerCase() === 'link' ? 'href' : 'src';

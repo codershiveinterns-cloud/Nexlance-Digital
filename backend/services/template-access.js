@@ -825,6 +825,23 @@ async function readTemplateAsset(relativeFile, origin) {
     }
 }
 
+// Files whose names we never want to ship inside a downloaded project, even
+// if the saved HTML still references them (e.g. older saved copies that
+// pre-date the editor-script stripping on the client).
+const EXCLUDED_BUNDLE_FILES = new Set([
+    'template-edit.js',
+    'template-flow.js',
+    'template-registry.js',
+    'template-access.js',
+    'project-template-entry.js',
+    'project-template-workspace.js'
+]);
+
+function shouldExcludeAssetFromBundle(relativePath) {
+    const base = String(relativePath || '').split('/').pop().toLowerCase();
+    return EXCLUDED_BUNDLE_FILES.has(base);
+}
+
 async function collectAssetPaths(template, origin) {
     const textExtensions = new Set(['.html', '.css', '.js']);
     const assetPaths = new Set(template.files);
@@ -844,11 +861,12 @@ async function collectAssetPaths(template, origin) {
         for (const match of matches) {
             const normalized = normalizeAssetReference(match[1]);
             if (!normalized) continue;
+            if (shouldExcludeAssetFromBundle(normalized)) continue;
             assetPaths.add(normalized);
         }
     }
 
-    return Array.from(assetPaths);
+    return Array.from(assetPaths).filter(assetPath => !shouldExcludeAssetFromBundle(assetPath));
 }
 
 function crc32(buffer) {
@@ -985,13 +1003,27 @@ async function buildTemplateZipBundle(templateId, requestedBy, options = {}) {
     };
 }
 
+function sanitizeRenderedHtmlForDownload(html) {
+    let result = String(html || '');
+    // Drop editor bootstrap <script src=".../template-edit.js"></script>
+    result = result.replace(/<script\b[^>]*\bsrc=["'][^"']*template-edit\.js[^"']*["'][^>]*>\s*<\/script>\s*/gi, '');
+    // Drop editor-only attributes/classes left behind by older saves
+    result = result.replace(/\s+data-template-edit-key="[^"]*"/gi, '');
+    result = result.replace(/\s+data-template-image-updated="[^"]*"/gi, '');
+    result = result.replace(/\s+class="([^"]*)template-workspace-editable[^"]*"/gi, (match, prefix) => {
+        const cleaned = String(prefix || '').replace(/\s+/g, ' ').trim();
+        return cleaned ? ` class="${cleaned}"` : '';
+    });
+    return result;
+}
+
 async function buildProjectTemplateZipBundle(options = {}) {
     const normalizedTemplateId = normalizeTemplateId(options.templateId);
     const template = TEMPLATE_CATALOG[normalizedTemplateId];
     const origin = normalizeOriginUrl(options.origin);
     const assetPaths = await collectAssetPaths(template, origin);
     const htmlFileName = template.files.find(file => path.extname(file).toLowerCase() === '.html') || `${normalizedTemplateId}.html`;
-    const savedHtml = String(options.renderedHtml || '').trim();
+    const savedHtml = sanitizeRenderedHtmlForDownload(String(options.renderedHtml || '').trim());
     const projectName = String(options.projectName || template.name || normalizedTemplateId).trim();
     const projectId = String(options.projectId || '').trim();
 
