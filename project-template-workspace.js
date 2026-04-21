@@ -793,6 +793,15 @@
         return refreshedProject;
     }
 
+    function base64ToUint8Array(base64) {
+        const binary = atob(String(base64 || ''));
+        const out = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+            out[i] = binary.charCodeAt(i);
+        }
+        return out;
+    }
+
     function downloadBlobFile(filename, blob) {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
@@ -804,10 +813,46 @@
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    function parseDownloadFileName(response, fallbackName) {
-        const header = response.headers.get('Content-Disposition') || response.headers.get('content-disposition') || '';
-        const match = header.match(/filename="?([^"]+)"?/i);
-        return match && match[1] ? match[1] : fallbackName;
+    // Write each file individually into a user-chosen folder using the File
+    // System Access API.  Preserves the relative folder structure (e.g.
+    // "images/f4.avif" → <picked folder>/images/f4.avif), so the exported
+    // HTML's relative CSS/JS/image references resolve the moment it opens.
+    async function saveProjectFilesToUserFolder(projectSlug, files) {
+        const rootHandle = await window.showDirectoryPicker({ id: 'nexlance-project-download', mode: 'readwrite' });
+        // Create a subfolder named after the project so we don't clutter the
+        // user's chosen root with loose files.
+        const targetHandle = await rootHandle.getDirectoryHandle(projectSlug || 'nexlance-template-project', { create: true });
+
+        for (const file of files) {
+            const segments = String(file.path || '').split('/').filter(Boolean);
+            const fileName = segments.pop();
+            if (!fileName) continue;
+
+            let current = targetHandle;
+            for (const folder of segments) {
+                current = await current.getDirectoryHandle(folder, { create: true });
+            }
+            const fileHandle = await current.getFileHandle(fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(base64ToUint8Array(file.data));
+            await writable.close();
+        }
+    }
+
+    // Fallback for browsers without File System Access API: trigger a plain
+    // download per file.  Subfolder paths get flattened (e.g. "images/f4.avif"
+    // becomes "images__f4.avif") so the browser still saves them, and the
+    // user can re-create the folder structure manually if they want.
+    async function downloadProjectFilesSequentially(files) {
+        for (const file of files) {
+            const bytes = base64ToUint8Array(file.data);
+            const blob = new Blob([bytes], { type: file.contentType || 'application/octet-stream' });
+            const safeName = String(file.path || '').replace(/\//g, '__') || 'file';
+            downloadBlobFile(safeName, blob);
+            // Spacing between triggers so the browser's download throttler
+            // doesn't coalesce or drop any of them.
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
     }
 
     async function downloadProjectTemplateBundle(projectId, payload = {}) {
@@ -837,9 +882,28 @@
             throw new Error(errorPayload.error || 'Project download could not be prepared.');
         }
 
-        const blob = await response.blob();
-        const fallbackName = `${slugify((getCurrentProject() || {}).name || 'template-project')}.zip`;
-        downloadBlobFile(parseDownloadFileName(response, fallbackName), blob);
+        const responseData = await response.json();
+        const files = Array.isArray(responseData && responseData.files) ? responseData.files : [];
+        if (!files.length) {
+            throw new Error('Project download returned no files.');
+        }
+        const projectSlug = String(responseData.projectSlug || slugify((getCurrentProject() || {}).name || 'template-project'));
+
+        if (typeof window.showDirectoryPicker === 'function') {
+            try {
+                await saveProjectFilesToUserFolder(projectSlug, files);
+                return;
+            } catch (error) {
+                // AbortError = the user cancelled the folder picker; treat that
+                // as a cancel rather than falling back to flat downloads.
+                if (error && (error.name === 'AbortError' || error.code === 20)) {
+                    throw new Error('Download cancelled.');
+                }
+                console.warn('Folder-picker save failed, falling back to individual downloads:', error);
+            }
+        }
+
+        await downloadProjectFilesSequentially(files);
     }
 
     async function unlockTemplateDownload(project, templateName) {

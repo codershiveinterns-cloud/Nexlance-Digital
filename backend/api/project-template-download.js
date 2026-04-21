@@ -1,6 +1,6 @@
 const AccessControl = require('../../rbac.js');
 const { requireAuth, requireInitializedUser } = require('../services/request-guards');
-const { buildProjectTemplateZipBundle } = require('../services/template-access');
+const { buildProjectTemplateFileList } = require('../services/template-access');
 const { loadTemplateWorkspaceContext, requireTemplateWorkspaceCapability } = require('../services/template-workspace');
 
 module.exports = async function handler(req, res) {
@@ -52,7 +52,7 @@ module.exports = async function handler(req, res) {
         const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').trim();
         const origin = host ? `${proto}://${host}` : '';
 
-        const bundle = await buildProjectTemplateZipBundle({
+        const fileList = await buildProjectTemplateFileList({
             templateId: context.project.template_id,
             requestedBy: session.sessionUser.email,
             renderedHtml,
@@ -61,9 +61,12 @@ module.exports = async function handler(req, res) {
             origin
         });
 
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${bundle.fileName}"`);
-        res.status(200).end(bundle.buffer);
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).json({
+            projectSlug: fileList.projectSlug,
+            templateId: fileList.templateId,
+            files: fileList.files
+        });
     } catch (error) {
         res.status(error.statusCode || 400).json({ error: error.message || 'Project template download could not be prepared.' });
     }

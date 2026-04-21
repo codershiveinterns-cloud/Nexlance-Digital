@@ -1017,6 +1017,100 @@ function sanitizeRenderedHtmlForDownload(html) {
     return result;
 }
 
+// Build the list of files that make up a downloadable project, without
+// zipping them.  Used by the individual-files download path so the client can
+// save each asset to disk in a folder picked by the user.
+async function buildProjectTemplateFileList(options = {}) {
+    const normalizedTemplateId = normalizeTemplateId(options.templateId);
+    const template = TEMPLATE_CATALOG[normalizedTemplateId];
+    const origin = normalizeOriginUrl(options.origin);
+    const assetPaths = await collectAssetPaths(template, origin);
+    const htmlFileName = template.files.find(file => path.extname(file).toLowerCase() === '.html') || `${normalizedTemplateId}.html`;
+    const savedHtml = sanitizeRenderedHtmlForDownload(String(options.renderedHtml || '').trim());
+    const projectName = String(options.projectName || template.name || normalizedTemplateId).trim();
+    const projectId = String(options.projectId || '').trim();
+
+    const files = [];
+    const includedFiles = [];
+    for (const relativePath of assetPaths) {
+        const normalizedRel = relativePath.replace(/\\/g, '/');
+        const useSavedHtml = savedHtml && normalizedRel === htmlFileName.replace(/\\/g, '/');
+        if (useSavedHtml) {
+            files.push({
+                path: normalizedRel,
+                data: Buffer.from(savedHtml, 'utf8').toString('base64'),
+                contentType: 'text/html; charset=utf-8'
+            });
+            includedFiles.push(normalizedRel);
+            continue;
+        }
+        const asset = await readTemplateAsset(relativePath, origin);
+        if (!asset) continue;
+        files.push({
+            path: normalizedRel,
+            data: asset.buffer.toString('base64'),
+            contentType: inferContentType(normalizedRel)
+        });
+        includedFiles.push(normalizedRel);
+    }
+
+    const manifest = {
+        templateId: normalizedTemplateId,
+        templateName: template.name,
+        projectId,
+        projectName,
+        generatedAt: new Date().toISOString(),
+        requestedBy: normalizeEmail(options.requestedBy),
+        customized: Boolean(savedHtml),
+        includedFiles
+    };
+    files.push({
+        path: 'README.txt',
+        data: Buffer.from(
+            `Nexlance project export\nProject: ${projectName}\nTemplate: ${template.name}\nRequested by: ${normalizeEmail(options.requestedBy)}\nGenerated at: ${manifest.generatedAt}\n`,
+            'utf8'
+        ).toString('base64'),
+        contentType: 'text/plain; charset=utf-8'
+    });
+    files.push({
+        path: 'manifest.json',
+        data: Buffer.from(JSON.stringify(manifest, null, 2), 'utf8').toString('base64'),
+        contentType: 'application/json'
+    });
+
+    return {
+        projectSlug: slugify(projectName || normalizedTemplateId),
+        templateId: normalizedTemplateId,
+        files
+    };
+}
+
+function inferContentType(relativePath) {
+    const ext = path.extname(relativePath).toLowerCase();
+    const map = {
+        '.html': 'text/html; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.json': 'application/json',
+        '.txt': 'text/plain; charset=utf-8',
+        '.svg': 'image/svg+xml',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.avif': 'image/avif',
+        '.ico': 'image/x-icon',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.otf': 'font/otf',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm'
+    };
+    return map[ext] || 'application/octet-stream';
+}
+
 async function buildProjectTemplateZipBundle(options = {}) {
     const normalizedTemplateId = normalizeTemplateId(options.templateId);
     const template = TEMPLATE_CATALOG[normalizedTemplateId];
@@ -1118,6 +1212,7 @@ function renderDownloadErrorPage(message) {
 module.exports = {
     TEMPLATE_CATALOG,
     TEMPLATE_PRICE,
+    buildProjectTemplateFileList,
     buildProjectTemplateZipBundle,
     buildTemplateZipBundle,
     completeTemplateAccess,
