@@ -1,7 +1,6 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 
 // Shared Firebase configuration for the frontend auth flow.
 const firebaseConfig = {
@@ -17,14 +16,6 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
-isAnalyticsSupported()
-  .then((supported) => {
-    if (supported) {
-      getAnalytics(app);
-    }
-  })
-  .catch(() => {});
 
 // Keep users signed in across refreshes in the browser.
 const authReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
