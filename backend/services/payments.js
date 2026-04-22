@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const path = require('path');
 
 const {
     DEFAULT_CURRENCY,
@@ -8,7 +7,7 @@ const {
     getProducts,
     grantsAllTemplates,
     isSingleTemplateProduct
-} = require(path.join(__dirname, '..', '..', 'billing-catalog.js'));
+} = require('../../billing-catalog.js');
 const {
     findUserDocumentByEmail,
     getWebhookEvent,
