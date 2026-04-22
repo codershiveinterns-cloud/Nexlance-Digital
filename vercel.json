@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "server.js": {
+      "includeFiles": "{*.html,*.css,*.js,*.json,*.ico,*.png,*.svg,*.jpg,*.jpeg,*.gif,*.webp,*.avif,*.mp4,*.woff,*.woff2,*.ttf,images/**,assets/**,fonts/**}"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/checkout-complete",
