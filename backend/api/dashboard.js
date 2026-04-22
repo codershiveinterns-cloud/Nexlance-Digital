@@ -6,6 +6,7 @@ const { syncClientAccessState } = require('../services/client-access');
 const { syncTeamMemberState } = require('../services/team-member-access');
 const { invalidateSessionCache } = require('../services/workspace-access');
 const { cascadeDashboardDeletion } = require('../services/delete-cascade');
+const { deleteFirebaseAccountForRemovedMember } = require('../services/member-account-deletion');
 const {
     createCollectionDocument,
     deleteCollectionDocument,
@@ -943,11 +944,30 @@ module.exports = async function handler(req, res) {
             // If a team_member or client is removed, drop the session cache
             // for that user so their next /api/me call reflects the revoked
             // access immediately instead of serving the cached scope.
+            let memberAccountDeletion = null;
             if (route.collectionId === 'team_members' || route.collectionId === 'clients') {
                 const affectedUserId = String(
                     (existing.data && (existing.data.invited_user_id || existing.data.userId || existing.data.invitedUserId)) || ''
                 ).trim();
                 if (affectedUserId) invalidateSessionCache(affectedUserId);
+
+                // Also purge the user's Firebase Auth record when safe.  See
+                // member-account-deletion.js for the full safety rules; the
+                // helper self-skips if the user still belongs to other
+                // workspaces, owns a workspace, is the acting admin, etc.
+                try {
+                    memberAccountDeletion = await deleteFirebaseAccountForRemovedMember({
+                        collectionId: route.collectionId,
+                        deletedRecord: existing,
+                        currentUserId: String(authUser && authUser.uid || '').trim(),
+                        workspaceId: workspaceIdForCascade
+                    });
+                } catch (err) {
+                    console.warn('[DashboardAPI] member Firebase Auth cleanup failed', {
+                        collectionId: route.collectionId,
+                        error: err && err.message
+                    });
+                }
             }
             // Project delete: invalidate session cache for every user who
             // had the project assigned, so their next /api/me drops it
@@ -958,7 +978,11 @@ module.exports = async function handler(req, res) {
                 });
             }
 
-            res.status(200).json({ ok: true, cascade: cascadeResult && cascadeResult.summary });
+            res.status(200).json({
+                ok: true,
+                cascade: cascadeResult && cascadeResult.summary,
+                memberAccountDeletion: memberAccountDeletion || undefined
+            });
             return;
         }
 
