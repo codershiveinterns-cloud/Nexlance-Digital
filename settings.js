@@ -353,11 +353,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 trialUsed: true
             };
 
-            if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser && typeof db !== 'undefined' && db) {
-                const authUser = firebase.auth().currentUser;
-                await db.collection('deleted_accounts').doc(getDeletedAccountKey(email)).set(deletedRecord);
-                await db.collection('users').doc(authUser.uid).delete();
-                await authUser.delete();
+            const modularAuth = (typeof window !== 'undefined' && window.__nexlance_modular_auth) || null;
+            const modularUser = modularAuth && modularAuth.currentUser ? modularAuth.currentUser : null;
+            const compatUser = (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser)
+                ? firebase.auth().currentUser
+                : null;
+            const liveUser = modularUser || compatUser;
+
+            if (liveUser && typeof liveUser.getIdToken === 'function') {
+                const idToken = await liveUser.getIdToken();
+                const response = await fetch('/api/me/delete', {
+                    method: 'POST',
+                    headers: { Authorization: 'Bearer ' + idToken },
+                    credentials: 'same-origin'
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(payload && payload.error ? payload.error : 'Could not delete the account.');
+                }
+
+                try {
+                    if (modularAuth && typeof modularAuth.signOut === 'function') {
+                        await modularAuth.signOut();
+                    }
+                } catch (_) { /* ignore */ }
+                try {
+                    if (typeof firebase !== 'undefined' && firebase.auth) {
+                        await firebase.auth().signOut();
+                    }
+                } catch (_) { /* ignore */ }
             } else {
                 const users = getLocalUsers().filter(user => normalizeEmail(user.email) !== email);
                 saveLocalUsers(users);
@@ -372,8 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = 'login.html';
         } catch (error) {
             if (deleteAccountMessage) {
-                deleteAccountMessage.textContent = error.code === 'auth/requires-recent-login'
-                    ? 'Please log in again, then delete the account.'
+                deleteAccountMessage.textContent = (error && error.message)
+                    ? error.message
                     : 'Could not delete the account. Please try again.';
                 deleteAccountMessage.className = 'form-message error';
             }

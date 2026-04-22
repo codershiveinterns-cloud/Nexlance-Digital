@@ -749,6 +749,16 @@ document.addEventListener("DOMContentLoaded", () => {
         setResendVerificationState(true, { email, password });
       }
 
+      if (result.accountMissing || result.code === "auth/account-not-registered") {
+        showFieldError("loginEmail", "No account found with this email.");
+        setMessage("loginMessage", "No account found with this email. Please create an account first.", "error");
+        switchTab("register");
+        const regEmailEl = document.getElementById("regEmail");
+        if (regEmailEl) regEmailEl.value = email;
+        setMessage("registerMessage", "You don't have an account yet. Please create one to continue.", "error");
+        return;
+      }
+
       setMessage("loginMessage", result.error, "error");
       return;
     }

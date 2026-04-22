@@ -4,6 +4,7 @@ import {
   checkActionCode,
   confirmPasswordReset,
   createUserWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   onAuthStateChanged,
   reload,
   sendEmailVerification,
@@ -46,7 +47,8 @@ export function getFriendlyAuthError(error) {
     case "auth/invalid-email":
       return "Please enter a valid email address.";
     case "auth/user-not-found":
-      return "No account found with this email.";
+    case "auth/account-not-registered":
+      return "No account found with this email. Please create an account first.";
     case "auth/email-already-in-use":
       return "An account with this email already exists.";
     case "auth/weak-password":
@@ -250,7 +252,35 @@ export async function loginWithEmail(email, password, profileDefaults = {}, opti
       message: "Login successful.",
     };
   } catch (error) {
+    const credentialErrorCodes = new Set([
+      "auth/invalid-credential",
+      "auth/wrong-password",
+      "auth/user-not-found",
+    ]);
+
+    if (credentialErrorCodes.has(error?.code)) {
+      const accountExists = await checkAccountExists(email);
+      if (accountExists === false) {
+        return buildFailure(error, {
+          code: "auth/account-not-registered",
+          accountMissing: true,
+          error: "No account found with this email. Please create an account first.",
+        });
+      }
+    }
+
     return buildFailure(error);
+  }
+}
+
+async function checkAccountExists(email) {
+  try {
+    const methods = await fetchSignInMethodsForEmail(auth, normalizeEmail(email));
+    if (Array.isArray(methods) && methods.length > 0) return true;
+    return false;
+  } catch (error) {
+    // Network errors or unexpected SDK errors — don't claim the account is missing.
+    return null;
   }
 }
 
