@@ -855,7 +855,7 @@ async function handleDashboardApi(req, res, url) {
     sendJson(res, 405, { error: 'Method not allowed' });
 }
 
-const server = http.createServer(async (req, res) => {
+async function requestHandler(req, res) {
     if (!req.url) {
         sendJson(res, 400, { error: 'Invalid request' });
         return;
@@ -1393,7 +1393,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     sendJson(res, 405, { error: 'Method not allowed' });
-});
+}
+
+const server = http.createServer(requestHandler);
 
 function startServer(preferredPort, attemptsLeft = MAX_PORT_ATTEMPTS) {
     server.listen(preferredPort, () => {
@@ -1424,4 +1426,8 @@ function startServer(preferredPort, attemptsLeft = MAX_PORT_ATTEMPTS) {
     });
 }
 
-startServer(PORT);
+if (!process.env.VERCEL) {
+    startServer(PORT);
+}
+
+module.exports = requestHandler;
