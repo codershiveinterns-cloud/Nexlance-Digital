@@ -372,6 +372,14 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const token = await user.getIdToken(attempt > 0);
+    if (!String(token || "").trim()) {
+      if (attempt < MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        continue;
+      }
+      throw new Error("Could not acquire a valid Firebase ID token.");
+    }
+
     response = await fetch("/api/me", {
       method: "GET",
       headers: {
@@ -388,9 +396,10 @@ async function hardRefreshServerSessionAfterLogin(user, profile = {}, accessFiel
       continue;
     }
 
+    const backendError = String(payload && (payload.error || payload.message) || "").trim();
     const errorMessage = response.status === 500
       ? "Server error during workspace setup. Please try again in a moment."
-      : "Could not refresh workspace session from server.";
+      : (backendError || "Could not refresh workspace session from server.");
     throw new Error(errorMessage);
   }
 

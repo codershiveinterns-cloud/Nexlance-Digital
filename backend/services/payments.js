@@ -26,6 +26,11 @@ const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN || '';
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET || '';
 const POLAR_API_BASE_URL = String(process.env.POLAR_API_BASE_URL || 'https://api.polar.sh/v1').trim().replace(/\/+$/, '');
 
+const mockStripeSessions = new Map();
+const mockPolarCheckouts = new Map();
+const isMockStripe = STRIPE_SECRET_KEY.startsWith('sk_test_mock');
+const isMockPolar = POLAR_ACCESS_TOKEN.startsWith('polar_oat_mock');
+
 const STRIPE_PRICE_ENV_MAP = {
     single_template: ['STRIPE_PRICE_SINGLE_TEMPLATE'],
     plus_monthly: ['STRIPE_PRICE_PLUS_MONTHLY'],
@@ -346,6 +351,45 @@ async function createStripeCheckoutSession(context) {
         successRedirect: context.successRedirect,
         cancelRedirect: context.cancelRedirect
     });
+
+    if (isMockStripe) {
+        console.log('[Stripe Checkout Simulation] Creating mock Stripe checkout session.', {
+            productCode: context.product.productCode,
+            userEmail: context.userEmail,
+            amount: context.product.price,
+            currency: context.product.currency
+        });
+
+        const sessionId = `cs_test_mock_${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+        const redirectUrl = urls.successUrl.replace('{CHECKOUT_SESSION_ID}', sessionId);
+
+        const mockSession = {
+            id: sessionId,
+            payment_status: 'paid',
+            status: 'complete',
+            customer_email: context.userEmail,
+            customer_details: { email: context.userEmail },
+            amount_total: context.product.price,
+            currency: context.product.currency,
+            metadata: context.metadata,
+            subscription: context.product.billingType === 'subscription' 
+                ? `sub_mock_${crypto.randomUUID ? crypto.randomUUID() : Date.now()}` 
+                : null
+        };
+        mockStripeSessions.set(sessionId, mockSession);
+
+        console.log('[Stripe Checkout Simulation] Cached mock session successfully.', {
+            sessionId,
+            redirectUrl
+        });
+
+        return {
+            provider: 'stripe',
+            redirectUrl: redirectUrl,
+            providerReferenceId: sessionId,
+            sessionId: sessionId
+        };
+    }
     const params = new URLSearchParams();
     params.set('mode', context.product.billingType === 'subscription' ? 'subscription' : 'payment');
     params.set('success_url', urls.successUrl);
@@ -422,6 +466,59 @@ async function createPolarCheckoutSession(context) {
         successRedirect: context.successRedirect,
         cancelRedirect: context.cancelRedirect
     });
+
+    if (isMockPolar) {
+        console.log('[Polar Checkout Simulation] Creating mock Polar checkout session.', {
+            productCode: context.product.productCode,
+            userEmail: context.userEmail,
+            productId
+        });
+
+        const checkoutId = `chk_mock_${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+        const redirectUrl = urls.polarSuccessUrl.replace('{CHECKOUT_ID}', checkoutId);
+
+        const mockCheckout = {
+            id: checkoutId,
+            status: 'succeeded',
+            customer_email: context.userEmail,
+            customer_name: context.userName,
+            external_customer_id: context.userEmail,
+            total_amount: context.product.price,
+            currency: context.product.currency,
+            metadata: context.metadata,
+            payment_processor: 'stripe',
+            order_id: `ord_mock_${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
+            subscription_id: context.product.billingType === 'subscription' 
+                ? `sub_mock_${crypto.randomUUID ? crypto.randomUUID() : Date.now()}` 
+                : null
+        };
+        mockPolarCheckouts.set(checkoutId, mockCheckout);
+
+        console.log('[Polar Checkout Simulation] Cached mock checkout successfully.', {
+            checkoutId,
+            redirectUrl
+        });
+
+        return {
+            provider: 'polar',
+            redirectUrl: redirectUrl,
+            providerReferenceId: checkoutId,
+            checkoutId: checkoutId,
+            diagnostics: {
+                paymentProcessor: 'stripe',
+                productId: productId,
+                productPriceId: 'price_mock',
+                productPriceType: context.product.billingType === 'subscription' ? 'recurring' : 'one_time',
+                recurringInterval: context.product.billingType === 'subscription' ? 'month' : '',
+                allowTrial: false,
+                activeTrialInterval: '',
+                currency: context.product.currency,
+                isPaymentRequired: true,
+                isPaymentSetupRequired: false,
+                isPaymentFormRequired: false
+            }
+        };
+    }
     const response = await fetch(`${POLAR_API_BASE_URL}/checkouts`, {
         method: 'POST',
         headers: {
@@ -544,6 +641,13 @@ async function createHostedCheckout(options) {
             successRedirect: context.successRedirect || context.product.successRedirect
         };
     } catch (error) {
+        console.error('[createHostedCheckout] Checkout session creation failed:', {
+            provider: selectedProvider,
+            productCode: context.product.productCode,
+            userEmail: context.userEmail,
+            error: error.message,
+            stack: error.stack
+        });
         lastError = error;
         await upsertPaymentAttempt({
             ...attemptBase,
@@ -561,6 +665,11 @@ async function createHostedCheckout(options) {
 }
 
 async function fetchStripeCheckoutSession(sessionId) {
+    if (isMockStripe && mockStripeSessions.has(sessionId)) {
+        console.log(`[Stripe Checkout Simulation] Fetching mock Stripe session: ${sessionId}`);
+        return mockStripeSessions.get(sessionId);
+    }
+
     const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'GET',
         headers: {
@@ -579,6 +688,15 @@ async function fetchStripeCheckoutSession(sessionId) {
 
 async function fetchStripeSubscription(subscriptionId) {
     if (!subscriptionId) return null;
+    if (isMockStripe && String(subscriptionId).startsWith('sub_mock')) {
+        console.log(`[Stripe Checkout Simulation] Fetching mock Stripe subscription: ${subscriptionId}`);
+        return {
+            id: subscriptionId,
+            status: 'active',
+            current_period_end: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60 // 1 year from now
+        };
+    }
+
     const response = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
         method: 'GET',
         headers: {
@@ -596,6 +714,11 @@ async function fetchStripeSubscription(subscriptionId) {
 }
 
 async function fetchPolarCheckoutSession(checkoutId) {
+    if (isMockPolar && mockPolarCheckouts.has(checkoutId)) {
+        console.log(`[Polar Checkout Simulation] Fetching mock Polar checkout: ${checkoutId}`);
+        return mockPolarCheckouts.get(checkoutId);
+    }
+
     const response = await fetch(`${POLAR_API_BASE_URL}/checkouts/${encodeURIComponent(checkoutId)}`, {
         method: 'GET',
         headers: {

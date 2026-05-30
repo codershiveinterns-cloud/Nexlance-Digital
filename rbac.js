@@ -125,7 +125,6 @@
             PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
             PERMISSIONS.EDIT_TEMPLATE,
             PERMISSIONS.SAVE_TEMPLATE,
-            PERMISSIONS.COMPLETE_PROJECT,
             PERMISSIONS.VIEW_TASK_BOARD,
             PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
@@ -140,7 +139,6 @@
             PERMISSIONS.VIEW_TEMPLATE_WORKSPACE,
             PERMISSIONS.EDIT_TEMPLATE,
             PERMISSIONS.SAVE_TEMPLATE,
-            PERMISSIONS.COMPLETE_PROJECT,
             PERMISSIONS.VIEW_TASK_BOARD,
             PERMISSIONS.EDIT_TASK_BOARD,
             PERMISSIONS.EDIT_TASKS,
@@ -279,8 +277,13 @@
         const explicitPermissionKeys = getExplicitPermissionKeys(user);
         const permissionMode = String(user.permissionMode || user.permission_mode || '').trim().toLowerCase();
         const permissionKeys = new Set(GLOBAL_AUTHENTICATED_PERMISSIONS);
+        const isOwner = isWorkspaceOwner(user);
+        const isAdmin = role === ROLES.ADMIN;
 
-        if (permissionMode === 'explicit') {
+        // Workspace owners/admins should always retain baseline admin access.
+        // Explicit permission mode can still add keys, but it should not strip
+        // core admin capabilities and cause backend/frontend permission drift.
+        if (permissionMode === 'explicit' && !isOwner && !isAdmin) {
             explicitPermissionKeys.forEach(permission => permissionKeys.add(permission));
         } else {
             [
@@ -298,7 +301,7 @@
             permissionKeys.add(PERMISSIONS.EDIT_TASKS);
         }
 
-        if (isWorkspaceOwner(user)) {
+        if (isOwner) {
             OWNER_ONLY_PERMISSIONS.forEach(permission => permissionKeys.add(permission));
         }
 
@@ -441,11 +444,11 @@
         }
 
         if (isTemplateWorkspaceTeamMemberRole(normalizedRole)) {
-            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE] = true;
-            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.EDIT_TEMPLATE] = true;
-            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.SAVE_TEMPLATE] = true;
-            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.COMPLETE_TEMPLATE_PROJECT] = true;
-            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.DOWNLOAD_TEMPLATE_OUTPUT] = true;
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.VIEW_TEMPLATE_WORKSPACE] = hasPermission(user, PERMISSIONS.VIEW_TEMPLATE_WORKSPACE);
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.EDIT_TEMPLATE] = hasPermission(user, PERMISSIONS.EDIT_TEMPLATE);
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.SAVE_TEMPLATE] = hasPermission(user, PERMISSIONS.SAVE_TEMPLATE);
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.COMPLETE_TEMPLATE_PROJECT] = hasPermission(user, PERMISSIONS.COMPLETE_PROJECT);
+            capabilities[TEMPLATE_WORKSPACE_CAPABILITIES.DOWNLOAD_TEMPLATE_OUTPUT] = hasPermission(user, PERMISSIONS.DOWNLOAD_OUTPUT);
         }
 
         return capabilities;

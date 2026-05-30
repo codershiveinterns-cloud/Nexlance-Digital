@@ -4,10 +4,32 @@ function setApiCors(res, methods = 'GET,POST,OPTIONS') {
     res.setHeader('Access-Control-Allow-Methods', methods);
 }
 
+function ensureJsonResponseHelpers(res) {
+    if (typeof res.status !== 'function') {
+        res.status = function status(statusCode) {
+            this.statusCode = statusCode;
+            return this;
+        };
+    }
+
+    if (typeof res.json !== 'function') {
+        res.json = function json(payload) {
+            const statusCode = this.statusCode || 200;
+            this.writeHead(statusCode, {
+                'Content-Type': 'application/json; charset=utf-8'
+            });
+            this.end(JSON.stringify(payload));
+            return this;
+        };
+    }
+
+    return res;
+}
+
 function handleOptions(req, res, methods) {
     setApiCors(res, methods);
     if (req.method === 'OPTIONS') {
-        res.status(204).end();
+        ensureJsonResponseHelpers(res).status(204).end();
         return true;
     }
     return false;
@@ -49,7 +71,9 @@ function sendApiError(res, error, fallbackMessage, fallbackStatusCode = 400) {
     if (error && Array.isArray(error.missingFields) && error.missingFields.length) {
         payload.missingFields = error.missingFields;
     }
-    res.status(error.statusCode || error.status || fallbackStatusCode).json(payload);
+    ensureJsonResponseHelpers(res)
+        .status(error.statusCode || error.status || fallbackStatusCode)
+        .json(payload);
 }
 
 module.exports = {

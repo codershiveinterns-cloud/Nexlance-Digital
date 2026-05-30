@@ -294,8 +294,20 @@ function isTeamSessionReady() {
 }
 
 async function init() {
+  if (typeof waitForFirebaseAuthSession === 'function') {
+    await waitForFirebaseAuthSession(5000).catch(() => null);
+  }
+  if (typeof isFirebaseUserAuthenticated === 'function' && isFirebaseUserAuthenticated()) {
+    if (typeof ensureSessionHydration === 'function') {
+      await ensureSessionHydration('team_page_init', { forceRetry: true }).catch(() => null);
+    }
+  }
   if (!teamInitialLoadComplete) renderTeamLoadingState();
   await refreshTeamData();
+  if (!isTeamSessionReady() && typeof waitForFirebaseAuthSession === 'function') {
+    await waitForFirebaseAuthSession(3000).catch(() => null);
+    await refreshTeamData();
+  }
   teamInitialLoadComplete = true;
   applyTeamUiPermissions();
 }

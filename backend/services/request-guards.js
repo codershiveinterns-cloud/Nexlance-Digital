@@ -1,7 +1,34 @@
 const AccessControl = require('../../rbac.js');
 const { authenticateDashboardRequest } = require('./dashboard-auth');
 
+function normalizeAuthorizationHeader(req) {
+    if (!req || !req.headers || typeof req.headers !== 'object') {
+        return;
+    }
+
+    const headers = req.headers;
+    let authorizationHeader = headers.authorization;
+
+    if (!authorizationHeader) {
+        authorizationHeader = headers.Authorization || headers.AUTHORIZATION || '';
+    }
+
+    if (!authorizationHeader && typeof req.get === 'function') {
+        authorizationHeader = req.get('authorization') || req.get('Authorization') || '';
+    }
+
+    if (Array.isArray(authorizationHeader)) {
+        authorizationHeader = authorizationHeader.find(Boolean) || '';
+    }
+
+    const normalizedHeader = String(authorizationHeader || '').trim();
+    if (normalizedHeader && !headers.authorization) {
+        headers.authorization = normalizedHeader;
+    }
+}
+
 async function requireAuth(req) {
+    normalizeAuthorizationHeader(req);
     return authenticateDashboardRequest(req);
 }
 
@@ -82,6 +109,7 @@ function requirePermission(session, permission) {
 }
 
 module.exports = {
+    normalizeAuthorizationHeader,
     requireAuth,
     requireInitializedAuth,
     requireInitializedUser,

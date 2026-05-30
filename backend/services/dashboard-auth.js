@@ -33,10 +33,48 @@ async function verifyFirebaseIdToken(idToken) {
     };
 }
 
+function normalizeHeaderValue(value) {
+    if (Array.isArray(value)) {
+        return String(value.find(Boolean) || '').trim();
+    }
+    return String(value || '').trim();
+}
+
+function extractTokenFromAuthorizationHeader(headerValue) {
+    const value = normalizeHeaderValue(headerValue);
+    if (!value) return '';
+
+    const bearerMatch = value.match(/^Bearer\s+(.+)$/i);
+    if (bearerMatch && bearerMatch[1]) {
+        return bearerMatch[1].trim();
+    }
+
+    const jwtShape = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+    return jwtShape.test(value) ? value : '';
+}
+
 function getBearerToken(req) {
-    const header = req && req.headers ? req.headers.authorization || '' : '';
-    const match = String(header).match(/^Bearer\s+(.+)$/i);
-    return match ? match[1].trim() : '';
+    const headers = req && req.headers && typeof req.headers === 'object' ? req.headers : {};
+    const candidates = [
+        headers.authorization,
+        headers.Authorization,
+        headers.AUTHORIZATION,
+        headers['x-authorization'],
+        headers['x-id-token']
+    ];
+
+    if (typeof req.get === 'function') {
+        candidates.push(req.get('authorization'));
+        candidates.push(req.get('Authorization'));
+        candidates.push(req.get('x-id-token'));
+    }
+
+    for (const candidate of candidates) {
+        const token = extractTokenFromAuthorizationHeader(candidate);
+        if (token) return token;
+    }
+
+    return '';
 }
 
 async function authenticateDashboardRequest(req) {

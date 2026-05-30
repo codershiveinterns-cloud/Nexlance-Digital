@@ -415,6 +415,9 @@
         const currentUser = getCurrentUser();
 
         try {
+            if (typeof window !== 'undefined' && window.__nexlance_modular_auth && typeof window.__nexlance_modular_auth.signOut === 'function') {
+                await window.__nexlance_modular_auth.signOut();
+            }
             if (typeof firebase !== 'undefined' && firebase.auth) {
                 await firebase.auth().signOut();
             }

@@ -27,6 +27,48 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+async function syncCompatAuthSession(email, password) {
+  if (
+    typeof window === "undefined"
+    || typeof firebase === "undefined"
+    || !firebase.auth
+  ) {
+    return;
+  }
+
+  const compatAuth = firebase.auth();
+  const normalizedEmail = normalizeEmail(email);
+  const compatCurrentEmail = normalizeEmail(
+    compatAuth.currentUser && compatAuth.currentUser.email
+  );
+
+  if (compatCurrentEmail === normalizedEmail && compatAuth.currentUser) {
+    return;
+  }
+
+  if (typeof compatAuth.setPersistence === "function" && firebase.auth.Auth.Persistence) {
+    await compatAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+  }
+
+  await compatAuth.signInWithEmailAndPassword(normalizedEmail, password);
+}
+
+async function signOutCompatAuthIfPresent() {
+  if (
+    typeof window === "undefined"
+    || typeof firebase === "undefined"
+    || !firebase.auth
+  ) {
+    return;
+  }
+
+  try {
+    await firebase.auth().signOut();
+  } catch (error) {
+    console.warn("Compat Firebase sign-out failed:", error);
+  }
+}
+
 const AUTH_ACTION_URL = "https://nexlancedigital.com/auth-action.html";
 const LOGIN_URL = "https://nexlancedigital.com/login.html";
 const actionCodeSettings = {
@@ -221,6 +263,9 @@ export async function loginWithEmail(email, password, profileDefaults = {}, opti
     const normalizedEmail = normalizeEmail(email);
     const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
     const { user } = userCredential;
+    await syncCompatAuthSession(normalizedEmail, password).catch((error) => {
+      console.warn("Compat Firebase session sync failed after modular login:", error);
+    });
 
     await reload(user);
 
@@ -379,6 +424,7 @@ export async function logoutUser() {
   try {
     await authReady;
     await signOut(auth);
+    await signOutCompatAuthIfPresent();
     clearPersistedSession();
 
     return {

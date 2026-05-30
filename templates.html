@@ -132,14 +132,14 @@
             <button class="cat-tab" data-cat="agency">Agency</button>
         </div>
 
-        <!-- <div class="sort-bar">
+        <div class="sort-bar">
             <span class="result-count" id="resultCount">Showing all 8 templates</span>
-            <select class="sort-select" id="sortSelect">
+            <!-- <select class="sort-select" id="sortSelect">
                 <option value="popular">Most Popular</option>
                 <option value="newest">Newest First</option>
                 <option value="az">A - Z</option>
-            </select>
-        </div> -->
+            </select> -->
+        </div>
 
         <div class="tpl-grid" id="tplGrid">
             <div class="tpl-card" data-cat="ecommerce" data-name="Fashion Store">
@@ -325,43 +325,91 @@
 <script src="payment.js"></script>
 <script src="main.js"></script>
 <script>
-    const cards = Array.from(document.querySelectorAll('.tpl-card'));
-    const catTabs = document.querySelectorAll('.cat-tab');
-    const searchInput = document.getElementById('tplSearch');
-    const noResults = document.getElementById('noResults');
-    const resultCount = document.getElementById('resultCount');
+    function initTemplatesPage() {
+        const cards = Array.from(document.querySelectorAll('.tpl-card'));
+        const catTabs = Array.from(document.querySelectorAll('.cat-tab'));
+        const searchInput = document.getElementById('tplSearch');
+        const noResults = document.getElementById('noResults');
+        const resultCount = document.getElementById('resultCount');
 
-    function applyFilter() {
-        const activeCat = document.querySelector('.cat-tab.active').dataset.cat;
-        const query = searchInput.value.toLowerCase().trim();
-        let visible = 0;
+        function getActiveCategory() {
+            const activeTab = document.querySelector('.cat-tab.active');
+            return activeTab && activeTab.dataset.cat ? activeTab.dataset.cat : 'all';
+        }
 
-        cards.forEach(function (card) {
-            const catMatch = activeCat === 'all' || card.dataset.cat === activeCat;
-            const nameMatch = !query || card.dataset.name.toLowerCase().includes(query);
-            const show = catMatch && nameMatch;
-            card.style.display = show ? '' : 'none';
-            if (show) {
-                visible += 1;
+        function updateCategoryCounts() {
+            const counts = cards.reduce(function (totals, card) {
+                const category = card.dataset.cat;
+                if (category) {
+                    totals[category] = (totals[category] || 0) + 1;
+                    totals.all += 1;
+                }
+                return totals;
+            }, { all: 0 });
+
+            catTabs.forEach(function (tab) {
+                if (!tab.dataset.label) {
+                    tab.dataset.label = tab.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
+                }
+
+                const category = tab.dataset.cat || 'all';
+                const count = counts[category] || 0;
+                tab.textContent = tab.dataset.label + ' (' + count + ')';
+            });
+        }
+
+        function applyFilter() {
+            const activeCat = getActiveCategory();
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            let visible = 0;
+
+            cards.forEach(function (card) {
+                const category = card.dataset.cat || '';
+                const name = (card.dataset.name || '').toLowerCase();
+                const catMatch = activeCat === 'all' || category === activeCat;
+                const nameMatch = !query || name.includes(query);
+                const show = catMatch && nameMatch;
+
+                card.style.display = show ? '' : 'none';
+                if (show) {
+                    visible += 1;
+                }
+            });
+
+            if (noResults) {
+                noResults.style.display = visible === 0 ? 'block' : 'none';
             }
+
+            if (resultCount) {
+                const noun = visible === 1 ? 'template' : 'templates';
+                resultCount.textContent = 'Showing ' + visible + ' ' + noun;
+            }
+        }
+
+        updateCategoryCounts();
+
+        catTabs.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                catTabs.forEach(function (tab) {
+                    tab.classList.remove('active');
+                });
+                btn.classList.add('active');
+                applyFilter();
+            });
         });
 
-        noResults.style.display = visible === 0 ? 'block' : 'none';
-        resultCount.textContent = 'Showing ' + visible + ' template' + (visible !== 1 ? 's' : '');
+        if (searchInput) {
+            searchInput.addEventListener('input', applyFilter);
+        }
+
+        applyFilter();
     }
 
-    catTabs.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            catTabs.forEach(function (tab) {
-                tab.classList.remove('active');
-            });
-            btn.classList.add('active');
-            applyFilter();
-        });
-    });
-
-    searchInput.addEventListener('input', applyFilter);
-    applyFilter();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTemplatesPage);
+    } else {
+        initTemplatesPage();
+    }
 
     document.querySelectorAll('.tpl-card').forEach(function (card) {
         const info = card.querySelector('.tpl-info');

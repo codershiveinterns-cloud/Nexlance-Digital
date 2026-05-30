@@ -1435,7 +1435,7 @@ function isFirebaseUserAuthenticated() {
     return false;
 }
 
-async function waitForFirebaseAuthSession(timeoutMs = 1800) {
+async function waitForFirebaseAuthSession(timeoutMs = 6000) {
     // Check modular SDK bridge first (login page)
     if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
         return window.__nexlance_modular_auth.currentUser;
@@ -1507,6 +1507,34 @@ function isDashboardApiUnavailableError(error) {
     return Boolean(error && (error.code === 'api/unavailable' || error.code === 'api/not-configured'));
 }
 
+let _firebaseAuthListenerBound = false;
+function bindFirebaseAuthStateListener() {
+    if (_firebaseAuthListenerBound) return;
+
+    const modularAuth = typeof window !== 'undefined' && window.__nexlance_modular_auth
+        ? window.__nexlance_modular_auth
+        : null;
+    const compatAuth = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+    const authInstance = modularAuth || compatAuth;
+
+    if (!authInstance || typeof authInstance.onAuthStateChanged !== 'function') {
+        return;
+    }
+
+    _firebaseAuthListenerBound = true;
+    authInstance.onAuthStateChanged(user => {
+        if (user) {
+            ensureSessionHydration('firebase_auth_state_changed', { forceRetry: true }).catch(() => undefined);
+            scheduleAccessUiStateSync('firebase_auth_state_changed', 180);
+            return;
+        }
+        clearSessionRuntime('firebase_auth_signed_out');
+        localStorage.removeItem('nexlance_auth');
+        localStorage.removeItem('nexlance_user');
+        scheduleAccessUiStateSync('firebase_auth_signed_out', 180);
+    });
+}
+
 // Track project IDs with in-flight deletes so the realtime listener doesn't re-add them
 const _pendingDeletes = new Set();
 
@@ -1536,12 +1564,18 @@ async function getDashboardBearerToken(options) {
         clearAuthRedirectLock();
         // Prefer modular SDK (single auth state), compat SDK as fallback.
         if (typeof window !== 'undefined' && window.__nexlance_modular_auth && window.__nexlance_modular_auth.currentUser) {
-            return window.__nexlance_modular_auth.currentUser.getIdToken(forceRefresh);
+            const token = await window.__nexlance_modular_auth.currentUser.getIdToken(forceRefresh);
+            if (String(token || '').trim()) return token;
+            const forcedToken = await window.__nexlance_modular_auth.currentUser.getIdToken(true);
+            if (String(forcedToken || '').trim()) return forcedToken;
         }
         if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
-            return firebase.auth().currentUser.getIdToken(forceRefresh);
+            const token = await firebase.auth().currentUser.getIdToken(forceRefresh);
+            if (String(token || '').trim()) return token;
+            const forcedToken = await firebase.auth().currentUser.getIdToken(true);
+            if (String(forcedToken || '').trim()) return forcedToken;
         }
-        throw new Error('No authenticated Firebase user available.');
+        throw new Error('No authenticated Firebase token available.');
     })();
 
     if (!forceRefresh) {
@@ -1876,21 +1910,29 @@ async function authorizedApiRequest(path, method = 'GET', payload = null) {
         throw error;
     }
 
-    const token = await getDashboardBearerToken();
-    console.info('[AuthContext] Authorized API request prepared', {
-        method,
-        path: String(path || '').trim(),
-        hasBearerToken: Boolean(token)
-    });
-    const response = await fetch(path, {
-        method,
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        credentials: 'same-origin',
-        body: payload !== null ? JSON.stringify(payload) : undefined
-    });
+    const makeRequest = async forceRefresh => {
+        const token = await getDashboardBearerToken({ forceRefresh });
+        console.info('[AuthContext] Authorized API request prepared', {
+            method,
+            path: String(path || '').trim(),
+            hasBearerToken: Boolean(token),
+            forceRefresh
+        });
+        return fetch(path, {
+            method,
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: payload !== null ? JSON.stringify(payload) : undefined
+        });
+    };
+
+    let response = await makeRequest(false);
+    if (response.status === 401) {
+        response = await makeRequest(true);
+    }
 
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
     const rawText = await response.text().catch(() => '');
@@ -4536,6 +4578,10 @@ async function fetchInvoices(options) {
     if (!canAccessEntity('invoices')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('invoices', sampleInvoices);
 
+    if (isSessionHydrationPendingForScopedData()) {
+        await ensureSessionHydration('fetch_invoices_await', { forceRetry: false }).catch(() => {});
+    }
+
     // Auth can still be restoring from IndexedDB on first paint.
     if (!isFirebaseUserAuthenticated()) {
         await waitForFirebaseAuthSession(3000).catch(() => null);
@@ -4809,6 +4855,10 @@ async function fetchTeamMembers(options) {
 
     if (!canAccessEntity('team')) return [];
     if (!isFirebaseConfigured) return createAccessFilteredDataset('team_members', sampleTeamMembers);
+
+    if (isSessionHydrationPendingForScopedData()) {
+        await ensureSessionHydration('fetch_team_members_await', { forceRetry: false }).catch(() => {});
+    }
 
     // Auth can still be restoring from IndexedDB on first paint.
     if (!isFirebaseUserAuthenticated()) {
@@ -5237,3 +5287,4 @@ window.addEventListener('nexlance-session-context-changed', () => scheduleAccess
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleAccessUiStateSync('visibilitychange', 350);
 });
+bindFirebaseAuthStateListener();

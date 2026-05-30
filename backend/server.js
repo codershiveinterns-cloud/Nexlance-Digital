@@ -5,9 +5,10 @@ const { URL } = require('url');
 const AccessControl = require('../rbac.js');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const ENV_PATH = path.join(PROJECT_ROOT, '.env');
+const BACKEND_ENV_PATH = path.join(__dirname, '.env');
+const ROOT_ENV_PATH = path.join(PROJECT_ROOT, '.env');
 
-function loadEnvFile(envPath = ENV_PATH) {
+function loadEnvFile(envPath) {
     if (!fs.existsSync(envPath)) return;
 
     const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
@@ -34,7 +35,9 @@ function loadEnvFile(envPath = ENV_PATH) {
     });
 }
 
-loadEnvFile();
+// Prefer backend/.env for server credentials, then fill missing values from root .env.
+loadEnvFile(BACKEND_ENV_PATH);
+loadEnvFile(ROOT_ENV_PATH);
 
 const { getPaymentConfig, createStripePaymentIntent } = require('./services/payments');
 const checkoutCompleteHandler = require('./api/checkout-complete');
@@ -49,6 +52,8 @@ const projectTemplateWorkspaceSaveHandler = require('./api/project-template-work
 const projectTemplateWorkspaceUnlockHandler = require('./api/project-template-workspace-unlock');
 const projectSyncHandler = require('./api/project-sync');
 const userPreferencesHandler = require('./api/user-preferences');
+const meHandler = require('./api/me');
+const mePermissionsHandler = require('./api/me-permissions');
 const meWorkspacesHandler = require('./api/me-workspaces');
 const meDeleteHandler = require('./api/me-delete');
 const diagnoseWorkspaceAlignmentHandler = require('./api/diagnose-workspace-alignment');
@@ -882,63 +887,31 @@ async function requestHandler(req, res) {
         return;
     }
 
-    if (req.method === 'GET' && url.pathname === '/api/me') {
-        try {
-            const session = await requireAuth(req);
-            const sessionUser = session.sessionUser;
-            res.setHeader('Cache-Control', 'private, max-age=30');
-            sendJson(res, 200, {
-                ok: true,
-                user: sessionUser,
-                permissions: {
-                    role: sessionUser.role,
-                    isWorkspaceOwner: sessionUser.isWorkspaceOwner,
-                    permissionKeys: sessionUser.permissionKeys,
-                    permissions: sessionUser.permissions,
-                    allowedPages: AccessControl.getAllowedPages(sessionUser)
-                }
-            });
-        } catch (error) {
-            sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
-        }
-        return;
+    if ((req.method === 'GET' || req.method === 'OPTIONS') && url.pathname === '/api/me') {
+        return meHandler(req, augmentResponse(res));
     }
 
-    if (req.method === 'GET' && url.pathname === '/api/me/permissions') {
-        try {
-            const session = await requireAuth(req);
-            res.setHeader('Cache-Control', 'private, max-age=30');
-            sendJson(res, 200, {
-                ok: true,
-                role: session.sessionUser.role,
-                isWorkspaceOwner: session.sessionUser.isWorkspaceOwner,
-                permissionKeys: session.sessionUser.permissionKeys,
-                permissions: session.sessionUser.permissions,
-                allowedPages: AccessControl.getAllowedPages(session.sessionUser)
-            });
-        } catch (error) {
-            sendJson(res, error.statusCode || 401, { error: error.message || 'Authentication is required.' });
-        }
-        return;
+    if ((req.method === 'GET' || req.method === 'OPTIONS') && url.pathname === '/api/me/permissions') {
+        return mePermissionsHandler(req, augmentResponse(res));
     }
 
     if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/me/workspaces') {
         if (req.method === 'POST') {
             req.body = await readBody(req);
         }
-        return meWorkspacesHandler(req, res);
+        return meWorkspacesHandler(req, augmentResponse(res));
     }
 
     if ((req.method === 'POST' || req.method === 'DELETE' || req.method === 'OPTIONS') && url.pathname === '/api/me/delete') {
-        return meDeleteHandler(req, res);
+        return meDeleteHandler(req, augmentResponse(res));
     }
 
     if (req.method === 'GET' && url.pathname === '/api/diagnose/workspace-alignment') {
-        return diagnoseWorkspaceAlignmentHandler(req, res);
+        return diagnoseWorkspaceAlignmentHandler(req, augmentResponse(res));
     }
 
     if ((req.method === 'GET' || req.method === 'PATCH') && url.pathname === '/api/user-preferences') {
-        return userPreferencesHandler(req, res);
+        return userPreferencesHandler(req, augmentResponse(res));
     }
 
     if (req.method === 'GET' && url.pathname === '/api/invitations/resolve') {
