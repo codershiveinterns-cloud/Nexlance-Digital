@@ -140,14 +140,14 @@
 <section style="background:#fff;">
     <div class="container">
         <div class="billing-toggle">
-            <span class="toggle-label lbl-active" id="lbl-mo">Monthly</span>
+            <span class="toggle-label lbl-active" id="lbl-mo">Plan</span>
             <label class="toggle-switch">
                 <input type="checkbox" id="billingToggle">
                 <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label" id="lbl-yr">Annual <span class="save-badge">Save 20%</span></span>
+            <span class="toggle-label" id="lbl-yr">Package <span class="save-badge">Save 20%</span></span>
         </div>
-        <p class="billing-note" id="billing-note-p">Billed monthly - switch to annual and save 20%</p>
+        <p class="billing-note" id="billing-note-p">Billed Plan - switch to Package and save 20%</p>
 
         <div class="price-grid">
             <div class="price-card">
@@ -329,8 +329,8 @@
 
             if (noteEl) {
                 noteEl.textContent = annual
-                    ? 'Billed annually - you save 20% compared to monthly'
-                    : 'Billed monthly - switch to annual and save 20%';
+                    ? 'Billed Package - you save 20% compared to Plan'
+                    : 'Billed Plan - switch to Package and save 20%';
                 noteEl.classList.toggle('is-annual', annual);
             }
         }

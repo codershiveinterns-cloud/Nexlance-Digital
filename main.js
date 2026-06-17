@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         productCode,
                         redirectTarget,
                         title: `Complete your ${config.name} purchase`,
-                        message: `Choose Stripe or Polar to activate the ${config.name} plan on your account.`,
+                        message: `Choose Stripe, Polar, or Creem to activate the ${config.name} plan on your account.`,
                         summaryTitle: `${config.name} Plan`,
                         summaryText: getPlanSummaryText(planCode),
                         buttonText: `Pay for ${config.name}`,

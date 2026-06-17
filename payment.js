@@ -90,7 +90,8 @@
 
         return {
             stripe: product.gateways.stripe !== false,
-            polar: product.gateways.polar !== false
+            polar: product.gateways.polar !== false,
+            creem: product.gateways.creem !== false
         };
     }
 
@@ -286,7 +287,7 @@
             .nl-auth-actions,
             .nl-provider-actions {
                 display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 12px;
                 margin-top: 22px;
             }
@@ -405,7 +406,7 @@
                 <button type="button" class="nl-close" data-close-provider>&times;</button>
                 <div class="nl-modal-header">
                     <h3 id="nexlanceProviderTitle">Choose your payment gateway</h3>
-                    <p id="nexlanceProviderText">Select Stripe or Polar to continue to secure hosted checkout.</p>
+                    <p id="nexlanceProviderText">Select Stripe, Polar, or Creem to continue to secure hosted checkout.</p>
                 </div>
                 <div class="nl-modal-body">
                     <div class="nl-payment-summary">
@@ -423,6 +424,10 @@
                         <button type="button" class="nl-btn nl-provider-card" data-provider="polar">
                             <strong>Polar</strong>
                             <span>Hosted checkout with Polar.</span>
+                        </button>
+                        <button type="button" class="nl-btn nl-provider-card" data-provider="creem">
+                            <strong>Creem</strong>
+                            <span>Hosted checkout with Creem.</span>
                         </button>
                     </div>
                     <div id="nexlanceProviderMessage" class="nl-payment-message"></div>
@@ -485,14 +490,17 @@
 
     function getAvailabilityMessage(availability) {
         if (!availability) return '';
-        if (availability.stripe === false && availability.polar === false) {
+        if (availability.stripe === false && availability.polar === false && availability.creem === false) {
             return 'Secure hosted checkout is not configured right now. Please try again later.';
         }
-        if (availability.stripe === false) {
-            return 'Stripe checkout is not configured right now. Please choose Polar.';
+        if (availability.stripe === false && availability.polar === false) {
+            return 'Stripe and Polar are not configured. Please choose Creem.';
         }
-        if (availability.polar === false) {
-            return 'Polar checkout is not configured right now. Please choose Stripe.';
+        if (availability.stripe === false && availability.creem === false) {
+            return 'Stripe and Creem are not configured. Please choose Polar.';
+        }
+        if (availability.polar === false && availability.creem === false) {
+            return 'Polar and Creem are not configured. Please choose Stripe.';
         }
         return '';
     }
@@ -517,7 +525,7 @@
         ensureMarkup();
         activeCheckoutOptions = Object.assign({}, options);
         document.getElementById('nexlanceProviderTitle').textContent = options.title || 'Choose your payment gateway';
-        document.getElementById('nexlanceProviderText').textContent = options.message || 'Select Stripe or Polar to continue to secure hosted checkout.';
+        document.getElementById('nexlanceProviderText').textContent = options.message || 'Select Stripe, Polar, or Creem to continue to secure hosted checkout.';
         document.getElementById('nexlanceProviderSummaryTitle').textContent = options.summaryTitle || 'Checkout';
         document.getElementById('nexlanceProviderSummaryText').textContent = options.summaryText || 'Hosted secure payment';
         document.getElementById('nexlanceProviderAmount').textContent = formatAmount(options.amount, options.currency || getSharedDefaultCurrency());
@@ -566,6 +574,7 @@
                 })
             });
             const data = await response.json().catch(() => ({}));
+            console.log("Aayush Check Data :", data);
             if (!response.ok) {
                 throw new Error(data.error || 'Checkout could not be started.');
             }
@@ -608,7 +617,7 @@
             templateName: options.templateName || '',
             gatewayAvailability,
             title: options.title || 'Choose your payment gateway',
-            message: options.message || 'Select Stripe or Polar to continue to secure hosted checkout.',
+            message: options.message || 'Select Stripe, Polar, or Creem to continue to secure hosted checkout.',
             summaryTitle: options.summaryTitle || 'Checkout',
             summaryText: options.summaryText || 'Hosted secure payment'
         });

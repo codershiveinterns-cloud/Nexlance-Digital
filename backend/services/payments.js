@@ -53,6 +53,17 @@ const POLAR_PRODUCT_ENV_MAP = {
     business_yearly: ['POLAR_PRODUCT_BUSINESS_YEARLY']
 };
 
+const CREEM_PRODUCT_ENV_MAP = {
+    single_template: ['CREEM_PRODUCT_SINGLE_TEMPLATE'],
+    plus_monthly: ['CREEM_PRODUCT_PLUS_MONTHLY'],
+    plus_yearly: ['CREEM_PRODUCT_PLUS_YEARLY'],
+    pro_monthly: ['CREEM_PRODUCT_PRO_MONTHLY', 'CREEM_PRODUCT_PRO_ONETIME'],
+    pro_onetime: ['CREEM_PRODUCT_PRO_ONETIME', 'CREEM_PRODUCT_PRO_MONTHLY'],
+    pro_yearly: ['CREEM_PRODUCT_PRO_YEARLY'],
+    business_monthly: ['CREEM_PRODUCT_BUSINESS_MONTHLY'],
+    business_yearly: ['CREEM_PRODUCT_BUSINESS_YEARLY']
+};
+
 function normalizeEmail(value) {
     return String(value || '').trim().toLowerCase();
 }
@@ -93,6 +104,10 @@ function getPolarProductEnvKey(productCode) {
     return getPrimaryEnvKey(POLAR_PRODUCT_ENV_MAP[productCode]);
 }
 
+function getCreemProductId(productCode) {
+    return getConfiguredEnvValue(CREEM_PRODUCT_ENV_MAP[productCode]);
+}
+
 function hasRealSecret(value, disallowedFragments = []) {
     const normalized = String(value || '').trim();
     if (!normalized) return false;
@@ -117,10 +132,16 @@ function hasPolarGatewayAccess(productCode) {
         && isValidPolarResourceId(getPolarProductId(productCode));
 }
 
+function hasCreemGatewayAccess(productCode) {
+    return hasRealSecret(process.env.CREEM_API_KEY, ['your_', 'changeme'])
+        && Boolean(getCreemProductId(productCode));
+}
+
 function getProductGatewayAvailability(productCode) {
     return {
         stripe: hasStripeGatewayAccess(),
-        polar: hasPolarGatewayAccess(productCode)
+        polar: hasPolarGatewayAccess(productCode),
+        creem: hasCreemGatewayAccess(productCode)
     };
 }
 
@@ -139,7 +160,7 @@ function compactMetadataValues(metadata) {
 function normalizeRequestedProvider(provider) {
     const normalized = String(provider || '').trim().toLowerCase();
     if (!normalized) return '';
-    if (normalized === 'stripe' || normalized === 'polar') {
+    if (normalized === 'stripe' || normalized === 'polar' || normalized === 'creem') {
         return normalized;
     }
     throw new Error('Unsupported payment gateway selected.');
@@ -153,6 +174,11 @@ function getProviderConfigurationError(provider, productCode) {
         return getPolarProductId(productCode)
             ? 'Polar checkout is not configured right now. Please choose Stripe or try again later.'
             : 'Polar checkout is not configured for this product right now. Please choose Stripe or try again later.';
+    }
+    if (provider === 'creem') {
+        return getCreemProductId(productCode)
+            ? 'Creem checkout is not configured right now. Please choose another or try again later.'
+            : 'Creem checkout is not configured for this product right now.';
     }
     return 'Hosted checkout is not configured right now. Please try again later.';
 }
@@ -210,7 +236,8 @@ function getPaymentConfig() {
         ),
         gateways: {
             stripe: hasStripeGatewayAccess(),
-            polar: Boolean(POLAR_ACCESS_TOKEN)
+            polar: Boolean(POLAR_ACCESS_TOKEN),
+            creem: hasRealSecret(process.env.CREEM_API_KEY)
         }
     };
 }
@@ -396,6 +423,7 @@ async function createStripeCheckoutSession(context) {
     params.set('cancel_url', urls.cancelUrl);
     params.set('customer_email', context.userEmail);
     params.set('client_reference_id', context.userEmail);
+    params.set('allow_promotion_codes', 'true');
 
     Object.entries(context.metadata).forEach(([key, value]) => {
         params.set(`metadata[${key}]`, String(value || ''));
@@ -571,6 +599,45 @@ async function createPolarCheckoutSession(context) {
     };
 }
 
+async function createCreemCheckoutSession(context) {
+    const apiKey = process.env.CREEM_API_KEY;
+    if (!hasRealSecret(apiKey)) throw new Error('Set CREEM_API_KEY before using Creem checkout.');
+
+    const productId = getCreemProductId(context.product.productCode);
+    if (!productId) throw new Error(`Set the Creem product ID for ${context.product.productCode}.`);
+
+    const urls = buildCheckoutUrls(context.siteBaseUrl, context.product, 'creem', context.templateId, {
+        successRedirect: context.successRedirect,
+        cancelRedirect: context.cancelRedirect
+    });
+
+    const response = await fetch('https://api.creem.io/v1/checkouts', {
+        method: 'POST',
+        headers: {
+            'x-api-key': apiKey,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            product_id: productId,
+            success_url: urls.polarSuccessUrl, // reuse the {CHECKOUT_ID} format
+            metadata: context.metadata
+        })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Creem checkout session could not be created.');
+    }
+
+    return {
+        provider: 'creem',
+        redirectUrl: data.checkout_url || data.url,
+        providerReferenceId: data.id,
+        checkoutId: data.id,
+        diagnostics: { productId }
+    };
+}
+
 async function createHostedCheckout(options) {
     const context = await resolveCheckoutContext(options);
     const explicitlyRequestedProvider = normalizeRequestedProvider(options.provider);
@@ -585,6 +652,8 @@ async function createHostedCheckout(options) {
         selectedProvider = 'stripe';
     } else if (gatewayAvailability.polar) {
         selectedProvider = 'polar';
+    } else if (gatewayAvailability.creem) {
+        selectedProvider = 'creem';
     } else {
         throw new Error('Hosted checkout is not configured right now. Please try again later.');
     }
@@ -615,7 +684,9 @@ async function createHostedCheckout(options) {
     try {
         const payload = selectedProvider === 'polar'
             ? await createPolarCheckoutSession(context)
-            : await createStripeCheckoutSession(context);
+            : selectedProvider === 'creem'
+                ? await createCreemCheckoutSession(context)
+                : await createStripeCheckoutSession(context);
 
         await upsertPaymentAttempt({
             ...attemptBase,
