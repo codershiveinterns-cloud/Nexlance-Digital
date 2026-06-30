@@ -368,6 +368,11 @@
             return;
         }
 
+        if (provider === 'coda') {
+            setStatus('Coda is not available as a hosted checkout provider. Please choose Stripe, Polar, or use a license key.', 'error');
+            return;
+        }
+
         setBusy(true);
         setStatus('Verifying your payment and preparing the download...', 'success');
 

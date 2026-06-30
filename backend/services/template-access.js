@@ -764,6 +764,7 @@ async function completeTemplateAccess(options) {
         };
     }
 
+
     throw new Error('Unsupported payment provider.');
 }
 

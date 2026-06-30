@@ -22,6 +22,14 @@
       "destination": "/api/commerce/create-payment-intent"
     },
     {
+      "source": "/api/coda/validate",
+      "destination": "/api/coda/validate"
+    },
+    {
+      "source": "/api/coda/topup",
+      "destination": "/api/coda/topup"
+    },
+    {
       "source": "/api/payment-config",
       "destination": "/api/commerce/payment-config"
     },

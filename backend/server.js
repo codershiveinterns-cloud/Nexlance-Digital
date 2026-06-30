@@ -42,6 +42,8 @@ loadEnvFile(ROOT_ENV_PATH);
 const { getPaymentConfig, createStripePaymentIntent } = require('./services/payments');
 const checkoutCompleteHandler = require('./api/checkout-complete');
 const checkoutStartHandler = require('./api/checkout-start');
+const codaTopupHandler = require('./api/coda-topup');
+const codaValidateHandler = require('./api/coda-validate');
 const confirmBusinessUpgradeHandler = require('./api/confirm-business-upgrade');
 const polarWebhookHandler = require('./api/polar-webhook');
 const stripeWebhookHandler = require('./api/stripe-webhook');
@@ -1231,6 +1233,16 @@ async function requestHandler(req, res) {
         } catch (error) {
             sendJson(res, 400, { error: error.message || 'Business upgrade could not be confirmed.' });
         }
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/coda/validate') {
+        await codaValidateHandler(req, augmentResponse(res));
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/coda/topup') {
+        await codaTopupHandler(req, augmentResponse(res));
         return;
     }
 

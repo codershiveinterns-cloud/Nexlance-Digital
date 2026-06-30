@@ -91,7 +91,8 @@
         return {
             stripe: product.gateways.stripe !== false,
             polar: product.gateways.polar !== false,
-            creem: product.gateways.creem !== false
+            creem: product.gateways.creem !== false,
+            coda: product.gateways.coda !== false
         };
     }
 
@@ -291,6 +292,9 @@
                 gap: 12px;
                 margin-top: 22px;
             }
+            .nl-provider-actions {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
             .nl-btn {
                 border: none;
                 border-radius: 999px;
@@ -406,7 +410,7 @@
                 <button type="button" class="nl-close" data-close-provider>&times;</button>
                 <div class="nl-modal-header">
                     <h3 id="nexlanceProviderTitle">Choose your payment gateway</h3>
-                    <p id="nexlanceProviderText">Select Stripe, Polar, or Creem to continue to secure hosted checkout.</p>
+                    <p id="nexlanceProviderText">Select Stripe, Polar, Creem, or Coda to continue to secure hosted checkout.</p>
                 </div>
                 <div class="nl-modal-body">
                     <div class="nl-payment-summary">
@@ -428,6 +432,10 @@
                         <button type="button" class="nl-btn nl-provider-card" data-provider="creem">
                             <strong>Creem</strong>
                             <span>Hosted checkout with Creem.</span>
+                        </button>
+                        <button type="button" class="nl-btn nl-provider-card" data-provider="coda">
+                            <strong>Coda</strong>
+                            <span>Hosted checkout with Coda.</span>
                         </button>
                     </div>
                     <div id="nexlanceProviderMessage" class="nl-payment-message"></div>
@@ -490,17 +498,20 @@
 
     function getAvailabilityMessage(availability) {
         if (!availability) return '';
-        if (availability.stripe === false && availability.polar === false && availability.creem === false) {
+        const providers = [
+            { key: 'stripe', label: 'Stripe' },
+            { key: 'polar', label: 'Polar' },
+            { key: 'creem', label: 'Creem' },
+            { key: 'coda', label: 'Coda' }
+        ];
+        const unavailable = providers.filter(provider => availability[provider.key] === false);
+        const available = providers.filter(provider => availability[provider.key] !== false);
+
+        if (available.length === 0) {
             return 'Secure hosted checkout is not configured right now. Please try again later.';
         }
-        if (availability.stripe === false && availability.polar === false) {
-            return 'Stripe and Polar are not configured. Please choose Creem.';
-        }
-        if (availability.stripe === false && availability.creem === false) {
-            return 'Stripe and Creem are not configured. Please choose Polar.';
-        }
-        if (availability.polar === false && availability.creem === false) {
-            return 'Polar and Creem are not configured. Please choose Stripe.';
+        if (unavailable.length > 0 && available.length === 1) {
+            return `${unavailable.map(provider => provider.label).join(', ')} are not configured. Please choose ${available[0].label}.`;
         }
         return '';
     }
@@ -525,7 +536,7 @@
         ensureMarkup();
         activeCheckoutOptions = Object.assign({}, options);
         document.getElementById('nexlanceProviderTitle').textContent = options.title || 'Choose your payment gateway';
-        document.getElementById('nexlanceProviderText').textContent = options.message || 'Select Stripe, Polar, or Creem to continue to secure hosted checkout.';
+        document.getElementById('nexlanceProviderText').textContent = options.message || 'Select Stripe, Polar, Creem, or Coda to continue to secure hosted checkout.';
         document.getElementById('nexlanceProviderSummaryTitle').textContent = options.summaryTitle || 'Checkout';
         document.getElementById('nexlanceProviderSummaryText').textContent = options.summaryText || 'Hosted secure payment';
         document.getElementById('nexlanceProviderAmount').textContent = formatAmount(options.amount, options.currency || getSharedDefaultCurrency());
@@ -617,7 +628,7 @@
             templateName: options.templateName || '',
             gatewayAvailability,
             title: options.title || 'Choose your payment gateway',
-            message: options.message || 'Select Stripe, Polar, or Creem to continue to secure hosted checkout.',
+            message: options.message || 'Select Stripe, Polar, Creem, or Coda to continue to secure hosted checkout.',
             summaryTitle: options.summaryTitle || 'Checkout',
             summaryText: options.summaryText || 'Hosted secure payment'
         });

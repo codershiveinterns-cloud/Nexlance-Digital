@@ -8,6 +8,7 @@ const {
     grantsAllTemplates,
     isSingleTemplateProduct
 } = require('../../billing-catalog.js');
+const { getCodaSkuForProduct } = require('./coda-skus');
 const {
     findUserDocumentByEmail,
     getWebhookEvent,
@@ -25,6 +26,16 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN || '';
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET || '';
 const POLAR_API_BASE_URL = String(process.env.POLAR_API_BASE_URL || 'https://api.polar.sh/v1').trim().replace(/\/+$/, '');
+
+const CODA_PRODUCT_MAPPING = Object.freeze({
+    'NXL-TEMPLATE-001': 'single-template',
+    'NXL-PLUS-M-001': 'plus-monthly',
+    'NXL-PLUS-Y-001': 'plus-yearly',
+    'NXL-PRO-M-001': 'pro-monthly',
+    'NXL-PRO-Y-001': 'pro-yearly',
+    'NXL-BUS-M-001': 'business-monthly',
+    'NXL-BUS-Y-001': 'business-yearly'
+});
 
 const mockStripeSessions = new Map();
 const mockPolarCheckouts = new Map();
@@ -63,6 +74,7 @@ const CREEM_PRODUCT_ENV_MAP = {
     business_monthly: ['CREEM_PRODUCT_BUSINESS_MONTHLY'],
     business_yearly: ['CREEM_PRODUCT_BUSINESS_YEARLY']
 };
+
 
 function normalizeEmail(value) {
     return String(value || '').trim().toLowerCase();
@@ -108,6 +120,21 @@ function getCreemProductId(productCode) {
     return getConfiguredEnvValue(CREEM_PRODUCT_ENV_MAP[productCode]);
 }
 
+function getCodaFulfillmentConfig() {
+    return {
+        validationUrl: String(process.env.CODA_VALIDATE_API_URL || process.env.CODA_VALIDATION_URL || '').trim(),
+        topUpUrl: String(process.env.CODA_TOPUP_API_URL || process.env.CODA_TOPUP_URL || '').trim(),
+        serverListUrl: String(process.env.CODA_SERVER_LIST_API || process.env.CODA_SERVER_LIST_URL || '').trim(),
+        hasSharedSecret: hasRealSecret(process.env.CODA_SECRET_KEY || process.env.CODA_SHARED_SECRET, ['replace_with_', 'changeme']),
+        productMapping: CODA_PRODUCT_MAPPING
+    };
+}
+
+function hasCodaFulfillmentConfig() {
+    const config = getCodaFulfillmentConfig();
+    return Boolean(config.validationUrl && config.topUpUrl && config.hasSharedSecret);
+}
+
 function hasRealSecret(value, disallowedFragments = []) {
     const normalized = String(value || '').trim();
     if (!normalized) return false;
@@ -137,11 +164,19 @@ function hasCreemGatewayAccess(productCode) {
         && Boolean(getCreemProductId(productCode));
 }
 
+function hasCodaGatewayAccess(productCode) {
+    return hasRealSecret(
+        process.env.CODA_API_KEY || process.env.CODA_PRODUCTION_API_KEY || process.env.CODA_SANDBOX_API_KEY,
+        ['your_', 'test_your_', 'live_your_', 'changeme']
+    ) && Boolean(getCodaSkuForProduct(productCode));
+}
+
 function getProductGatewayAvailability(productCode) {
     return {
         stripe: hasStripeGatewayAccess(),
         polar: hasPolarGatewayAccess(productCode),
-        creem: hasCreemGatewayAccess(productCode)
+        creem: hasCreemGatewayAccess(productCode),
+        coda: hasCodaGatewayAccess(productCode)
     };
 }
 
@@ -160,7 +195,7 @@ function compactMetadataValues(metadata) {
 function normalizeRequestedProvider(provider) {
     const normalized = String(provider || '').trim().toLowerCase();
     if (!normalized) return '';
-    if (normalized === 'stripe' || normalized === 'polar' || normalized === 'creem') {
+    if (normalized === 'stripe' || normalized === 'polar' || normalized === 'creem' || normalized === 'coda') {
         return normalized;
     }
     throw new Error('Unsupported payment gateway selected.');
@@ -179,6 +214,11 @@ function getProviderConfigurationError(provider, productCode) {
         return getCreemProductId(productCode)
             ? 'Creem checkout is not configured right now. Please choose another or try again later.'
             : 'Creem checkout is not configured for this product right now.';
+    }
+    if (provider === 'coda') {
+        return getCodaSkuForProduct(productCode)
+            ? 'Coda checkout is not configured right now. Please choose another or try again later.'
+            : 'Coda checkout is not configured for this product right now.';
     }
     return 'Hosted checkout is not configured right now. Please try again later.';
 }
@@ -237,7 +277,13 @@ function getPaymentConfig() {
         gateways: {
             stripe: hasStripeGatewayAccess(),
             polar: Boolean(POLAR_ACCESS_TOKEN),
-            creem: hasRealSecret(process.env.CREEM_API_KEY)
+            creem: hasRealSecret(process.env.CREEM_API_KEY),
+            coda: hasRealSecret(process.env.CODA_API_KEY || process.env.CODA_PRODUCTION_API_KEY || process.env.CODA_SANDBOX_API_KEY)
+        },
+        fulfillment: {
+            coda: {
+                available: hasCodaFulfillmentConfig()
+            }
         }
     };
 }
@@ -359,6 +405,9 @@ async function resolveCheckoutContext(options) {
         successRedirect,
         cancelRedirect,
         siteBaseUrl: baseUrl,
+        country: String(options.country || options.codaCountry || '').trim(),
+        codaCountry: String(options.codaCountry || options.country || '').trim(),
+        codaMerchantId: String(options.codaMerchantId || options.merchantId || '').trim(),
         metadata: buildMetadata({
             product,
             userEmail,
@@ -638,6 +687,11 @@ async function createCreemCheckoutSession(context) {
     };
 }
 
+async function createCodaCheckoutSession(context) {
+    const { createCodaCheckoutInit } = require('./coda');
+    return createCodaCheckoutInit(context);
+}
+
 async function createHostedCheckout(options) {
     const context = await resolveCheckoutContext(options);
     const explicitlyRequestedProvider = normalizeRequestedProvider(options.provider);
@@ -654,6 +708,8 @@ async function createHostedCheckout(options) {
         selectedProvider = 'polar';
     } else if (gatewayAvailability.creem) {
         selectedProvider = 'creem';
+    } else if (gatewayAvailability.coda) {
+        selectedProvider = 'coda';
     } else {
         throw new Error('Hosted checkout is not configured right now. Please try again later.');
     }
@@ -686,7 +742,9 @@ async function createHostedCheckout(options) {
             ? await createPolarCheckoutSession(context)
             : selectedProvider === 'creem'
                 ? await createCreemCheckoutSession(context)
-                : await createStripeCheckoutSession(context);
+                : selectedProvider === 'coda'
+                    ? await createCodaCheckoutSession(context)
+                    : await createStripeCheckoutSession(context);
 
         await upsertPaymentAttempt({
             ...attemptBase,
@@ -805,6 +863,7 @@ async function fetchPolarCheckoutSession(checkoutId) {
     return data;
 }
 
+
 function getPeriodEndIsoFromUnix(timestampSeconds) {
     const numeric = Number(timestampSeconds || 0);
     return numeric > 0 ? new Date(numeric * 1000).toISOString() : '';
@@ -889,6 +948,7 @@ function buildPolarPurchaseFromCheckout(checkout) {
     };
 }
 
+
 function mergeTemplateIds(existingIds, nextTemplateId) {
     const normalizedExisting = Array.isArray(existingIds) ? existingIds.filter(Boolean) : [];
     if (!nextTemplateId) return normalizedExisting;
@@ -941,9 +1001,10 @@ async function applyPurchaseToUser(purchase) {
             provider: purchase.provider,
             providerReferenceId: purchase.providerSessionId || purchase.providerPaymentId || '',
             startsAt: purchase.startedAt,
-            metadata: {
-                templateName: purchase.templateName || ''
-            }
+            metadata: compactMetadataValues({
+                templateName: purchase.templateName || '',
+                ...(purchase.metadata && typeof purchase.metadata === 'object' ? purchase.metadata : {})
+            })
         });
 
         return updateUserByEmail(purchase.userEmail, currentUser => ({
@@ -970,10 +1031,11 @@ async function applyPurchaseToUser(purchase) {
             providerReferenceId: purchase.providerSubscriptionId || purchase.providerSessionId || purchase.providerPaymentId || '',
             startsAt: purchase.startedAt,
             endsAt: templateAccessEndsAt,
-            metadata: {
+            metadata: compactMetadataValues({
                 billingType: product.billingType,
-                billingCycle: purchase.billingCycle || ''
-            }
+                billingCycle: purchase.billingCycle || '',
+                ...(purchase.metadata && typeof purchase.metadata === 'object' ? purchase.metadata : {})
+            })
         });
 
         if (!product.entitlements.dashboardAccess) {
@@ -1076,6 +1138,7 @@ async function completeHostedCheckout(options) {
             result
         };
     }
+
 
     throw new Error('Unsupported payment provider.');
 }
@@ -1389,15 +1452,22 @@ function buildPlanRecordFromPaymentIntent(paymentIntent) {
 module.exports = {
     DEFAULT_CURRENCY,
     PRODUCT_CATALOG,
+    applyPurchaseToUser,
+    buildCheckoutUrls,
+    buildMetadata,
+    buildPayloadHash,
     buildPlanRecordFromPaymentIntent,
     completeHostedCheckout,
     createHostedCheckout,
     createStripePaymentIntent,
     fetchPolarCheckoutSession,
     fetchStripeCheckoutSession,
+    fulfillPurchase,
     getPaymentConfig,
     handlePolarWebhookEvent,
     handleStripeWebhookEvent,
+    markWebhookProcessed,
+    persistPurchaseRecord,
     retrieveStripePaymentIntent,
     verifyPolarWebhookSignature,
     verifyStripeWebhookSignature
