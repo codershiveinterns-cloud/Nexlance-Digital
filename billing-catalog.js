@@ -6,7 +6,7 @@
 
     root.NEXLANCE_BILLING_CATALOG = factory();
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-    const DEFAULT_CURRENCY = 'gbp';
+    const DEFAULT_CURRENCY = 'usd';
 
     const PRODUCT_CATALOG = {
         single_template: {

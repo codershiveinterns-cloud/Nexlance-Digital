@@ -1,0 +1,2784 @@
+Hosted Payment Page Integration
+The Hosted Payment Page integration involves directing the customer to a secure, hosted payment page provided by Coda. This page is responsible for collecting payment information and processing transactions.
+
+This section details each technical step needed for a successful integration. For an overview of the flow, please refer to the Getting Started guide.
+
+Initiate a payment request
+
+Learn how to initiate a payment request and collect a transaction ID
+
+Display the hosted payment page
+
+Familiarise yourself with how to display the hosted payment page and the flows supported
+
+Get notified of a transaction status
+
+Receive notifications of transaction status changes as your user progresses through the payment flow.
+
+Check a transaction status
+
+Learn how to check a transaction's status and decide whether to release the purchased item.
+
+Explore each section by clicking the relevant links above to dive deeper into the process. 
+
+
+Initiate a payment request
+Allows you to initiate a payment request and collect your payment transaction ID.
+
+Pre-requisite
+When integrating with Codapay APIs, ensure you adhere to the following standards:
+
+Use HTTPS protocol.
+
+TLS 1.2 or higher
+
+Environment
+BaseURL
+Sandbox
+
+https://sandbox.codapayments.com/airtime/api/restful/v1.0/Payment
+
+Production
+
+https://airtime.codapayments.com/airtime/api/restful/v1.0/Payment
+
+Note that Codapay APIs have two versions, please refer to Codapay API Versions for more details to ensure you have selected the right version to integrate with.
+
+Reference
+Sandbox
+Version
+Base URL
+v2.0
+
+https://sandbox.codapayments.com/airtime/api/restful/v2.0/Payment
+
+v1.0
+
+https://sandbox.codapayments.com/airtime/api/restful/v1.0/Payment
+
+Production
+Version
+Base URL
+v2.0
+
+https://airtime.codapayments.com/airtime/api/restful/v2.0/Payment
+
+v1.0
+
+https://airtime.codapayments.com/airtime/api/restful/v1.0/Payment
+
+Endpoint
+POST {Base URL}/init.json
+
+Codapay's APIs support REST web services. By default, the endpoints displayed are RESTful. 
+
+Request Parameters
+Search
+Parameter
+Type
+Description
+initRequest
+
+Object
+
+Mandatory
+Must be a valid JSON object
+
+initRequest.country
+
+String
+
+Mandatory
+ISO 3166 country code - refer to Country and Currency Codes
+
+initRequest.payType
+
+String
+
+Mandatory
+The ID of the payment channel you want to use - refer to the full list available here. 
+Can be set to 0 if you want to use the channel selection page or 1 if you want to use the DCB page - More details here.
+
+initRequest.apiKey
+
+String
+
+Mandatory
+API key provided by Coda - Refer to Getting started to find out how to get it.
+
+initRequest.projectId
+
+String
+
+*This field is only needed for v2.0 API
+
+Mandatory
+Project ID provided by Coda, unique for each title product - Refer to Getting started to find out how to get it.
+
+initRequest.orderId
+
+String
+
+Mandatory
+Your unique identifier for the transaction. Must be between 4 to 64 characters. 
+
+initRequest.currency
+
+String
+
+Mandatory
+ISO 4217 currency code - refer to Country and Currency Codes
+
+initRequest.items
+
+Array
+
+Mandatory
+List of items being purchased by the users
+
+US and Canada supports one item only. Multiple items support is WIP. 
+
+initRequest.items[].code
+
+String
+
+Optional
+Code associated with the item on your side
+
+This field is mandatory for Taiwan Line Pay integration
+
+initRequest.items[].price
+
+Number
+
+Mandatory
+Price of the item inclusive of any taxes in the currency specified in the request.
+
+initRequest.items[].name
+
+String
+
+Mandatory
+Name of the item being purchased. Only supports latin characters.
+
+initRequest.items[].skuImageUrl
+
+String
+
+Optional
+Publicly accessible URL for your SKU Image asset. Codapay will display this image on the checkout page for optimal checkout context & conversion-friendliness.
+
+Sample checkout page with SKU Image
+NOTE: Some payment channels that are using an older version of our client will not display the SKU Image. We aim to ensure all payment channels are upgrade to new client version by end of 2026.
+
+
+
+initRequest.profile
+
+Object
+
+Mandatory
+User profile information of the user making the purchase
+
+initRequest.profile.entry
+
+Array
+
+Mandatory
+List of key-value pairs for profile information. Specific key-values that can be used to process currently are listed below.
+
+initRequest.profile.entry[].key
+
+String
+
+Key for the profile entry
+
+initRequest.profile.entry[].value
+
+String
+
+Key for the profile entry
+
+Profile
+Search
+Key
+Expected value
+Description
+user_id
+
+String
+
+Mandatory
+Your user's unique identifier
+
+in_frame_redirect
+
+True or False
+
+Optional
+If you're using the hosted payment page within an iframe on your website, you can use this parameter to control the behavior after the payment flow is completed. 
+
+If True - when the user tries to close the Codapay window, the user will be redirected to the landing URL within the iframe
+
+If False - when the user tries to close the Codapay window, the user will be redirected to the landing URL on a new tab
+
+return_url
+
+String
+
+Optional
+This allows you to pass dynamically the return url the user will be redirected to after the payment is complete. This URL may contain the following query strings placeholders which will be replaced by actual values:
+
+{transactionId} which will be replaced by Codapay Transaction Id
+
+{orderId} which will be replaced by “orderId“ parameter value
+
+This is optional, if this key-value is not used, Codapay will use the return url configured on publisher portal.
+
+need_mno_id
+
+Any value or null
+
+If you initiated the payment with payType = 0 / 1 or carrier billing channels and wish to know which payment channel has been selected by your user, you can pass any non-null value in this field.
+
+email
+
+String
+
+Optional
+
+The email address where the successful transaction receipt will be sent. Upon a successful payment, Coda will automatically deliver a digital receipt to this address.
+
+This feature is not enabled by default. To activate automated receipt delivery for your titles, please contact the payment enablement team at codapay_integration@coda.co. 
+
+Receipt example: 
+
+
+client_ip
+
+String
+
+Optional
+This parameter (client_ip) is used to identify the user’s location and is only required if the payment channel specifically requests it. Must be in IPV4 format. 
+
+lang_code
+
+String
+
+Optional
+This parameter is used to select a language to use for the hosted payment page. The list of languages available for each country can be found here.
+
+e.g. en_US
+
+Response Parameters
+Parameter
+Type
+Description
+initResult
+
+Object
+
+Contains the result of the initiation request
+
+initResult.resultCode
+
+Integer
+
+Result code for the initiation request.
+
+resultCode = 0 if the request is successful. Otherwise, the resultCode value is an error. Full list of error Codes is available here.
+
+initResult.resultDesc
+
+String
+
+Description of the error, resultCode is not 0.
+
+initResult.txnId
+
+Integer
+
+Transaction ID for the initiated request. If the transaction initiation failed this value will be 0.
+
+initResult.redirectUrl
+NEW
+
+String
+
+The URL to the checkout session. Applies to both Codapay Hosted Payment Page integration & Coda Links. Redirect the customers to this URL to proceed with checkout & payment.
+
+For example: https://airtime.codapayments.com/airtime/begin?txn_id=714459463700207221
+
+Samples
+
+v2.0 Request
+
+v1.0 Request
+
+Successful Response
+
+Failed Response
+
+Copy
+{
+    "initRequest": {
+        "country": 158,
+        "payType": 82,
+        "apiKey": "live_****************************",
+        "projectId": 21 //This field is only needed for v2.0 API
+        "orderId": "12321312321314",
+        "currency": 901,
+        "items": [
+            {
+                "code": "1",
+                "price": 1000.00,
+                "name": "Test Item"
+            }
+        ],
+        "profile": {
+            "entry": [
+                {
+                    "key": "user_id",
+                    "value": "105"
+                }
+            ]
+        }
+    }
+}
+Profile Sample
+
+Request
+
+Copy
+"profile": {
+            "entry": [
+                {
+                    "key": "user_id",
+                    "value": "test105"
+                },
+                {
+                    "key": "in_frame_redirect",
+                    "value": "true"
+                },
+                {
+                    "key": "return_url",
+                    "value": "https://www.example.com/{transactionId}/{orderId}/return"
+                },
+                {
+                    "key": "need_mno_id",
+                    "value": "YES"
+                }
+            ]
+        }
+
+
+
+Display the Hosted Payment Page
+After obtaining the transaction ID, present the Hosted Payment Page to your user.
+
+There are several methods to display the Hosted Payment Page:
+
+Redirect within the existing page
+
+Open in a new tab
+
+Embed within an iFrame
+
+Display within a webview
+
+You can redirect the customer to the URL returned in the payment request initiation response. Alternatively, use the Base URL provided below with appropriate parameters to open the Hosted Payment Page. 
+
+Pre-requisite
+You have received a success response from the payment request initiation.
+
+Method 1 (Preferred): Using redirectUrl returned from payment request initiation to open the Hosted Payment Page
+You can use the redirectUrl returned in the Successful response of the payment request initiation to open the Hosted Payment Page.
+
+If you are within a Native App environment, we recommend opening the redirectUrl using an external browser, rather than the in-app web-views.
+
+
+Copy
+{
+    "initResult": {
+        ...
+        "redirectUrl": "https://airtime.codapayments.com/airtime/begin?txn_id=7144594637002072212",
+        ...
+    }
+}
+Optional: Append optional query parameters to the redirectUrl before opening
+Refer to Query parameters for a list of supported query parameters
+
+Method 2: Using the Base URL & attaching all query parameters to construct the Hosted Payment Page URL
+Environment
+Base URL
+Sandbox
+
+https://sandbox.codapayments.com/airtime/begin
+
+Production
+
+https://airtime.codapayments.com/airtime/begin
+
+If you are within a Native App environment, we recommend opening the redirectUrl using an external browser, rather than the in-app web-views.
+
+Query parameters
+Parameter
+Required
+Description
+txn_id
+
+Mandatory
+
+Mandatory
+The transaction ID you've collected after initiating the payment
+
+browser_type
+
+Optional
+
+Optional
+
+If your user is on a mobile device, browser_type=mobile-web needs to be passed to make sure that the payment page is optimised to the device.
+
+If any other value or none is passed, the payment page will be optimised for a desktop view.
+
+utm_souce
+
+Optional
+
+utm_source as it is detected in your page URL.
+
+For example, utm_souce=google, utm_source=coda
+
+utm_medium
+
+Optional
+
+utm_medium as it is detected in your page URL.
+
+For example, utm_medium=banner, utm_medium=email
+
+utm_campaign
+
+Optional
+
+utm_campaign as it is detected in your page URL.
+
+For example, utm_campaign=spring_sale, utm_campaign=new_season_launch
+
+utm_content
+
+Optional
+
+utm_content as it is detected in your page URL.
+
+For example, utm_content=, utm_content=email
+
+Samples
+
+Desktop on Sandbox
+
+Mobile in Production
+
+Copy
+https://sandbox.codapayments.com/airtime/begin?txn_id=7144594637002072212&utm_source=testing
+Unlocking Marketing analytics on payment page
+Our payment page supports marketing analytics out-of-the-box. You can pass along UTM parameters from your store's page to the Codapay page. The UTMs will then be available in your payment funnel data analysis & marketing channel attribution analysis.
+
+* We recommend that you pass along UTM parameters without any modifications, so that analytics data collected on the hosted payment page can be used together with other analytics data captured on your web page (for instance, data captured using Google Analytics) without any discrepancies.
+
+Example:
+The user landed on your page with this UTM tracked URL:
+
+
+Copy
+https://game.webstore.com?utm_source=google&utm_medium=cpc&utm_campaign=123412341234&utm_content=creative_123
+Then, when the user makes a purchase, you can pass along the UTMs to the Codapay page  URL along with other mandatory URL parameters:
+
+
+Copy
+https://airtime.codapayments.com/airtime/begin?txn_id=7144594637002072212&browser_type=mobile-web&utm_source=google&utm_medium=cpc&utm_campaign=123412341234&utm_content=creative_123
+Special Considerations for Webviews
+Handling redirection
+Some channels may redirect users to their wallet app. To handle the redirections properly when using Webviews, you will need to use WebViewClient.shouldOverrideUrlLoading using the intents below:
+
+Search
+Regions
+Channel list
+Override URL
+Only support external browser
+Brazil
+
+PicPay
+
+picpay://
+
+Brazil
+
+AmeDigital
+
+amedigital://
+
+Indonesia
+
+GO-PAY
+
+gojek://
+
+Indonesia
+
+Shopee Pay
+
+shopeeid:// &
+shopeepayid://
+
+Indonesia
+
+Dana
+
+danaid:// & market://details?id=id.dana
+
+Malaysia
+
+GrabPay
+
+grab://
+
+Malaysia
+
+Shopee Pay
+
+shopeepaymy://
+
+Malaysia
+
+Maxis
+
+sms:32083
+
+Malaysia
+
+-
+
+-
+
+U Mobile
+
+Singapore
+
+GrabPay
+
+grab://
+
+Philippines
+
+GrabPay
+
+grab://
+
+Philippines
+
+GCash
+
+gcash://
+
+Thailand
+
+Shopee Pay
+
+intent://
+
+Taiwan
+
+Line Pay
+
+intent://
+
+Myanmar
+
+KBZPay
+
+intent://
+
+United States
+
+Cash App
+
+cashme://
+
+Vietnam
+
+MoMo
+
+momo://
+
+All countries
+
+-
+
+-
+
+Google Pay/Apple Pay
+
+Common Webview Pitfalls and Tips
+
+
+
+Redirect URLs for Transaction Status
+Configure the appropriate redirect URLs to manage transaction status updates for your customers.
+
+These URLs determine which page a customer is redirected to after initiating or completing a transaction in Coda's payment interface.
+
+How to Configure Redirect URLs
+Partners can configure URLs in the Publisher Portal at any time. Refer to Set up payments for instructions. Changes will take effect immediately.
+
+Types of Redirect URLs
+There are three types of redirect URLs that partners must configure. If categorization is not necessary, partners can reuse the same redirect address.
+
+Complete Landing Page URL: Redirects customers to a page indicating the completion status of their transaction.
+
+Bank Transfer Transaction Pending Redirect URL: Redirects customers to a page indicating their bank transfer transaction is pending.
+
+Convenience Store Transaction Pending Redirect URL: Redirects customers to a page indicating their convenience store payment transaction is pending.
+
+Complete Landing Page URL
+When a customer leaves Coda's payment page after completing a carrier billing, e-wallet, or card payment, they are redirected to the Complete Transaction Redirect URL. This URL is accessed using a GET method with the following parameters:
+
+Name
+Type
+Length
+Description
+TxnId
+
+Numeric
+
+N/A
+
+Unique TxnId returned from the payment request initiation.
+
+OrderId
+
+String
+
+64
+
+Unique transaction identifier passed in the payment request initiation call.
+
+Example
+
+
+Copy
+http://new.merchant.com/complete.php?TxnId=XXXXXXXXX&OrderId=YYYYYYYYY
+Instructions
+
+On this page, partners should state the result of the transaction to the customer.
+
+Bank Transfer Transaction Pending Redirect URL
+When a customer leaves Coda's payment page after initiating a bank transfer, they are redirected to the bank transfer transaction pending redirect URL. This is only for Bank Transfers in Indonesia and Philippines.
+
+This URL is accessed using GET method with the following parameters:
+
+Name
+Type
+Length
+Description
+TxnId
+
+Numeric
+
+N/A
+
+Unique TxnId returned from the payment request initiation.
+
+OrderId
+
+String
+
+64
+
+Unique transaction identifier passed in the payment request initiation call.
+
+Example
+
+
+Copy
+http://new.merchant.com/atm-pending.php?TxnId=XXXXXXXXX&OrderId=YYYYYYYY
+Instructions
+
+Partners should display a message clarifying the order status, e.g., "Your order is confirmed and pending payment. Please follow the instructions provided to complete your payment at the ATM. Once your payment is completed, we will fulfill your order immediately."
+
+Convenience Store Transaction Pending Redirect URL
+When a customer leaves Coda's payment page after initiating a convenience store payment, they are redirected to the convenience store transaction pending redirect URL. This URL is accessed using GET method with the following parameters:
+
+Name
+Type
+Length
+Description
+TxnId
+
+Numeric
+
+N/A
+
+Unique TxnId returned from the payment request initiation.
+
+OrderId
+
+String
+
+64
+
+Unique transaction identifier passed in the payment request initiation call.
+
+Example
+
+
+Copy
+http://new.merchant.com/otc-pending.php?TxnId=XXXXXXXXX&OrderId=YYYYYYYYY
+Instructions
+
+Partners should display a message clarifying the order status, e.g., "Your order is confirmed and pending payment. Please follow the instructions provided to complete your payment at the convenience store. Once your payment is completed, we will fulfill your order immediately."
+
+
+Get notified of a transaction status change
+Receive notifications of transaction status changes as your user progresses through the payment flow.
+
+During the payment flow, the transaction status will be one of the following:
+
+Pending
+
+Successful
+
+Failed
+
+You will be notified whenever a transaction is marked as 'Successful' or 'Failed' via the Transaction Completion Notification URL configured in the Publisher Portal.
+
+Pre-requisite
+The Transaction "Complete Notification URL" is configured in Publisher Portal. Refer to Set up payments for detailed instructions. Changes will take effect immediately.
+
+Notification parameters
+Notifications are sent to the configured transaction complete notification URL with the appended query parameters below.
+
+Search
+Parameters
+Description
+TxnId
+
+Always
+The transaction ID generated during the payment request initiation
+
+OrderId
+
+Always
+Your Order ID, passed during the payment request initiation
+
+*OriginAmount
+
+*Always (v2.0 only)
+
+Original amount in OriginCurrency as provided in the initiation request
+
+*OriginCurrency
+
+*Always (v2.0 only)
+ISO 4217 alphabetic code (USD, IDR, etc). The original currency used in the initiation request to specify the item price. 
+OriginCurrency can be different from PayCurrency.
+
+*PayAmount
+
+*Always (v2.0 only)
+
+Final price in PayCurrency charged to the user.
+Note: TotalPrice always = PayAmount
+
+*PayCurrency
+
+*Always (v2.0 only)
+ISO 4217 alphabetic code (USD, IDR, etc). Currency used for the actual payment charged to the user.
+
+*SubTotalPrice
+
+*Always (v2.0 only)
+
+The net amount of the transaction before taxes.
+
+Calculated as: totalPrice / (1 + payTaxRate). This represents the base item price excluding local service or digital taxes.
+
+*PayTaxRate
+
+*Always (v2.0 only)
+
+The tax percentage rate applied to the transaction (e.g., 0.08 for 8%). This value is dynamically determined based on the merchant configuration, regional tax laws, or the user’s specific location (Zip Code).
+
+resultDesc
+
+Always
+
+
+
+The resultDesc parameter is designed to assist merchants in accurately analyzing and addressing the causes of transaction failures.
+
+If the resultCode equals 0, the resultDesc will return Success.
+
+If the resultCode indicates an error, the resultDesc will provide a detailed description of the error.
+
+ResultCode
+
+Always
+The ResultCode will help indicate the status of the transaction. 
+
+ResultCode = 0 means the transaction is successful.
+
+ResultCode = 431, 481 or 216 means that the transaction is pending. 
+
+All other ResultCode values mean that the transaction Failed. You can find the full list of error codes and their explanation here. 
+
+TotalPrice
+
+Always
+The total amount the user has paid for the transaction. This will always be in local currency.
+
+PaymentType
+
+Always
+The PaymentType the user attempted to pay with. 
+
+PaymentType is equal to the payment channel ID or 1 in case the payment channel is a Carrier Billing.
+
+Checksum
+
+Always
+The checksum helps verify that the message is sent by Codapay and has not been tampered with. Refer to the Security section for more information on how to use this value.
+
+MnoId
+
+Optional
+If the need_mno_id parameter was used during payment channel initiation, this parameter will contain the payment channel ID
+
+USDPrice
+
+Optional
+If a transaction is initiated in a country where USD is not the local currency, the Coda callback parameter (TotalPrice) will default display the user's local currency amount. 
+
+If you require adding the initial USDPrice to the callback, please configure it from the Publisher Portal. Refer to the USD pricing section for more details.
+
+Expected Response
+After sending the notification, Codapay expects an acknowledgment to confirm it has been received.
+
+If your application processes the notification successfully, respond with 'ResultCode=0.' Otherwise, return an error code. 
+
+If no response is received, the notification will be re-sent 3 times at 5-minute intervals. If all attempts fail, an email alert will be triggered.
+
+To subscribe to transaction notifications, go to the Publisher Portal. 
+
+Team > Manage Access > Tick "Transaction Notification" > Save Changes
+
+Sample 
+
+v2.0 Notification
+
+v1.0 Notification
+
+Response
+
+Copy
+// Sample for non-USD payments initiated
+https://<your_webhook_url>?
+  TxnId=7715121708032676249
+  OrderId=365f5Z619951c1a4b8
+  TotalPrice=1.00
+  PaymentType=237
+  ResultCode=0
+  Checksum=6b6c5e0f835f9f1442726bed3aedc3c9
+  PayTaxRate=8.00 //This field is only returned in v2.0 API
+  PayCurrency=MYR //This field is only returned in v2.0 API
+  PayAmount=1.00 //This field is only returned in v2.0 API
+  OriginAmount=1.00 //This field is only returned in v2.0 API
+  OriginCurrency=MYR //This field is only returned in v2.0 API
+  SubTotalPrice=0.93 //This field is only returned in v2.0 API
+
+// Sample for USD payments initiated
+https://<your_webhook_url>?
+  TxnId=7715122576202672831
+  OrderId=365f5Z619951c1a4b8
+  TotalPrice=1.17
+  PaymentType=237
+  ResultCode=0
+  Checksum=10741fa6be7e6f2b189f029b3f8a0963
++ USDPrice=0.30
+  PayTaxRate=8.00 //This field is only returned in v2.0 API
+  PayCurrency=MYR //This field is only returned in v2.0 API
+  PayAmount=1.17 //This field is only returned in v2.0 API
+  OriginAmount=0.30 //This field is only returned in v2.0 API
+  OriginCurrency=USD //This field is only returned in v2.0 API
+  SubTotalPrice=1.08 //This field is only returned in v2.0 API
+Failed Transaction Notification
+In addition to successful transaction notifications, Codapay also supports failed transaction notifications.
+
+If a transaction does not reach a successful state, a notification will also be sent to the configured Transaction Complete Notification URL with the relevant transaction details.
+
+Enablement
+Failed transaction notification is not enabled by default. To enable this feature, please contact your Coda Account Manager or the Integration Support team at codapay_integration@coda.co.
+
+Sample 
+
+v2.0 Notification
+
+v1.0 Notification
+
+Copy
+// Sample for failed transaction notification
+https://<your_webhook_url>?
+  TxnId=7743322396792877759
+  OrderId=20250611113402
+  TotalPrice=2.00
+  PaymentType=421
+  ResultCode=750
+  Checksum=ef631c0bef3249406cfe5c1350693195
+  PayCurrency=MYR //This field is only returned in v2.0 API
+  PayAmount=2.0 //This field is only returned in v2.0 API
+  OriginAmount=2.0 //This field is only returned in v2.0 API
+  OriginCurrency=MYR //This field is only returned in v2.0 API
+Checking a transaction status
+We highly recommend using the InquiryPaymentResult API call after receiving the purchase notification webhook. This will help reconcile the transaction status between your system and Coda's before releasing the purchased item.
+
+
+Fraud and Chargeback Notifications
+This reference describes the webhook notifications Coda sends to keep your backend informed of chargeback lifecycle changes and early fraud warnings on your transactions.
+
+Note: Chargeback and Fraud updates requires POST notifications to be enabled for your account. Contact your Codapay account manager to enable them.
+
+Overview
+Codapay uses webhooks to notify your "Complete Notification URL" whenever a chargeback progresses through its lifecycle, or an early fraud warning is received on one of your transactions.
+
+Ensure your "Complete Notification URL" is configured in the Publisher Portal. Refer to the Set up payments guide for detailed instructions.
+
+Event Types
+Chargeback Events
+For chargeback lifecycle events, your endpoint should be prepared to handle the following eventType values:
+
+Event Type
+Description
+chargeback_created
+
+A chargeback has been raised against a transaction
+
+dispute_sent
+
+The chargeback has been escalated and a dispute submitted to the gateway
+
+dispute_lost
+
+The dispute was resolved in the customer's favour
+
+dispute_won
+
+The dispute was resolved in the merchant's favour
+
+Fraud Events
+For fraud events, your endpoint should be prepared to handle the following eventType values:
+
+Event Type
+Description
+fraud_notification
+
+An early fraud warning has been received for a transaction
+
+Notification Payload Structure
+Notifications are sent as a POST request with a JSON body.
+
+Search
+Field
+Type
+Description
+eventType
+
+string
+
+The specific event type being reported (e.g., chargeback_created)
+
+timestamp
+
+string
+
+Notification timestamp
+
+data.chargebackId
+
+string
+
+Coda's internal chargeback identifier
+
+data.stage
+
+string
+
+Lifecycle stage of the chargeback. See Stage Values below
+
+data.txnId
+
+string
+
+Coda's internal transaction ID
+
+data.reason
+
+string
+
+Chargeback reason as provided by the Issuing Bank (e.g. Other Fraud-Card Absent Environment)
+
+data.outcome
+
+string | null
+
+Final outcome of a dispute: WON, LOST, or null if not yet resolved.
+
+data.amountValue
+
+decimal
+
+Transaction amount
+
+data.amountCurrency
+
+string
+
+ISO 4217 currency code (e.g. CHF, USD)
+
+data.orderId
+
+string
+
+Your order ID (if provided)
+
+Stage Values
+Stage
+Meaning
+CHARGEBACK
+
+Chargeback has been created
+
+DISPUTE_SENT
+
+Dispute submitted to gateway
+
+DISPUTE_LOST
+
+Dispute closed — outcome: lost
+
+DISPUTE_WON
+
+Dispute closed — outcome: won
+
+EARLY_FRAUD_WARNING
+
+Fraud signal received before chargeback is raised
+
+Chargeback Notification Examples
+chargeback_created
+
+
+Copy
+{
+  "eventType": "chargeback_created",
+  "timestamp": "1773860416000",
+  "data": {
+    "chargebackId": "CBKJTNRS9XDNBVQ9",
+    "stage": "CHARGEBACK",
+    "txnId": "7677293394619242496",
+    "reason": "Other Fraud-Card Absent Environment",
+    "outcome": null,
+    "amountValue": 100,
+    "amountCurrency": "CHF",
+    "orderId": "c8856951-b495-4e9b-8b48-01123cf4f5eb"
+  }
+}
+dispute_sent
+
+
+Copy
+{
+  "eventType": "dispute_sent",
+  "timestamp": "1773860416000",
+  "data": {
+    "chargebackId": "CBKJTNRS9XDNBVQ9",
+    "stage": "DISPUTE_SENT",
+    "txnId": "7677293394619242496",
+    "reason": "Other Fraud-Card Absent Environment",
+    "outcome": null,
+    "amountValue": 100,
+    "amountCurrency": "CHF",
+    "orderId": "c8856951-b495-4e9b-8b48-01123cf4f5eb"
+  }
+}
+dispute_lost
+
+
+Copy
+{
+  "eventType": "dispute_lost",
+  "timestamp": "1773860416000",
+  "data": {
+    "chargebackId": "CBKJTNRS9XDNBVQ9",
+    "stage": "DISPUTE_LOST",
+    "txnId": "7677293394619242496",
+    "reason": "Other Fraud-Card Absent Environment",
+    "outcome": "LOST",
+    "amountValue": 100,
+    "amountCurrency": "CHF",
+    "orderId": "c8856951-b495-4e9b-8b48-01123cf4f5eb"
+  }
+}
+dispute_won
+
+
+Copy
+{
+  "eventType": "dispute_won",
+  "timestamp": "1773860416000",
+  "data": {
+    "chargebackId": "CBKJTNRS9XDNBVQ9",
+    "stage": "DISPUTE_WON",
+    "txnId": "7677293394619242496",
+    "reason": "Other Fraud-Card Absent Environment",
+    "outcome": "WON",
+    "amountValue": 100,
+    "amountCurrency": "CHF",
+    "orderId": "c8856951-b495-4e9b-8b48-01123cf4f5eb"
+  }
+}
+Fraud Notification Example
+fraud_notification
+
+
+Copy
+{
+  "eventType": "fraud_notification",
+  "timestamp": "1773860416000",
+  "data": {
+    "chargebackId": "CBKJTNRS9XDNBVQ9",
+    "stage": "EARLY_FRAUD_WARNING",
+    "txnId": "7677293394619242496",
+    "reason": "Other Fraud-Card Absent Environment",
+    "amountValue": 100,
+    "amountCurrency": "CHF",
+    "orderId": "c8856951-b495-4e9b-8b48-01123cf4f5eb"
+  }
+}
+Notification Signature Verification
+Every POST notification includes two headers that allow you to verify the request originated from Codapay and has not been tampered with:
+
+Header
+Description
+X-Request-Time
+
+The timestamp of the request, represented as epoch milliseconds (string of digits)
+
+X-Signature
+
+HMAC-SHA512 hex digest computed by Codapay using your merchant API key
+
+How It Works
+Codapay and your server both agree on a single UTF-8 string to sign:
+
+
+Copy
+X-Request-Time + "." + raw POST body (UTF-8)
+The HMAC-SHA512 algorithm is applied to this string using your merchant API key, producing a 128-character lowercase hexadecimal digest.
+
+Codapay sends this digest in the X-Signature header. Your server must recompute the same hex digest and compare it to the received value.
+
+Validation Steps
+Read the X-Request-Time and X-Signature headers from the incoming request.
+
+Read the raw body bytes of the request.
+
+Build the signed string: requestTime + "." + body (interpreted as UTF-8).
+
+Compute the expected signature: HMAC-SHA512(secretKey, signedString) → lowercase hex.
+
+Compare expectedHex to the X-Signature header value using a constant-time comparison to prevent timing attacks. The comparison is case-insensitive.
+
+If the values do not match, reject the request.
+
+Example — Java
+
+Copy
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+
+public class SignatureValidator {
+
+    private static final String HMAC_SHA512 = "HmacSHA512";
+
+    public static boolean validate(String secretKey, String requestTime, byte[] body, String xSignature) {
+        String bodyUtf8 = new String(body, StandardCharsets.UTF_8);
+        String text = requestTime + "." + bodyUtf8;
+        String expected = hmacSha512Hex(secretKey, text);
+        return MessageDigest.isEqual(
+            expected.toLowerCase().getBytes(),
+            xSignature.toLowerCase().getBytes()
+        );
+    }
+
+    private static String hmacSha512Hex(String secretKey, String text) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_SHA512);
+            mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), HMAC_SHA512));
+            byte[] raw = mac.doFinal(text.getBytes(StandardCharsets.UTF_8));
+            return HEX.formatHex(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException("HMAC-SHA512 not available", e);
+        }
+    }
+}
+Responding to Notifications
+To acknowledge receipt of the notification, your server must respond with a 200 OK and the following JSON body:
+
+
+Copy
+{
+  "ResultCode": 0
+}
+Retry Policy: If no valid response is received, Codapay will re-send the notification 3 times at 5-minute intervals. If all attempts fail, an email alert will be triggered to your technical contact.
+
+
+
+Check a transaction status
+Check a transaction's status
+
+Pre-requisite
+When integrating with Codapay APIs, ensure you adhere to the following standards:
+
+Use HTTPS protocol.
+
+TLS 1.2 or higher
+
+Note that Codapay APIs have two versions, please refer to Codapay API Versions for more details. 
+
+If you have integrated with v2.0 Initiate Payment API, you must use v2.0 Inquiry Payment Result API
+
+If you have integrated with v1.0 Initiate Payment API, you must use v1.0 Inquiry Payment Result API
+
+Reference
+Environment
+v2.0 Base URL
+Sandbox
+
+https://sandbox.codapayments.com/airtime/api/restful/v2.0/Payment
+
+Production
+
+https://airtime.codapayments.com/airtime/api/restful/v2.0/Payment
+
+Environment
+v1.0 Base URL
+Sandbox
+
+https://sandbox.codapayments.com/airtime/api/restful/v1.0/Payment
+
+Production
+
+https://airtime.codapayments.com/airtime/api/restful/v1.0/Payment
+
+Endpoint
+POST {Base URL}/inquiryPaymentResult.json
+
+Codapay's APIs support REST web services. By default, the endpoints displayed are RESTful. 
+
+Request Parameters
+Parameter
+Type
+Description
+inquiryPaymentRequest
+
+Object
+
+Mandatory
+Must be a valid JSON object
+
+inquiryPaymentRequest.apiKey
+
+String
+
+Mandatory
+API key provided by Coda - Refer to Getting started to find out how to get it.
+
+inquiryPaymentRequest.txnId
+
+Numeric
+
+Mandatory
+
+Key for the profile entry
+
+inquiryPaymentRequest.country
+
+Numeric
+
+*This field is only needed for v2.0 API
+
+Mandatory 
+
+ISO 3166 country code - refer to Country and Currency Codes
+
+inquiryPaymentRequest.projectId
+
+String
+
+*This field is only needed for v2.0 API
+
+Mandatory
+Project ID provided by Coda, unique for each title product - Refer to Getting started to find out how to get it.
+
+inquiryPaymentRequest.needStatusFinal
+
+String
+
+Optional
+Set as true if you want to get a flag indicating if this is the final status of the transaction or not in the response
+
+Response Parameters
+Search
+Parameter
+Type
+Description
+paymentResult
+
+Object
+
+Contains the result of the initiation request
+
+paymentResult.resultCode
+
+Numeric
+
+The ResultCode will help indicate the status of the transaction. 
+
+ResultCode = 0 means the transaction is successful.
+
+ResultCode = 431 or 216 means that the transaction is pending. 
+
+All other ResultCode values mean that the transaction Failed. You can find the full list of error codes and their explanation here. 
+
+paymentResult.txnId
+
+String
+
+Transaction ID for the initiated request
+
+paymentResult.orderId
+
+String
+
+The order ID your provided in the payment request initiation
+
+*paymentResult.country
+
+Numeric
+
+*Always (v2.0 only)
+
+ISO 3166 country code - refer to Country and Currency Codes
+
+*paymentResult.originAmount
+
+Numeric
+
+*Always (v2.0 only)
+
+Float. Original amount in OriginCurrency as provided in the initiation request
+
+*paymentResult.originCurrency
+
+String
+
+*Always (v2.0 only)
+ISO 4217 alphabetic code (USD, IDR, etc). The original currency used in the initiation request to specify the item price. 
+OriginCurrency can be different from PayCurrency.
+
+*paymentResult.payAmount
+
+Numeric
+
+*Always (v2.0 only)
+
+Float. Final price in PayCurrency charged to the user.
+Note: totalPrice always = payAmount
+
+*paymentResult.payCurrency
+
+String
+
+*Always (v2.0 only)
+ISO 4217 alphabetic code (USD, IDR, etc). Currency used for the actual payment charged to the user.
+
+*SubTotalPrice
+
+Numeric
+
+*Always (v2.0 only)
+
+The net amount of the transaction before taxes.
+
+Calculated as: totalPrice / (1 + payTaxRate). This represents the base item price excluding local service or digital taxes.
+
+*PayTaxRate
+
+Numeric
+
+*Always (v2.0 only)
+
+The tax percentage rate applied to the transaction (e.g., 0.08 for 8%). This value is dynamically determined based on the merchant configuration, regional tax laws, or the user’s specific location (Zip Code).
+
+paymentResult.resultDesc
+
+String
+
+If the resultCode is an error, this value describes the error
+
+paymentResult.totalPrice
+
+Numeric
+
+The total amount the user has paid for the transaction. This will always be in local currency
+
+paymentResult.profile
+
+Object
+
+Object with a list of key values. Specific key-values that can be used to process currently are listed below.
+
+Profile
+Key
+Description
+PaymentType
+
+The PaymentType the user attempted to pay with. 
+
+PaymentType is equal to the payment channel ID or 1 in case the payment channel is a Carier Billing.
+
+isStatusFinal
+
+Flag that indicates whether the transaction has reached a final status or not.
+
+Note: Failed transactions may require up to 12 hours to reflect their final status
+
+status
+
+Possible values are:
+- "pending"
+- "failed"
+- "success"
+
+Samples
+
+v2.0 Request
+
+v2.0 Response
+
+v1.0 Request
+
+v1.0 Response
+
+Copy
+{    
+    "inquiryPaymentRequest":
+    {
+        "apiKey": "live_****************************",
+        "country": 702 //This field is only needed for v2.0 API
+        "projectId": 21 //This field is only needed for v2.0 API
+        "txnId" : "7144594637002072212",
+        "needStatusFinal": "true"
+    }
+}
+
+
+
+Payment Channel Integration Options
+Choose Whether to Show Your Users a Channel Selection Page or Direct Them to a Specific Payment Channel Page Directly
+
+There are three ways to direct users into the hosted payment page flow:
+
+Payment Channel Selection Page (PCSP): Users choose from a variety of available payment channels
+
+Direct Carrier Billing (DCB) Page: Users are directed to a page where they can input their mobile number and be directed to the payment channel for the appropriate carrier billing channel
+
+Direct Payment Channel: Users are sent directly to a specific payment channel
+
+This flexibility allows merchants to tailor the payment experience to their specific needs and user preferences
+
+Payment Channel Selection Page
+The Payment Channel Selection Page provides users with a selection of available payment channels. This option is suitable when you want to offer multiple payment methods and let users choose their preferred one. It is especially convenient if you want to let Coda manage the listing of payment channels like displayed below. To use the Payment Channel Selection Page, you need to pass the parameter paytype=0 in the payment request initiation.
+
+
+How it works
+Users are presented with a list of available payment channels on the payment channel selection page hosted by Coda.
+
+Users select their preferred payment channel from the list
+
+Users are redirected to the chosen payment channel's hosted payment page to complete the transaction
+
+Important Notes
+
+The Payment Channel Selection Page does not display the fixed price points and cash card channels.
+
+To use the Payment Channel Selection Page, you need to complete the Payment Page Configuration. Failure to do so will result in error 233.
+
+Direct Carrier Billing (DCB) Page
+The Direct Carrier Billing (DCB) Page allows users to be directed to a page where they can input their mobile number and be directed to the appropriate carrier billing channel. This option is ideal for simplifying the payment process for users who prefer to use their mobile carrier for billing. To use the DCB page, you need to pass the parameter paytype=1 in the payment request initiation.
+
+
+How it works
+Users are directed to a page where they input their mobile phone number
+
+The system identifies the mobile carrier based on the phone number provided
+
+Users are redirected to the payment page for the identified carrier billing channel to complete the transaction
+
+Important Notes
+
+In some regions, the system may not recognize the carrier by phone number. In such cases, the user will be prompted to select the channel manually.
+
+Direct Payment Channel
+The Direct Payment Channel option allows users to be sent directly to a specific payment channel. This is suitable when you know the user's preferred payment method and want to streamline the process by skipping the selection step. To use this option, you need to pass the payment channel ID in the paytype parameter. The full list of available payment channel IDs is available here.
+
+How it works
+The system directs users to a specific payment channel based on predefined criteria
+
+Users are redirected directly to the hosted payment page of the selected payment channel
+
+Important Notes
+
+Ensure the predefined payment channel is correctly configured
+
+
+
+Authorize And Capture A Payment Separately
+By default, Codapay processes card payments as a single charge — the authorization and capture happen in one step. With authorization and capture separation, you can split this into two distinct stages:
+
+Authorization — The cardholder's bank verifies the payment and places a hold on the funds, but no money is transferred yet.
+
+Capture — You explicitly confirm the payment, and the funds are transferred from the cardholder to your account.
+
+If you decide not to proceed with the payment after authorization, you can cancel the authorized transaction to release the hold on the cardholder's funds.
+
+When to use it
+Authorization and capture separation is useful when you need to:
+
+Verify inventory or product availability before finalizing a charge
+
+Perform additional fraud or compliance checks after the user completes payment authentication
+
+Review high-value transactions manually before capturing
+
+Prerequisites
+To use authorization and capture separation, the following must be enabled for your account:
+
+POST Notifications — Auth and capture separation is only available with POST notifications. Refer to the Auth & Capture Notifications page for details on activating POST notifications.
+
+Auth & Capture Separation — This feature must be activated separately for your account.
+
+Please contact your Codapay account manager to enable both features.
+
+How it works
+The authorization and capture flow works as follows:
+
+You initiate a payment request as usual. Once the feature is activated, Codapay will authorize the payment without capturing it.
+
+You receive an AUTHORIZATION_SUCCESSFUL or AUTHORIZATION_FAILED notification via your webhook endpoint.
+
+If the authorization is successful, you decide whether to capture or cancel the payment:
+
+Capture — Call the Capture a Payment Request endpoint to finalize the payment. You will receive CAPTURE_INITIATED, then CAPTURE_SUCCESSFUL or CAPTURE_FAILED notifications.
+
+Cancel — Call the Cancel a Payment Request endpoint to release the held funds. The authorization will be voided.
+
+Next steps
+Auth & Capture Notifications — Notification event types and payload structure for authorization and capture events
+
+Capture a Payment Request — API reference for capturing an authorized payment
+
+Cancel a Payment Request — API reference for canceling an authorized payment
+
+
+Auth & Capture Notifications
+This reference describes the webhook notifications specific to authorization and capture separation. These notifications keep your backend synchronized as a transaction moves through the authorize, capture, or cancel stages.
+
+Note: Authorization and capture separation requires POST notifications to be enabled. Both features must be activated for your account. Contact your Codapay account manager to enable them.
+
+Overview
+Codapay uses webhooks to notify your "Complete Notification URL" whenever a transaction reaches a final state or a critical milestone in the authorization and capture flow.
+
+Ensure your "Complete Notification URL" is configured in the Publisher Portal. Refer to the Set up payments guide for detailed instructions.
+
+Event Types
+For authorization and capture separation, your endpoint should be prepared to handle the following eventType values:
+
+Event Type
+Description
+authorization_successful
+
+The user successfully authorized the transaction (e.g., 3DS)
+
+authorization_failed
+
+The user failed authorization or the bank denied the request
+
+cancelled
+
+You have decided to cancel the transaction after a successful authorization and before capture
+
+capture_initiated
+
+The system has started the process of capturing the authorized funds
+
+capture_successful
+
+The funds have been successfully captured. Transaction is complete
+
+capture_failed
+
+The capture process failed after a successful authorization
+
+Notification Payload Structure
+Notifications are sent as a POST request with a JSON body.
+
+Search
+Field
+Type
+Description
+eventType
+
+string
+
+The specific event type being reported (e.g., capture_successful)
+
+timestamp
+
+string
+
+Notification timestamp
+
+data.txnId
+
+string
+
+The unique transaction ID generated by Coda
+
+data.orderId
+
+string
+
+The merchant-side unique identifier for the order
+
+data.amountValue
+
+decimal
+
+The final amount charged to the user in the billing currency
+
+data.amountCurrency
+
+string
+
+The ISO 4217 currency code for the charged amount (e.g., MYR)
+
+data.originalValue
+
+decimal
+
+The original price of the item before any currency conversions
+
+data.originalCurrency
+
+string
+
+The ISO 4217 currency code for the original price
+
+data.resultCode
+
+integer
+
+Status code of the transaction. 0 indicates success; other values indicate errors.
+
+data.resultDesc
+
+string
+
+A human-readable description of the transaction result.
+
+data.shopper
+
+object
+
+An object containing shopper details such as ID, email, or partner-specific identifiers.
+
+data.paymentMethod
+
+object
+
+Information regarding the payment instrument used (e.g., card type, last four digits).
+
+data.transactionData
+
+object
+
+A flexible object containing supplementary metadata specific to the transaction or payment channel.
+
+Successful Notification Example
+The following example shows a CAPTURE_SUCCESSFUL notification, indicating that the funds have been successfully captured:
+
+
+Copy
+{
+  "eventType": "capture_successful",
+  "timestamp": "1776084951007",
+  "data": {
+    "txnId": "7760845022800001729",
+    "orderId": "12321312321314",
+    "amountValue": 1,
+    "amountCurrency": "EUR",
+    "originalValue": 1,
+    "originalCurrency": "EUR",
+    "resultCode": 0,
+    "shopper": {},
+    "paymentMethod": {},
+    "transactionData": {}
+  }
+}
+Failed Notification Example
+When an event like authorization_failed, capture_failed or cancelled occurs, the resultCode will contain a non-zero value.
+
+
+Copy
+{
+  "eventType": "cancelled",
+  "timestamp": "1776085975305",
+  "data": {
+    "txnId": "7760859208170001746",
+    "orderId": "12321312321314",
+    "amountValue": 1,
+    "amountCurrency": "EUR",
+    "originalValue": 1,
+    "originalCurrency": "EUR",
+    "resultCode": 221,
+    "shopper": {},
+    "paymentMethod": {},
+    "transactionData": {}
+  }
+}
+You can find the full list of error codes and their meanings available here.
+
+Notification Signature Verification
+Every POST notification includes two headers that allow you to verify the request originated from Codapay and has not been tampered with:
+
+Header
+Description
+X-Request-Time
+
+The timestamp of the request, represented as epoch milliseconds (string of digits)
+
+X-Signature
+
+HMAC-SHA512 hex digest computed by Codapay using your merchant secret key
+
+How It Works
+Codapay and your server both agree on a single UTF-8 string to sign:
+
+
+Copy
+X-Request-Time + "." + raw POST body (UTF-8)
+The HMAC-SHA512 algorithm is applied to this string using your merchant secret key, producing a 128-character lowercase hexadecimal digest.
+
+Codapay sends this digest in the X-Signature header. Your server must recompute the same hex digest and compare it to the received value.
+
+Validation Steps
+Read the X-Request-Time and X-Signature headers from the incoming request.
+
+Read the raw body bytes of the request.
+
+Build the signed string: requestTime + "." + body (interpreted as UTF-8).
+
+Compute the expected signature: HMAC-SHA512(secretKey, signedString) → lowercase hex.
+
+Compare expectedHex to the X-Signature header value using a constant-time comparison to prevent timing attacks. The comparison is case-insensitive.
+
+If the values do not match, reject the request.
+
+Example — Java
+
+Copy
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+
+public class SignatureValidator {
+
+    private static final String HMAC_SHA512 = "HmacSHA512";
+
+    public static boolean validate(String secretKey, String requestTime, byte[] body, String xSignature) {
+        String bodyUtf8 = new String(body, StandardCharsets.UTF_8);
+        String text = requestTime + "." + bodyUtf8;
+        String expected = hmacSha512Hex(secretKey, text);
+        return MessageDigest.isEqual(
+            expected.toLowerCase().getBytes(),
+            xSignature.toLowerCase().getBytes()
+        );
+    }
+
+    private static String hmacSha512Hex(String secretKey, String text) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_SHA512);
+            mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), HMAC_SHA512));
+            byte[] raw = mac.doFinal(text.getBytes(StandardCharsets.UTF_8));
+            return HEX.formatHex(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException("HMAC-SHA512 not available", e);
+        }
+    }
+}
+Responding to Notifications
+To acknowledge receipt of the notification, your server must respond with a 200 OK and the following JSON body:
+
+
+Copy
+{
+  "ResultCode": 0
+}
+Retry Policy: If no valid response is received, Codapay will re-send the notification 3 times at 5-minute intervals. If all attempts fail, an email alert will be triggered to your technical contact.
+
+
+Capture a Payment Request
+This reference describes the server-side API used to capture a payment. Use this endpoint after a transaction has been authorized to finalize the payment process.
+
+Endpoint
+Method: POST
+
+Environment
+Base URL
+Sandbox
+
+https://sandbox.codapayments.com/airtime/api/restful/v2.0/Payment/capture
+
+Production
+
+https://airtime.codapayments.com/airtime/api/restful/v2.0/Payment/capture
+
+Request Body
+The request body must be sent in JSON format and include the following parameters:
+
+Parameter
+Type
+Required
+Description
+capturePaymentRequest.apiKey
+
+string
+
+Yes
+
+Your Coda API key for authentication.
+
+capturePaymentRequest.projectId
+
+string
+
+Yes
+
+The unique identifier for your project.
+
+capturePaymentRequest.txnId
+
+string
+
+Yes
+
+The transaction ID associated with the payment to be captured.
+
+Example Request
+
+
+Copy
+{
+  "capturePaymentRequest": {
+    "apiKey": "your_api_key_here",
+    "projectId": "your_project_id",
+    "txnId": "123456789"
+  }
+}
+Response
+A successful request returns a confirmation that the capture request has been acknowledged.
+
+Example Response
+
+
+Copy
+{
+  "capturePaymentResult": {
+    "status": "received",
+    "txnId": "123456789"
+  }
+}
+
+
+Cancel a Payment Request
+This reference describes the server-side API used to cancel a payment request. Use this endpoint to terminate a transaction that has not yet been finalized.
+
+Endpoint
+Method: POST
+
+Environment
+Base URL
+Sandbox
+
+https://sandbox.codapayments.com/airtime/api/restful/v2.0/Payment/cancel
+
+Production
+
+https://airtime.codapayments.com/airtime/api/restful/v2.0/Payment/cancel
+
+Request Body
+The request body must be sent in JSON format and include the following parameters:
+
+Parameter
+Type
+Required
+Description
+cancelPaymentRequest.apiKey
+
+string
+
+Yes
+
+Your Coda API key for authentication.
+
+cancelPaymentRequest.projectId
+
+string
+
+Yes
+
+The unique identifier for your project.
+
+cancelPaymentRequest.txnId
+
+string
+
+Yes
+
+The transaction ID associated with the payment to be captured.
+
+Example Request
+
+
+Copy
+{
+  "cancelPaymentRequest": {
+    "apiKey": "your_api_key_here",
+    "projectId": "your_project_id",
+    "txnId": "123456789"
+  }
+}
+Response
+A successful request returns a confirmation that the capture request has been acknowledged.
+
+Example Response
+
+
+Copy
+{
+  "cancelPaymentRequest": {
+    "status": "received",
+    "txnId": "123456789"
+  }
+}
+
+
+Saving Card Details
+Overview
+Codapay supports saving card details for returning users to simplify and accelerate checkout. This capability is available on the Hosted Payment Page for eligible merchants and enabled card schemes.
+
+When enabled, users can store their card securely during checkout and reuse it in future transactions.
+
+⚠️ Note: This feature is not currently available for India, Indonesia and South Korea.
+
+Eligibility and Activation
+Saved card functionality is only available for merchants who have been explicitly enabled for this feature.
+
+To enable saved card functionality, contact your Codapay account manager or support team.
+
+If a merchant is not enabled, the payment is processed normally but card details are not saved. A warning is returned in the /v2.0/Payment/init.json response in these cases.
+
+User Identification & Shopper Mapping
+Users must be logged into your platform before initiating a payment that involves saving or using a saved card.
+
+You are required to pass a partner_shopper_id in the /v2.0/Payment/init.json request. This field represents the unique user ID in your system. It must:
+
+Uniquely identify a single user
+
+Remain consistent across all sessions and devices
+
+Be included in every saved card–related request
+
+When the first saved card is added, Codapay creates a shopper_id and links it to the provided partner_shopper_id. All saved cards are then associated with this shopper_id.
+
+Codapay uses this linkage to:
+
+Retrieve saved cards in future checkouts
+
+Attach newly saved cards to the correct user
+
+Process recurring or merchant initiated payments without additional user input
+
+Integration Overview
+To enable saved card functionality on the Hosted Payment Page, include the following fields in your /v2.0/Payment/init.json request:
+
+Field
+Type
+Description
+enableSavePaymentMethod
+
+Boolean
+
+Enables the option for users to save their card
+
+displaySavedPaymentMethodList
+
+Boolean
+
+Displays previously saved cards to the user
+
+userInitiated
+
+Boolean
+
+Indicates whether the user is present in the payment flow
+
+shopper
+
+Object
+
+Identifies the user and passes billing details used for token creation
+
+Shopper Object
+The shopper field in the /v2.0/Payment/init.json request is a list of key-value pairs under shopper.entry[].
+
+Each key corresponds to shopper identity or billing information used to retrieve or create a shopper profile and support saved card functionality.
+
+Search
+Key
+Required
+Description
+partnerShopperId
+
+Yes*
+
+Unique user ID from your system (case sensitive)
+
+id
+
+No
+
+Codapay-issued shopper_id to retrieve a known shopper
+
+email
+
+No
+
+Shopper’s email address (required to create a new shopper)
+
+phoneNumber
+
+No
+
+Shopper’s phone number
+
+billingFirstName
+
+No
+
+Shopper’s first name (required for billing and shopper creation)
+
+billingLastName
+
+No
+
+Shopper’s last name (required for billing and shopper creation)
+
+billingDocumentType
+
+Conditional
+
+Type of national ID document (e.g., CPF), required in some markets
+
+billingDocumentId
+
+Conditional
+
+Value of the national ID document, paired with documentType
+
+billingAddress
+
+No
+
+Street address
+
+billingCity
+
+No
+
+City name
+
+billingRegion
+
+No
+
+State or province
+
+billingCountry
+
+No
+
+ISO alpha-2 country code (e.g., US)
+
+billingZipCode
+
+No
+
+Postal code
+
+* Required when saving a card for the first time.
+
+If id is present, Codapay attempts to retrieve the existing shopper linked to that shopper_id.
+
+If id is not provided, a new shopper is created and linked to the provided partnerShopperId.
+
+Fields listed here are required in addition to the standard fields documented here.
+
+Refer to the "Scenarios and Examples" section below for request payloads using this structure.
+
+Scenarios and Examples
+This section outlines the most common use cases when integrating saved card functionality. Each use case includes the required parameters and sample request format.
+
+First-Time User - Save Card Option
+
+Returning User – Show Saved Cards
+
+Returning User – Charge Saved Card Without UI
+
+Merchant-Initiated Payment – User Not Present
+
+1. First-Time User – Save Card Option
+Allow the user to save their card during checkout.
+
+
+
+Request
+
+
+Copy
+{
+  "initRequest": {
+    "country": 360,
+    "payType": 400,
+    "apiKey": "",
+    "projectId": "31",
+    "orderId": "20250611113402",
+    "currency": 360,
+    "items": [
+      {
+        "code": "12ds",
+        "price": 10000.00,
+        "name": "Star Diamond"
+      }
+    ],
+    "profile": {
+      "entry": [
+        {
+          "key": "user_id",
+          "value": "105"
+        }
+      ]
+    },
+    "enableSavePaymentMethod": true,
+    "displaySavedPaymentMethodList": true,
+    "userInitiated": true,
+    "shopper": {
+      "entry": [
+        {
+          "key": "partnerShopperId",
+          "value": "test_partner_123_Id"
+        },
+        {
+          "key": "email",
+          "value": "test@example.com"
+        }
+      ]
+    }
+  }
+}
+Response
+
+
+Copy
+{
+  "initResult": {
+    "resultCode": 0,
+    "txnId": 7503012627171645973
+  }
+}
+Merchant Notification
+
+
+Copy
+{
+  "eventType": "PAYMENT_METHOD_ADDED",
+  "timestamp": "2025-06-19T02:48:39.568907Z",
+  "shopper": {
+    "id": "shp_sg197861636b40021",
+    "partner_shopper_id": "test_partner_123_Id",
+    "email": "test@example.com"
+  },
+  "paymentMethod": {
+    "id": "pmt_sg1978616a1900024",
+    "type": "card",
+    "card": {
+      "lastFour": "7263",
+      "expirationMonth": "04",
+      "expirationYear": "2027"
+    }
+  }
+}
+2. Returning User – Show Saved Cards
+Display previously saved cards to the user for selection.
+
+
+
+Request
+
+
+Copy
+{
+  "initRequest": {
+    "country": 360,
+    "payType": 400,
+    "apiKey": "",
+    "projectId": "31",
+    "orderId": "20250611113402",
+    "currency": 360,
+    "items": [
+      {
+        "code": "12ds",
+        "price": 10000.00,
+        "name": "Star Diamond"
+      }
+    ],
+    "profile": {
+      "entry": [
+        {
+          "key": "user_id",
+          "value": "105"
+        }
+      ]
+    },
+    "enableSavePaymentMethod": true,
+    "displaySavedPaymentMethodList": true,
+    "userInitiated": true,
+    "shopper": {
+      "entry": [
+        {
+          "key": "id",
+          "value": "shp_sg197861636b40021"
+        }
+      ]
+    }
+  }
+}
+Response
+
+
+Copy
+{
+  "initResult": {
+    "resultCode": 0,
+    "txnId": 7503016855911597963
+  }
+}
+3.  [Coming Soon] Returning User – Charge Saved Card Without UI
+Request
+
+
+Copy
+{
+  "initRequest": {
+    "country": 360,
+    "payType": 400,
+    "apiKey": "",
+    "projectId": "31",
+    "orderId": "20250611113402",
+    "currency": 360,
+    "items": [
+      {
+        "code": "12ds",
+        "price": 10000.00,
+        "name": "Star Diamond"
+      }
+    ],
+    "profile": {
+      "entry": [
+        {
+          "key": "user_id",
+          "value": "105"
+        }
+      ]
+    },
+    "enableSavePaymentMethod": true,
+    "displaySavedPaymentMethodList": false,
+    "userInitiated": true,
+    "shopper": {
+      "entry": [
+        {
+          "key": "id",
+          "value": "shp_sg197861636b40021"
+        }
+      ]
+    }
+  }
+}
+Response
+
+
+Copy
+{
+  "initResult": {
+    "resultCode": 0,
+    "txnId": 7503016855911597963
+  }
+}
+4.  [Coming Soon] Merchant-Initiated Payment – User Not Present
+Request
+
+
+Copy
+{
+  "initRequest": {
+    "country": 360,
+    "payType": 400,
+    "apiKey": "",
+    "projectId": "31",
+    "orderId": "20250611113402",
+    "currency": 360,
+    "items": [
+      {
+        "code": "12ds",
+        "price": 10000.00,
+        "name": "Star Diamond"
+      }
+    ],
+    "profile": {
+      "entry": [
+        {
+          "key": "user_id",
+          "value": "105"
+        }
+      ]
+    },
+    "enableSavePaymentMethod": true,
+    "displaySavedPaymentMethodList": false,
+    "userInitiated": false,
+    "shopper": {
+      "entry": [
+        {
+          "key": "id",
+          "value": "shp_sg197861636b40021"
+        }
+      ]
+    }
+  }
+}
+Response
+
+
+Copy
+{
+  "initResult": {
+    "resultCode": 0,
+    "txnId": 7503016855911597963
+  }
+}
+Webhook Notifications
+Codapay sends real-time notifications to your configured webhook endpoint when a card is successfully saved.
+
+These events allow you to track and reconcile saved card activity with your own user records.
+
+PAYMENT_METHOD_ADDED
+This notification is sent when a new card is successfully saved and linked to the shopper profile.
+
+Notification Payload
+
+
+Copy
+{
+  "eventType": "PAYMENT_METHOD_ADDED",
+  "timestamp": "2025-06-19T02:48:39.568907Z",
+  "shopper": {
+    "id": "shp_sg197861636b40021",
+    "partner_shopper_id": "test_partner_123_Id",
+    "email": "test@example.com"
+  },
+  "paymentMethod": {
+    "id": "pmt_sg1978616a1900024",
+    "type": "card",
+    "card": {
+      "lastFour": "7263",
+      "expirationMonth": "04",
+      "expirationYear": "2027"
+    }
+  }
+}
+Field Details
+
+Search
+Field
+Description
+eventType
+
+Event type: always PAYMENT_METHOD_ADDED
+
+timestamp
+
+Time the payment method was saved
+
+shopper.id
+
+Codapay-assigned shopper ID
+
+shopper.partner_shopper_id
+
+Merchant-side user ID passed during init
+
+shopper.email
+
+Shopper's email
+
+paymentMethod.id
+
+Internal Codapay ID for the saved card
+
+paymentMethod.type
+
+Payment method type – e.g. card
+
+paymentMethod.card.lastFour
+
+Last 4 digits of the card number
+
+paymentMethod.card.expirationMonth
+
+Card expiry month (MM)
+
+paymentMethod.card.expirationYear
+
+Card expiry year (YYYY)
+
+Codapay expects a 2xx HTTP response to mark a notification as successfully received.
+
+If a non-2xx response is received, the notification is retried.
+
+You can match events using shopper.id to your internal user ID.
+
+Each notification is signed. You must verify the checksum to ensure authenticity. Refer to Implement Checksum for implementation details.
+
+Webhook Notifications
+Event Types
+For Codapay integrations, your endpoint should be prepared to handle the following eventType values:
+
+Event Type
+Description
+SHOPPER_CREATED
+
+The new shopper profile is created.
+
+PAYMENT_METHOD_ADDED
+
+The shopper successfully saved a new payment method.
+
+PAYMENT_METHOD_REMOVED
+
+The shopper removed a saved payment method.
+
+PAYMENT_SUCCESSFUL
+
+The payment transaction is successfully completed.
+
+PAYMENT_FAILED
+
+The payment transaction failed
+
+Notification Payload Structure
+Notifications are sent as a POST request with a JSON body.
+
+Search
+Field
+Type
+Description
+eventType
+
+string
+
+The specific event type being reported (e.g., CAPTURE_SUCCESSFUL)
+
+txnId
+
+string
+
+The unique transaction ID generated by Coda
+
+orderId
+
+string
+
+The merchant-side unique identifier for the order
+
+checksum
+
+string
+
+A security hash used to verify that the notification payload has not been tampered with
+
+chargedAt
+
+string
+
+Timestamp indicating when the transaction was processed.
+
+amountValue
+
+decimal
+
+The final amount charged to the user in the billing currency
+
+amountCurrency
+
+string
+
+The ISO 4217 currency code for the charged amount (e.g., PHP)
+
+originalValue
+
+decimal
+
+The original price of the item before any currency conversions
+
+originalCurrency
+
+string
+
+The ISO 4217 currency code for the original price
+
+resultCode
+
+integer
+
+Status code of the transaction. 0 indicates success; other values indicate errors.
+
+resultDesc
+
+string
+
+A human-readable description of the transaction result.
+
+shopper
+
+object
+
+An object containing shopper details such as ID, email, or partner-specific identifiers.
+
+paymentMethod
+
+object
+
+Information regarding the payment instrument used (e.g., card type, last four digits).
+
+transactionData
+
+object
+
+A flexible object containing supplementary metadata specific to the transaction or payment channel.
+
+Successful Notification Example
+
+Copy
+{
+    "eventType": "CAPTURE_SUCCESSFUL",
+    "txnId": 783437392732893567,
+    "orderId": "2eb63b9e-f4c5-4e20-9783-2253cd7dc1d0",
+    "checksum": "76c1eb25c01e4d5fd2fe8e64091b82bc",
+    "chargedAt": "2026-04-01T00:00:00Z",
+    "amountValue": 59.0,
+    "amountCurrency": "PHP",
+    "originalValue": 59.0,
+    "originalCurrency": "PHP",
+    "resultCode": 0,
+    "resultDesc": "Success",
+    "shopper": {},
+    "paymentMethod": {},
+    "transactionData": {}
+}
+Failed Notification Example
+When an event like AUTHORIZATION_FAILED or CAPTURE_FAILED occurs, the resultCode will contain a non-zero value.
+
+
+Copy
+{
+    "eventType": "AUTHORIZATION_FAILED",
+    "txnId": 783437392732893567,
+    "orderId": "2eb63b9e-f4c5-4e20-9783-2253cd7dc1d0",
+    "checksum": "76c1eb25c01e4d5fd2fe8e64091b82bc",
+    "chargedAt": "2026-04-01T00:00:00Z",
+    "amountValue": 59.0,
+    "amountCurrency": "PHP",
+    "originalValue": 59.0,
+    "originalCurrency": "PHP",
+    "resultCode": 750,
+    "resultDesc": "Failed",
+    "shopper": {},
+    "paymentMethod": {},
+    "transactionData": {}
+  }
+}
+You can find the full list of error codes and their meanings is available here.
+
+Responding to Notifications
+To acknowledge receipt of the notification, your server must respond with a 200 OK and the following JSON body:
+
+
+Copy
+{
+  "ResultCode": 0
+}
+Retry Policy If no valid response is received, Codapay will re-send the notification 3 times at 5-minute intervals. If all attempts fail, an email alert will be triggered to your technical contact.
+
+
+Initiate USD Transactions
+This feature allows Codapay partners to initiate transaction requests in US Dollars, eliminating the requirement for them to maintain price lists in the numerous local currencies they operate within.
+
+Partners can now maintain a single price list in USD, while Codapay takes care of real-time currency conversion. Our FX conversion uses the mid-market rate sourced from a wide array of reputable commercial sources and banks.
+
+This system of multiple fallbacks ensures the highest levels of accuracy and reliability.
+
+Exchange rates are refreshed once per day.
+
+Request Currency
+For payment requests, Codapay currency parameter offers two options:
+
+Local currency
+
+US Dollar
+
+User payments are only supported in local currency, differentiated by country.
+
+Coda doesn't support conversions like RMB-> IDR.
+
+
+Request Flow
+Call Flow of USD Transaction Initiation
+
+There are no changes to the Codapay API structure. Simply send the desired ISO 4217 currency code in the "currency" parameter of the Init request.
+
+For USD, the ISO code is 840.
+
+Request Flow
+When the partner needs to request US dollars, the request parameter currency must use 840.
+
+When the user pays, Coda payment page will convert and display in local currency.
+
+Coda payment page shows the price in local currency, based on the conversion rate of the day in the Coda system.
+
+Sample Request and Response
+
+v2.0 Request
+
+v1.0 Request
+
+Successful Response
+
+Failed Response
+
+Copy
+{
+    "initRequest": {
+        "country": 158,
+        "payType": 0,
+        "apiKey": "live_****************************",
+        "projectId": 21 //This field is only needed for v2.0 API
+        "orderId": "12321312321314",
+        "currency": 840, //Currency code (e.g., 840 = USD)
+        "items": [
+            {
+                "code": "1",
+                "price": 1000.00,
+                "name": "Test Item"
+            }
+        ],
+        "profile": {
+            "entry": [
+                {
+                    "key": "user_id",
+                    "value": "105"
+                }
+            ]
+        }
+    }
+}
+An example is provided below, using Coda's channel selection page paytype=0. After requesting to pull up the page, users can see the channels they can choose from along with their respective local prices.
+
+
+Complete notification logs showing USD price
+TotalPrice in the Coda callback displays the local price by default. If you need the InitRequest USD price to be included in the callback, you can enable USD Price Notification in the Coda Portal:
+
+Coda Portal → Codapay → Sandbox/Production Configuration → Edit → Merchant & URLs Configuration → Enable USD Price Notification
+
+For comparison, consider the following example, with USD Price appended to the end of the callback parameter:
+
+Checking a transaction status
+
+v2.0 Notification - Added USDPrice configuration
+
+v2.0 Notification - Without USDPrice configuration
+
+
+Copy
+https://<your_webhook_url>?
+  TxnId=7715122576202672831
+  OrderId=365f5Z619951c1a4b8
+  TotalPrice=1.17
+  PaymentType=237
+  ResultCode=0
+  Checksum=10741fa6be7e6f2b189f029b3f8a0963
++ USDPrice=0.30
+  PayTaxRate=8.00 //This field is only returned in v2.0 API
+  PayCurrency=MYR //This field is only returned in v2.0 API
+  PayAmount=1.17 //This field is only returned in v2.0 API
+  OriginAmount=0.30 //This field is only returned in v2.0 API
+  OriginCurrency=USD //This field is only returned in v2.0 API
+  SubTotalPrice=1.08 //This field is only returned in v2.0 API
+📘Cambodia🇰🇭
+
+Some regions use US dollars as a currency unit, so the callback parameter will not appear in USDPrice. Such as Cambodia.
+
+Note for USD Transaction Initiation
+
+If partners specify the payType in the Initiation request, then we will respond with the price in Local Currency.
+
+If partners do not specify the payType, (or use payType 1 for generic DCB) then the response will not contain the price.
+
+If partners use our payment page front-end integration, we will display the price in local currency to the user.
+
+The API is fully backward compatible. To start using this feature, simply start sending a USD amount in the "price" parameter and the ISO Code "840" in the "currency" parameter.
+
+USD amounts can be submitted with two decimal places, but local amounts may be rounded up to the nearest whole number. For IDN, JPN, MMR, VNM, and LAO, it will be rounded to the nearest whole number. For other countries, it will be rounded to the nearest 2 decimal places.
+
+Channels with specified pricing requirements, such as Maxis in Malaysia, Telkomsel in Indonesia, etc.; we do not recommend using USD requests.

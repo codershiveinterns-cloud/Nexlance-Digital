@@ -423,22 +423,54 @@ function buildCodaInitError(initResult, data, responseStatus) {
     return error;
 }
 
-function redactCodaLogValue(value) {
+function redactCodaApiKey(value) {
     if (Array.isArray(value)) {
-        return value.map(entry => redactCodaLogValue(entry));
+        return value.map(entry => redactCodaApiKey(entry));
     }
     if (!value || typeof value !== 'object') {
         return value;
     }
 
     return Object.entries(value).reduce((acc, [key, entryValue]) => {
-        if (/api[_-]?key|secret|token|authorization|signature/i.test(key)) {
-            acc[key] = '[REDACTED]';
-        } else {
-            acc[key] = redactCodaLogValue(entryValue);
-        }
+        acc[key] = key === 'apiKey' ? '[REDACTED]' : redactCodaApiKey(entryValue);
         return acc;
     }, {});
+}
+
+function stringifyCodaDebug(value) {
+    return JSON.stringify(redactCodaApiKey(value), null, 2);
+}
+
+function headersToObject(headers) {
+    const result = {};
+    if (!headers || typeof headers.forEach !== 'function') return result;
+    headers.forEach((value, key) => {
+        result[key] = value;
+    });
+    return result;
+}
+
+function buildCodaReturnUrl(successUrl) {
+    const withoutCheckoutSessionPlaceholder = String(successUrl || '')
+        .trim()
+        .replace(/[?&]session_id=\{CHECKOUT_SESSION_ID\}/g, '')
+        .replace(/\?&/g, '?')
+        .replace(/\?($|#)/g, '$1');
+    const hashIndex = withoutCheckoutSessionPlaceholder.indexOf('#');
+    const beforeHash = hashIndex === -1
+        ? withoutCheckoutSessionPlaceholder
+        : withoutCheckoutSessionPlaceholder.slice(0, hashIndex);
+    const hash = hashIndex === -1 ? '' : withoutCheckoutSessionPlaceholder.slice(hashIndex);
+    const queryIndex = beforeHash.indexOf('?');
+    const base = queryIndex === -1 ? beforeHash : beforeHash.slice(0, queryIndex);
+    const query = queryIndex === -1 ? '' : beforeHash.slice(queryIndex + 1);
+    const params = new URLSearchParams(query);
+    params.set('transactionId', '{transactionId}');
+    params.set('orderId', '{orderId}');
+    const queryText = params.toString()
+        .replace(/%7BtransactionId%7D/gi, '{transactionId}')
+        .replace(/%7BorderId%7D/gi, '{orderId}');
+    return `${base}${queryText ? `?${queryText}` : ''}${hash}`;
 }
 
 async function createCodaCheckoutInit(context) {
@@ -462,10 +494,11 @@ async function createCodaCheckoutInit(context) {
     const currency = resolveIso4217NumericCode(context.product.currency || DEFAULT_CURRENCY);
 
     const orderId = String(context.orderId || `nxl_${crypto.randomBytes(12).toString('hex')}`).trim();
+    const codaReturnUrl = buildCodaReturnUrl(urls.successUrl);
     const profileEntries = [
         { key: 'user_id', value: context.userEmail },
         { key: 'email', value: context.userEmail },
-        { key: 'return_url', value: urls.successUrl }
+        { key: 'return_url', value: codaReturnUrl }
     ];
     const language = String(context.language || process.env.CODA_LANGUAGE || process.env.CODA_DEFAULT_LANGUAGE || '').trim();
     if (language) {
@@ -481,7 +514,7 @@ async function createCodaCheckoutInit(context) {
         items: [
             {
                 code: sku,
-                price: context.product.price,
+                price: context.product.price / 100,
                 name: context.product.displayName
             }
         ],
@@ -500,8 +533,12 @@ async function createCodaCheckoutInit(context) {
     const payload = { initRequest };
     console.info('[Coda Checkout Init] Sending Payment/init.json request.', {
         url: initApiUrl,
-        payload: redactCodaLogValue(payload)
+        payload: stringifyCodaDebug(payload)
     });
+    console.info(
+        '[Coda Checkout Init] Final Payload:',
+        JSON.stringify(payload, null, 2)
+    );
 
     const response = await fetch(initApiUrl, {
         method: 'POST',
@@ -521,11 +558,12 @@ async function createCodaCheckoutInit(context) {
 
     console.info('[Coda Checkout Init] Payment/init.json response received.', {
         status: response.status,
+        statusText: response.statusText,
         ok: response.ok,
-        contentType: response.headers.get('content-type') || '',
-        response: redactCodaLogValue(data),
-        rawBody: data && Object.keys(data).length ? '' : responseBody.slice(0, 1000),
-        initResult: redactCodaLogValue(getCodaInitResult(data))
+        headers: stringifyCodaDebug(headersToObject(response.headers)),
+        body: stringifyCodaDebug(data),
+        rawBody: responseBody,
+        initResult: stringifyCodaDebug(getCodaInitResult(data))
     });
     if (!response.ok) {
         throw new Error(getCodaResponseErrorMessage(data) || 'Coda checkout could not be initialized.');
