@@ -491,23 +491,25 @@ async function createCodaCheckoutInit(context) {
     });
     const initApiUrl = getCodaInitApiUrl();
     const country = resolveIso3166NumericCode(merchant.country || context.codaCountry || context.country);
-    const currency = resolveIso4217NumericCode(context.product.currency || DEFAULT_CURRENCY);
+    const isIndia = country === 356;
+    const currency = isIndia ? 356 : resolveIso4217NumericCode(context.product.currency || DEFAULT_CURRENCY);
+    const payType = isIndia ? 391 : 0;
+    const projectId = Number(String(context.projectId || process.env.CODA_PROJECT_ID || '3254').trim() || '3254');
+    if (!Number.isFinite(projectId) || projectId <= 0) {
+        throw new Error('Set CODA_PROJECT_ID to a valid numeric Coda project ID.');
+    }
 
     const orderId = String(context.orderId || `nxl_${crypto.randomBytes(12).toString('hex')}`).trim();
     const codaReturnUrl = buildCodaReturnUrl(urls.successUrl);
     const profileEntries = [
         { key: 'user_id', value: context.userEmail },
-        { key: 'email', value: context.userEmail },
         { key: 'return_url', value: codaReturnUrl }
     ];
-    const language = String(context.language || process.env.CODA_LANGUAGE || process.env.CODA_DEFAULT_LANGUAGE || '').trim();
-    if (language) {
-        profileEntries.push({ key: 'language', value: language });
-    }
 
     const initRequest = {
+        projectId,
         country,
-        payType: 0,
+        payType,
         apiKey,
         orderId,
         currency,
@@ -522,13 +524,6 @@ async function createCodaCheckoutInit(context) {
             entry: profileEntries
         }
     };
-    const projectId = String(context.projectId || process.env.CODA_PROJECT_ID || '').trim();
-    if (/\/v2\.0(?:\/|$)/i.test(initApiUrl)) {
-        if (!projectId) {
-            throw new Error('Set CODA_PROJECT_ID before using Coda Payment Init v2.0.');
-        }
-        initRequest.projectId = projectId;
-    }
 
     const payload = { initRequest };
     console.info('[Coda Checkout Init] Sending Payment/init.json request.', {
