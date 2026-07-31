@@ -490,10 +490,10 @@ async function createCodaCheckoutInit(context) {
         cancelRedirect: context.cancelRedirect
     });
     const initApiUrl = getCodaInitApiUrl();
-    const country = 356;
+    const country = resolveIso3166NumericCode(merchant.country || context.codaCountry || context.country);
     const isIndia = country === 356;
-    const currency = 840;
-    const payType = 0;
+    const currency = isIndia ? 356 : resolveIso4217NumericCode(context.product.currency || DEFAULT_CURRENCY);
+    const payType = isIndia ? 391 : 0;
     const projectId = Number(String(context.projectId || process.env.CODA_PROJECT_ID || '3254').trim() || '3254');
     if (!Number.isFinite(projectId) || projectId <= 0) {
         throw new Error('Set CODA_PROJECT_ID to a valid numeric Coda project ID.');
@@ -516,7 +516,7 @@ async function createCodaCheckoutInit(context) {
         items: [
             {
                 code: sku,
-                price: 2.39,
+                price: context.product.price / 100,
                 name: context.product.displayName
             }
         ],
