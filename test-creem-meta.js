@@ -1,6 +1,6 @@
-const fetch = require('node-fetch'); 
+const fetchFn = globalThis.fetch || require('node-fetch');
 async function test() {
-    const response = await fetch('https://api.creem.io/v1/checkouts', {
+    const response = await fetchFn('https://api.creem.io/v1/checkouts', {
         method: 'POST',
         headers: {
             'x-api-key': 'creem_2cTcuIy8DsvnphTdBLOGXL',

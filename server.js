@@ -21,4 +21,13 @@ try {
     };
 }
 
+if (require.main === module) {
+    const http = require('http');
+    const PORT = Number(process.env.PORT || 4242);
+    const server = http.createServer(handler);
+    server.listen(PORT, () => {
+        console.log(`Nexlance server running at http://localhost:${PORT}`);
+    });
+}
+
 module.exports = handler;
